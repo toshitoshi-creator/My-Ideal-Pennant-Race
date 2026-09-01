@@ -320,3 +320,35 @@ describe('STEP12 日程', () => {
     }
   });
 });
+
+describe('試合が成立しなくなる降格は禁止', () => {
+  it('1軍の野手が9人未満・投手が5人未満になる降格はできない', () => {
+    const state = newGame();
+    const roster = state.players.filter((p) => p.teamId === PLAYER_TEAM);
+    // 1軍の野手をぎりぎりまで減らす
+    const fielders = roster.filter((p) => !p.isPitcher && p.roster === 'first');
+    for (const p of fielders.slice(0, fielders.length - 9)) {
+      p.roster = 'second';
+    }
+    const remaining = roster.filter((p) => !p.isPitcher && p.roster === 'first');
+    expect(remaining).toHaveLength(9);
+    const check = checkRosterChange(state, remaining[0].id, 'second');
+    expect(check.allowed).toBe(false);
+    expect(check.reason).toContain('野手');
+
+    const pitchers = roster.filter((p) => p.isPitcher && p.roster === 'first');
+    for (const p of pitchers.slice(0, pitchers.length - 5)) {
+      p.roster = 'second';
+    }
+    const remainingPitchers = roster.filter((p) => p.isPitcher && p.roster === 'first');
+    expect(remainingPitchers).toHaveLength(5);
+    const pitcherCheck = checkRosterChange(state, remainingPitchers[0].id, 'second');
+    expect(pitcherCheck.allowed).toBe(false);
+    expect(pitcherCheck.reason).toContain('投手');
+
+    // この状態でもオーダーは9人揃い、試合を行える
+    repairAllSetups(state);
+    expect(state.setups[PLAYER_TEAM].lineup).toHaveLength(9);
+    expect(validateState(state)).toEqual([]);
+  });
+});

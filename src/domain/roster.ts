@@ -15,6 +15,11 @@ export function daysUntilChangeable(player: Player, today: string): number {
   return Math.max(0, diffDays(next, today));
 }
 
+/** 1軍に残しておかなければならない野手の人数（スタメン 8 + DH） */
+export const MIN_FIRST_TEAM_FIELDERS = 9;
+/** 1軍に残しておかなければならない投手の人数（先発ローテーション分） */
+export const MIN_FIRST_TEAM_PITCHERS = 5;
+
 export interface RosterChangeCheck {
   allowed: boolean;
   daysLeft: number;
@@ -34,6 +39,26 @@ export function checkRosterChange(
   const daysLeft = daysUntilChangeable(player, state.date);
   if (daysLeft > 0) {
     return { allowed: false, daysLeft, reason: `登録変更まであと${daysLeft}日` };
+  }
+  if (to === 'second') {
+    // 試合が組めなくなる降格は禁止（オーダーに穴が開くのを防ぐ）
+    const first = state.players.filter(
+      (p) => p.teamId === player.teamId && p.roster === 'first' && p.id !== player.id,
+    );
+    if (!player.isPitcher && first.filter((p) => !p.isPitcher).length < MIN_FIRST_TEAM_FIELDERS) {
+      return {
+        allowed: false,
+        daysLeft: 0,
+        reason: `1軍には野手が${MIN_FIRST_TEAM_FIELDERS}人以上必要です`,
+      };
+    }
+    if (player.isPitcher && first.filter((p) => p.isPitcher).length < MIN_FIRST_TEAM_PITCHERS) {
+      return {
+        allowed: false,
+        daysLeft: 0,
+        reason: `1軍には投手が${MIN_FIRST_TEAM_PITCHERS}人以上必要です`,
+      };
+    }
   }
   if (to === 'first') {
     const count = state.players.filter(

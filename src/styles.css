@@ -1,0 +1,604 @@
+:root {
+  --bg: #0d1117;
+  --bg-soft: #161b22;
+  --card: #1c2430;
+  --card-2: #232d3b;
+  --line: #2d3748;
+  --text: #e8edf4;
+  --text-dim: #9aa7b8;
+  --accent: #ffb703;
+  --accent-2: #4dabf7;
+  --good: #4dd07a;
+  --bad: #ff6b6b;
+  --nav-h: 62px;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #05070b;
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', 'Yu Gothic',
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  overscroll-behavior-y: none;
+}
+
+#root {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: var(--bg);
+  position: relative;
+}
+
+button {
+  font-family: inherit;
+  font-size: 16px;
+  color: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.app {
+  padding-bottom: calc(var(--nav-h) + 12px);
+  min-height: 100vh;
+}
+
+/* ---------- 共通パーツ ---------- */
+.appbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: linear-gradient(180deg, #131a24 0%, #0f151d 100%);
+  border-bottom: 1px solid var(--line);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.appbar h1 {
+  font-size: 17px;
+  margin: 0;
+  font-weight: 700;
+}
+
+.appbar .sub {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.screen {
+  padding: 12px 12px 20px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.card h2 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  color: var(--text-dim);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.btn {
+  display: block;
+  width: 100%;
+  padding: 15px 16px;
+  border-radius: 12px;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  font-weight: 700;
+  font-size: 16px;
+  text-align: center;
+}
+
+.btn:active {
+  transform: scale(0.985);
+}
+
+.btn.primary {
+  background: linear-gradient(180deg, #ffcb47, #f5a300);
+  color: #241a00;
+  border-color: #f5a300;
+}
+
+.btn.secondary {
+  background: #2a3646;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+}
+
+.btn-row {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-row .btn {
+  flex: 1;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  background: #2b3646;
+}
+
+.rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 15px;
+  color: #10151c;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px 0;
+  overflow-x: auto;
+}
+
+.tabs button {
+  flex: 0 0 auto;
+  padding: 9px 14px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.tabs button.on {
+  background: var(--accent);
+  color: #241a00;
+  border-color: var(--accent);
+}
+
+.muted {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.spread {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* ---------- 選手カード ---------- */
+.player-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+
+.player-card .pos {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 10px;
+  background: #2b3646;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.player-card .name {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.player-card .meta {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.player-card .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.badge-2nd {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #3a2b1c;
+  color: #ffca7a;
+  font-weight: 700;
+}
+
+.badge-1st {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #17351f;
+  color: #7ee2a0;
+  font-weight: 700;
+}
+
+.badge-lock {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #3a1f24;
+  color: #ff9aa2;
+  font-weight: 700;
+}
+
+/* ---------- テーブル ---------- */
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+table.data th,
+table.data td {
+  padding: 7px 4px;
+  text-align: right;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+table.data th {
+  color: var(--text-dim);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+table.data td.l,
+table.data th.l {
+  text-align: left;
+}
+
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ---------- ボトムナビ ---------- */
+.nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  height: var(--nav-h);
+  display: flex;
+  background: #0f151d;
+  border-top: 1px solid var(--line);
+  z-index: 30;
+}
+
+.nav button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.nav button .ico {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.nav button.on {
+  color: var(--accent);
+}
+
+/* ---------- モーダル ---------- */
+.sheet-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 480px;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--bg-soft);
+  border-radius: 18px 18px 0 0;
+  border-top: 1px solid var(--line);
+  padding: 16px 14px calc(20px + env(safe-area-inset-bottom));
+  animation: slide-up 0.18s ease-out;
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0.4;
+  }
+}
+
+/* ---------- 能力バー ---------- */
+.ability {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.ability .label {
+  width: 56px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.ability .bar {
+  flex: 1;
+  height: 9px;
+  border-radius: 5px;
+  background: #202a37;
+  overflow: hidden;
+}
+
+.ability .bar span {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+}
+
+.ability .val {
+  width: 34px;
+  text-align: right;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 打順 ---------- */
+.order-list {
+  position: relative;
+  touch-action: pan-y;
+}
+
+.order-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 9px 10px;
+  margin-bottom: 8px;
+  transition: transform 0.14s ease;
+}
+
+.order-row.dragging {
+  transition: none;
+  border-color: var(--accent);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.55);
+  z-index: 5;
+  position: relative;
+}
+
+.order-row .handle {
+  width: 34px;
+  flex: 0 0 34px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 19px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.order-row .num {
+  width: 26px;
+  flex: 0 0 26px;
+  text-align: center;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.order-row .pos-btn {
+  flex: 0 0 auto;
+  min-width: 54px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  background: #2b3646;
+  border: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.order-row .pos-btn.warn {
+  background: #3a2b1c;
+  color: #ffca7a;
+}
+
+.order-row .pos-btn.bad {
+  background: #3a1f24;
+  color: #ff9aa2;
+}
+
+/* ---------- 試合 ---------- */
+.linescore {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.linescore th,
+.linescore td {
+  border-bottom: 1px solid var(--line);
+  padding: 6px 3px;
+  text-align: center;
+  min-width: 22px;
+}
+
+.linescore td.team {
+  text-align: left;
+  font-weight: 700;
+  white-space: nowrap;
+  padding-right: 8px;
+}
+
+.linescore td.total {
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--accent);
+}
+
+.commentary {
+  max-height: 320px;
+  overflow-y: auto;
+  background: #10161e;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.commentary .head {
+  color: var(--accent-2);
+  font-weight: 700;
+  margin-top: 6px;
+}
+
+.big-score {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 6px 0 10px;
+}
+
+.big-score .s {
+  font-size: 34px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.big-score .t {
+  flex: 1;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ---------- タイトル ---------- */
+.title-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 24px 18px;
+  gap: 14px;
+  background: radial-gradient(120% 80% at 50% 0%, #1b2735 0%, #0b0f15 70%);
+}
+
+.title-screen h1 {
+  font-size: 27px;
+  margin: 0;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.title-screen .jp {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.team-pick {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left-width: 5px;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.team-pick.on {
+  border-color: var(--accent);
+  background: #2a2416;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--nav-h) + 16px);
+  transform: translateX(-50%);
+  background: #2b3646;
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 11px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  z-index: 60;
+  max-width: 90%;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}

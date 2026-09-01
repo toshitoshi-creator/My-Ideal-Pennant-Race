@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -b --noEmit false --emitDeclarationOnly false"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "e2e": "node e2e/smoke.mjs",
+    "verify": "tsc --noEmit -p tsconfig.json && vitest run && vite build && node e2e/run-with-preview.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -19,6 +21,7 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "playwright": "^1.62.1",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
     "vitest": "^2.1.8"
