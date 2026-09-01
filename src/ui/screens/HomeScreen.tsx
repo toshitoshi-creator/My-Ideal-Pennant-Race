@@ -9,8 +9,10 @@ import { KeyValue, RankBadge } from '../components/common';
 import { GrowthReportSheet } from '../components/GrowthReport';
 
 export function HomeScreen() {
-  const { state, playNextGame, skipOneDay, setScreen, advanceSeason } = useGame();
+  const { state, playNextGame, skipOneDay, setScreen, advanceSeason, pendingReport, dismissReport } =
+    useGame();
   const [showReport, setShowReport] = useState(false);
+  const reportOpen = showReport || pendingReport;
   const byId = usePlayerMap();
   const team = state.teams.find((t) => t.id === state.playerTeamId)!;
   const league = state.leagues.find((l) => l.id === team.leagueId)!;
@@ -148,17 +150,11 @@ export function HomeScreen() {
             {state.year}年シーズンが終了しました。最終成績は {record.wins}勝{record.losses}敗
             {record.draws}分（{rank}位）です。
           </div>
-          <button
-            className="btn primary"
-            onClick={() => {
-              advanceSeason();
-              setShowReport(true);
-            }}
-          >
-            オフシーズンへ（{state.year + 1}年を始める）
+          <button className="btn primary" onClick={() => advanceSeason()}>
+            オフシーズンへ（引退・ドラフト）
           </button>
           <div className="muted" style={{ marginTop: 8 }}>
-            選手が1歳年をとり、成長・衰退します。
+            選手が1歳年をとって成長・衰退し、引退者が出たあとドラフト会議を行います。
           </div>
         </div>
       )}
@@ -180,14 +176,17 @@ export function HomeScreen() {
 
       {state.lastGrowthReport && !state.seasonFinished && (
         <button className="btn secondary" onClick={() => setShowReport(true)}>
-          {state.lastGrowthReport.year}年オフの成長結果を見る
+          {state.lastGrowthReport.year}年オフの成長・引退を見る
         </button>
       )}
 
-      {showReport && state.lastGrowthReport && (
+      {reportOpen && state.lastGrowthReport && (
         <GrowthReportSheet
           report={state.lastGrowthReport}
-          onClose={() => setShowReport(false)}
+          onClose={() => {
+            setShowReport(false);
+            dismissReport();
+          }}
         />
       )}
     </div>

@@ -6,6 +6,7 @@ import { GameScreen } from './screens/GameScreen';
 import { PlayersScreen } from './screens/PlayersScreen';
 import { RosterScreen } from './screens/RosterScreen';
 import { StandingsScreen } from './screens/StandingsScreen';
+import { DraftScreen } from './screens/DraftScreen';
 import { formatDateJa } from '../domain/dates';
 
 const NAV: Array<{ id: ScreenId; label: string; icon: string }> = [
@@ -31,6 +32,16 @@ function Root() {
     return (
       <>
         <TitleScreen />
+        {toast && <div className="toast">{toast}</div>}
+      </>
+    );
+  }
+
+  // ドラフト中は専用画面に切り替える
+  if (state.draft) {
+    return (
+      <>
+        <DraftScreen />
         {toast && <div className="toast">{toast}</div>}
       </>
     );

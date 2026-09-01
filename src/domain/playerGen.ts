@@ -42,6 +42,7 @@ export function defaultExtensions(): PlayerExtensions {
     condition: 'normal',
     conditionTimer: 1,
     conditionHistory: [],
+    debutYear: null,
     motivation: 55,
     morale: 50,
     injury: null,
@@ -315,6 +316,110 @@ function rollSpecialAbilities(rng: Rng, player: Player): SpecialAbilityEntry[] {
   }));
 }
 
+/** 1人の選手を作る共通処理（既存選手も新人も同じ仕組みで生成する） */
+export interface CreatePlayerOptions {
+  teamId: string;
+  mainPosition: PositionId;
+  /** 能力の平均 */
+  mean: number;
+  /** 年齢。省略するとランダム */
+  age?: number;
+  startYear?: number;
+  /** 背番号の重複を避けるための集合 */
+  usedNumbers?: Set<number>;
+  /** 先発候補としてスタミナを高めにする */
+  starterStamina?: boolean;
+  /** 潜在能力の上乗せ（伸びしろの大きい選手を作るとき） */
+  potentialBonus?: number;
+}
+
+export function createPlayer(rng: Rng, options: CreatePlayerOptions): Player {
+  const { teamId, mainPosition, mean } = options;
+  const startYear = options.startYear ?? 2026;
+  const used = options.usedNumbers ?? new Set<number>();
+  const [surname, surnameKana] = rng.pick(SURNAMES);
+  const [given, givenKana] = rng.pick(GIVEN_NAMES);
+  const isPitcher = mainPosition === 'P';
+
+  const subPositions: PositionId[] = [];
+  for (const cand of SUB_POSITION_CANDIDATES[mainPosition]) {
+    if (rng.chance(0.35)) subPositions.push(cand);
+  }
+
+  const power = isPitcher ? ability(rng, 12, 6) : ability(rng, mean);
+  // 弾道は 1〜100。パワーとゆるく相関させつつ、独立したばらつきも持たせる
+  const trajectory = isPitcher
+    ? ability(rng, 16, 7)
+    : clamp1to100(rng.normal(power * 0.55 + 24, 13));
+
+  const player: Player = {
+    id: newPlayerId(teamId),
+    teamId,
+    name: `${surname} ${given}`,
+    kana: `${surnameKana} ${givenKana}`,
+    age: options.age ?? pickAge(rng),
+    uniformNumber: pickNumber(rng, mainPosition, used),
+    throws: rng.chance(isPitcher ? 0.28 : 0.15) ? 'L' : 'R',
+    bats: rng.chance(0.32) ? 'L' : 'R',
+    mainPosition,
+    subPositions,
+    isPitcher,
+    batting: {
+      trajectory,
+      contact: isPitcher ? ability(rng, 14, 6) : ability(rng, mean),
+      power,
+      speed: isPitcher ? ability(rng, 28, 8) : ability(rng, mean + (mainPosition === 'CF' ? 6 : 0)),
+      arm: isPitcher ? ability(rng, 40, 8) : ability(rng, mean + (mainPosition === 'C' || mainPosition === 'RF' ? 5 : 0)),
+      fielding: isPitcher ? ability(rng, 38, 8) : ability(rng, mean + (mainPosition === 'SS' || mainPosition === 'C' ? 5 : 0)),
+      catching: isPitcher ? ability(rng, 36, 8) : ability(rng, mean),
+    },
+    pitching: isPitcher
+      ? {
+          velocity: Math.max(
+            125,
+            Math.min(162, Math.round(rng.normal(133 + (mean - 35) * 0.55, 4.5))),
+          ),
+          control: ability(rng, mean),
+          stamina: ability(rng, options.starterStamina ? mean + 8 : mean - 6, 10),
+          power: ability(rng, mean),
+          movement: ability(rng, mean),
+        }
+      : null,
+    roster: 'first',
+    lastRosterChangeDate: null,
+    ext: defaultExtensions(),
+  };
+
+  // ---- PHASE 2: 個性 ----
+  const personality = rng.pick(PERSONALITY_IDS);
+  const ext = player.ext;
+  ext.personality = personality;
+  ext.birthDate = toDateString(startYear - player.age, rng.int(1, 12), rng.int(1, 28));
+  ext.growthType = pickGrowthType(rng, player.age);
+  ext.growthTendency = pickGrowthTendency(
+    rng,
+    isPitcher,
+    mainPosition,
+    player.batting.power,
+    player.batting.speed,
+  );
+  ext.growthRate = Math.round((0.5 + rng.next() * 1.0) * 100) / 100;
+  ext.potential = clamp1to100(
+    makePotential(rng, currentOverall(player), player.age, personality) +
+      (options.potentialBonus ?? 0),
+  );
+  ext.motivation = clamp1to100(rng.normal(58, 12));
+  ext.morale = clamp1to100(rng.normal(52, 8));
+  ext.condition = rng.pick(['normal', 'normal', 'good', 'bad'] as ConditionId[]);
+  ext.conditionTimer = rng.int(1, 5);
+  ext.conditionHistory = [ext.condition];
+  // 20歳前後でプロ入りした想定で通算年数の起点を決める
+  ext.debutYear = startYear - Math.max(0, player.age - 20);
+  ext.specialAbilities = rollSpecialAbilities(rng, player);
+
+  return player;
+}
+
 export function generateTeamPlayers(rng: Rng, options: GeneratePlayersOptions): Player[] {
   const { teamId, strength } = options;
   const startYear = options.startYear ?? 2026;
@@ -334,82 +439,16 @@ export function generateTeamPlayers(rng: Rng, options: GeneratePlayersOptions): 
     const bonus = starIndexes.has(i) ? rng.int(starMin, starMax) : 0;
     // ベンチ寄りの選手は少しだけ能力を落とす
     const depthPenalty = i >= 18 ? 4 : 0;
-    const mean = strength + bonus - depthPenalty;
-    const [surname, surnameKana] = rng.pick(SURNAMES);
-    const [given, givenKana] = rng.pick(GIVEN_NAMES);
-    const isPitcher = mainPosition === 'P';
-
-    const subPositions: PositionId[] = [];
-    for (const cand of SUB_POSITION_CANDIDATES[mainPosition]) {
-      if (rng.chance(0.35)) subPositions.push(cand);
-    }
-
-    const power = isPitcher ? ability(rng, 12, 6) : ability(rng, mean);
-    // 弾道は 1〜100。パワーとゆるく相関させつつ、独立したばらつきも持たせる
-    const trajectory = isPitcher
-      ? ability(rng, 16, 7)
-      : clamp1to100(rng.normal(power * 0.55 + 24, 13));
-
-    const player: Player = {
-      id: newPlayerId(teamId),
-      teamId,
-      name: `${surname} ${given}`,
-      kana: `${surnameKana} ${givenKana}`,
-      age: pickAge(rng),
-      uniformNumber: pickNumber(rng, mainPosition, used),
-      throws: rng.chance(isPitcher ? 0.28 : 0.15) ? 'L' : 'R',
-      bats: rng.chance(0.32) ? 'L' : 'R',
-      mainPosition,
-      subPositions,
-      isPitcher,
-      batting: {
-        trajectory,
-        contact: isPitcher ? ability(rng, 14, 6) : ability(rng, mean),
-        power,
-        speed: isPitcher ? ability(rng, 28, 8) : ability(rng, mean + (mainPosition === 'CF' ? 6 : 0)),
-        arm: isPitcher ? ability(rng, 40, 8) : ability(rng, mean + (mainPosition === 'C' || mainPosition === 'RF' ? 5 : 0)),
-        fielding: isPitcher ? ability(rng, 38, 8) : ability(rng, mean + (mainPosition === 'SS' || mainPosition === 'C' ? 5 : 0)),
-        catching: isPitcher ? ability(rng, 36, 8) : ability(rng, mean),
-      },
-      pitching: isPitcher
-        ? {
-            velocity: Math.max(
-              125,
-              Math.min(162, Math.round(rng.normal(133 + (mean - 35) * 0.55, 4.5))),
-            ),
-            control: ability(rng, mean),
-            stamina: ability(rng, i < 5 ? mean + 8 : mean - 6, 10),
-            power: ability(rng, mean),
-            movement: ability(rng, mean),
-          }
-        : null,
-      roster: 'first',
-      lastRosterChangeDate: null,
-      ext: defaultExtensions(),
-    };
-
-    // ---- PHASE 2: 個性 ----
-    const personality = rng.pick(PERSONALITY_IDS);
-    const ext = player.ext;
-    ext.personality = personality;
-    ext.birthDate = toDateString(startYear - player.age, rng.int(1, 12), rng.int(1, 28));
-    ext.growthType = pickGrowthType(rng, player.age);
-    ext.growthTendency = pickGrowthTendency(
-      rng,
-      isPitcher,
-      mainPosition,
-      player.batting.power,
-      player.batting.speed,
+    players.push(
+      createPlayer(rng, {
+        teamId,
+        mainPosition,
+        mean: strength + bonus - depthPenalty,
+        startYear,
+        usedNumbers: used,
+        starterStamina: i < 5,
+      }),
     );
-    ext.growthRate = Math.round((0.5 + rng.next() * 1.0) * 100) / 100;
-    ext.potential = makePotential(rng, currentOverall(player), player.age, personality);
-    ext.motivation = clamp1to100(rng.normal(58, 12));
-    ext.morale = clamp1to100(rng.normal(52, 8));
-    ext.condition = rng.pick(['normal', 'normal', 'good', 'bad'] as ConditionId[]);
-    ext.conditionTimer = rng.int(1, 5);
-    ext.specialAbilities = rollSpecialAbilities(rng, player);
-
-    players.push(player);
   }
   return players;
 }

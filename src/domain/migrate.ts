@@ -5,6 +5,7 @@
  * v2: 弾道 1〜100
  * v3: PHASE 2（性格・潜在能力・成長タイプ・特殊能力・疲労・コンディション・怪我）
  * v4: PHASE 2.5（調子のカテゴリ別補正・調子の履歴）
+ * v5: PHASE 3.1（引退記録・ドラフト）
  *
  * 古いセーブは不足分を安全な初期値で補完し、既存のデータ（能力・成績・順位・日付・
  * 1軍/2軍・7日制限）は一切書き換えない。
@@ -56,6 +57,21 @@ export function migrateV3ToV4(state: GameState): void {
   state.version = 4;
 }
 
+/** v4 → v5：引退・ドラフト関連のフィールドを補う */
+export function migrateV4ToV5(state: GameState): void {
+  if (!Array.isArray(state.retiredPlayers)) state.retiredPlayers = [];
+  if (state.draft === undefined) state.draft = null;
+  if (state.lastDraftYear === undefined) state.lastDraftYear = null;
+  for (const player of state.players) {
+    const ext = player.ext as Partial<Player['ext']>;
+    if (typeof ext.debutYear !== 'number') {
+      // 20歳前後でプロ入りした想定で通算年数の起点を決める
+      ext.debutYear = state.year - Math.max(0, player.age - 20);
+    }
+  }
+  state.version = 5;
+}
+
 /**
  * PHASE 2 のフィールドが欠けている選手に、選手ごとに安定した初期値を入れる。
  * 既存の能力・年齢・成績には触れない。
@@ -92,6 +108,7 @@ export function fillPhase2Extensions(player: Player): void {
   if (typeof ext.condition !== 'string') ext.condition = 'normal';
   if (typeof ext.conditionTimer !== 'number') ext.conditionTimer = rng.int(0, 2);
   if (!Array.isArray(ext.conditionHistory)) ext.conditionHistory = [ext.condition];
+  if (typeof ext.debutYear !== 'number') ext.debutYear = null;
   if (typeof ext.motivation !== 'number') ext.motivation = 55;
   if (typeof ext.morale !== 'number') ext.morale = 50;
   if (ext.injury === undefined) ext.injury = null;

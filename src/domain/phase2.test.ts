@@ -68,8 +68,11 @@ describe('PHASE2 年齢と成長', () => {
     const before = new Map(state.players.map((p) => [p.id, p.age]));
     state = cloneState(state);
     startNextSeason(state);
-    for (const p of state.players) {
-      expect(p.age).toBe((before.get(p.id) ?? 0) + 1);
+    // PHASE 3.1 で引退・新人加入が入ったため、前シーズンから残っている選手だけを見る
+    const continuing = state.players.filter((p) => before.has(p.id));
+    expect(continuing.length).toBeGreaterThan(0);
+    for (const p of continuing) {
+      expect(p.age).toBe(before.get(p.id)! + 1);
     }
   });
 

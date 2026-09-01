@@ -237,7 +237,60 @@ await shot('16-season-end');
 
 const agesBefore = new Map(finished.players.map((p) => [p.id, p.age]));
 const abilitiesBefore = new Map(finished.players.map((p) => [p.id, p.batting.contact + p.batting.power]));
+const playersBefore = finished.players.length;
+
+// PHASE 3.1: オフシーズン（引退 → ドラフト → 新人加入）
 await page.getByRole('button', { name: /オフシーズンへ/ }).click();
+await page.getByRole('heading', { name: /ドラフト会議/ }).waitFor();
+const offseason = await readState();
+if (!offseason.draft) fail('ドラフトが開始されていない');
+else ok(`ドラフト開始（候補${offseason.draft.prospects.length}人 / 全${offseason.draft.rounds}巡）`);
+const retiredCount = offseason.retiredPlayers.length;
+if (retiredCount === 0) ok('今オフの引退者はいなかった');
+else ok(`${retiredCount}人が引退した`);
+ok(
+  offseason.draft.picks.length > 0
+    ? `CPU球団が先に${offseason.draft.picks.length}人を指名した`
+    : 'プレイヤー球団が1巡目最初の指名権を持っている（前年最下位）',
+);
+await shot('16b-draft');
+
+// プレイヤー球団が指名する
+const prospectCards = await page.locator('.player-card').count();
+if (prospectCards === 0) fail('ドラフト候補が表示されていない');
+else ok(`ドラフト候補が${prospectCards}人表示されている`);
+const draftText = await page.locator('.screen').innerText();
+for (const label of ['将来性', 'あなたの球団の指名です']) {
+  if (!draftText.includes(label)) fail(`ドラフト画面に「${label}」がない`);
+}
+ok('候補カードに将来性ラベルが表示されている（潜在能力の数値は非表示）');
+
+let myPicks = 0;
+for (let i = 0; i < 8; i++) {
+  const button = page.getByRole('button', { name: 'この選手を指名' }).first();
+  if ((await button.count()) === 0) break;
+  await button.click();
+  await page.locator('.sheet').waitFor();
+  await page.locator('.sheet').getByRole('button', { name: '指名する' }).click();
+  await page.waitForTimeout(300);
+  myPicks += 1;
+  const s2 = await readState();
+  if (!s2.draft) break;
+}
+const afterPicks = await readState();
+const allPicks = afterPicks.draft ? afterPicks.draft.picks : [];
+const playerPicks = allPicks.filter((p) => p.teamId === 'phoenix').length;
+const cpuPicks = allPicks.filter((p) => p.teamId !== 'phoenix').length;
+if (myPicks === 0) fail('プレイヤー球団が指名できなかった');
+else ok(`プレイヤー球団が${playerPicks}人を指名した`);
+if (cpuPicks === 0) fail('CPU球団が指名していない');
+else ok(`CPU球団が${cpuPicks}人を指名した`);
+const pickedIds = allPicks.map((p) => p.prospectId);
+if (new Set(pickedIds).size !== pickedIds.length) fail('同じ候補が重複して指名されている');
+else ok('重複指名は発生していない');
+await shot('16c-draft-done');
+
+await page.getByRole('button', { name: '新シーズンへ' }).click();
 await page.locator('.sheet').waitFor();
 const reportText = await page.locator('.sheet').innerText();
 if (!/→/.test(reportText)) fail('成長レポートに能力の変化が出ていない');
@@ -246,12 +299,38 @@ await shot('17-growth-report');
 await page.locator('.sheet').getByRole('button', { name: '閉じる' }).click();
 
 const nextSeason = await readState();
+if (nextSeason.draft !== null) fail('ドラフトが終了していない');
+const rookies = nextSeason.players.filter((p) => !agesBefore.has(p.id));
+if (rookies.length === 0) fail('新人が加入していない');
+else {
+  const ages = rookies.map((r) => r.age);
+  ok(`新人${rookies.length}人が加入（${Math.min(...ages)}〜${Math.max(...ages)}歳）`);
+}
+if (rookies.some((r) => !r.ext.personality || typeof r.ext.potential !== 'number' || !r.ext.growthType)) {
+  fail('新人に性格・潜在能力・成長タイプがない');
+} else {
+  ok('新人にも性格・潜在能力・成長タイプ・調子が設定されている');
+}
+const retiredNow = nextSeason.retiredPlayers.map((r) => r.playerId);
+if (retiredNow.some((id) => nextSeason.players.some((p) => p.id === id))) {
+  fail('引退した選手がロスターに残っている');
+} else {
+  ok('引退した選手はロスターから除外されている');
+}
+const rosterSizes = nextSeason.teams.map(
+  (t) => nextSeason.players.filter((p) => p.teamId === t.id).length,
+);
+ok(`各球団のロスター ${Math.min(...rosterSizes)}〜${Math.max(...rosterSizes)}人（前年 ${playersBefore}人 → ${nextSeason.players.length}人）`);
 if (nextSeason.year !== finished.year + 1) fail('年度が進んでいない');
 else ok(`翌シーズンが開幕（${finished.year}年 → ${nextSeason.year}年）`);
-const agedCorrectly = nextSeason.players.every((p) => p.age === agesBefore.get(p.id) + 1);
+const agedCorrectly = nextSeason.players
+  .filter((p) => agesBefore.has(p.id))
+  .every((p) => p.age === agesBefore.get(p.id) + 1);
 if (!agedCorrectly) fail('年齢が1歳加算されていない');
 else ok('全選手の年齢が1歳加算された');
-const changed = nextSeason.players.filter((p) => p.batting.contact + p.batting.power !== abilitiesBefore.get(p.id));
+const changed = nextSeason.players.filter(
+  (p) => abilitiesBefore.has(p.id) && p.batting.contact + p.batting.power !== abilitiesBefore.get(p.id),
+);
 if (changed.length === 0) fail('シーズン終了時に能力が変化していない');
 else ok(`${changed.length}人の能力が成長・衰退した`);
 if (nextSeason.records.phoenix.games !== 0) fail('新シーズンの成績がリセットされていない');

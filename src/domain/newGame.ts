@@ -11,8 +11,9 @@ import { overallRating } from './rating';
  * 2: 弾道を 1〜4 から 1〜100 に変更
  * 3: PHASE 2（性格・潜在能力・成長・特殊能力・疲労・怪我）
  * 4: PHASE 2.5（調子のカテゴリ別補正・調子の履歴）
+ * 5: PHASE 3.1（引退・ドラフト・新人加入）
  */
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 export const START_YEAR = 2026;
 
 /** 1軍スタート人数（残りは 2軍スタート） */
@@ -76,6 +77,9 @@ export function createNewGame(
     teamMorale: {},
     lastGrowthReport: null,
     notices: [],
+    retiredPlayers: [],
+    draft: null,
+    lastDraftYear: null,
   };
 
   for (const team of TEAMS) {

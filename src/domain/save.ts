@@ -1,7 +1,7 @@
 import type { GameState } from './types';
 import { SAVE_VERSION } from './newGame';
 import { repairAllSetups } from './engine';
-import { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4 } from './migrate';
+import { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5 } from './migrate';
 
 export const SAVE_KEY = 'mipr:save:v1';
 
@@ -81,6 +81,8 @@ export function migrate(state: GameState): GameState | null {
   if (state.version === 2) migrateV2ToV3(state);
   // v3 → v4: PHASE 2.5 の調子まわりのデータを補完する
   if (state.version === 3) migrateV3ToV4(state);
+  // v4 → v5: PHASE 3.1 の引退・ドラフトのデータを補完する
+  if (state.version === 4) migrateV4ToV5(state);
 
   if (state.version !== SAVE_VERSION) return null;
   return state;

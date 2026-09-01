@@ -10,7 +10,9 @@ import {
   validateState,
 } from '../domain/engine';
 import { clearSave, hasSave, loadGame, saveGame } from '../domain/save';
-import { startNextSeason } from '../domain/season';
+import { completeOffseason, startOffseason } from '../domain/season';
+import { makePick, recordPlayerPick, runCpuPicks, currentPick } from '../domain/draft';
+import { Rng } from '../domain/rng';
 import { addDays } from '../domain/dates';
 
 export type ScreenId = 'home' | 'game' | 'players' | 'roster' | 'standings';
@@ -31,8 +33,15 @@ interface StoreValue {
   mutate(fn: (draft: GameState) => void): void;
   playNextGame(): GameResult | null;
   skipOneDay(): void;
-  /** シーズンを締めて翌シーズンを開始する（選手が成長・衰退する） */
+  /** シーズンを締めてオフシーズン（成長・引退・ドラフト）に入る */
   advanceSeason(): void;
+  /** ドラフトでプレイヤー球団が指名する */
+  draftPick(prospectId: string): void;
+  /** ドラフトを終えて翌シーズンを開幕する */
+  finishOffseason(): void;
+  /** オフシーズン明けに成長レポートを開くかどうか */
+  pendingReport: boolean;
+  dismissReport(): void;
   clearLastResult(): void;
 }
 
@@ -44,6 +53,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<GameResult | null>(null);
   const [saveExists, setSaveExists] = useState<boolean>(() => hasSave());
+  const [pendingReport, setPendingReport] = useState(false);
   const toastTimer = useRef<number | null>(null);
   const stateRef = useRef<GameState | null>(null);
   stateRef.current = state;
@@ -147,17 +157,56 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [state, persist, showToast]);
 
+  const commit = useCallback((next: GameState) => {
+    stateRef.current = next;
+    setState(next);
+    if (saveGame(next)) setSaveExists(true);
+  }, []);
+
+  /** シーズン終了 → 成長・衰退 → 引退 → ドラフト準備 */
   const advanceSeason = useCallback(() => {
     const current = stateRef.current;
     if (!current || !current.seasonFinished) return;
-    const draft = cloneState(current);
-    startNextSeason(draft);
-    repairAllSetups(draft);
-    stateRef.current = draft;
-    setState(draft);
-    if (saveGame(draft)) setSaveExists(true);
-    showToast(`${draft.year}年シーズンが開幕しました`);
-  }, [showToast]);
+    if (current.draft) return; // すでにドラフト中なら何もしない（二重実行の防止）
+    const next = cloneState(current);
+    const { retirements } = startOffseason(next);
+    commit(next);
+    if (retirements.length > 0) {
+      showToast(`${retirements.length}人が現役を引退しました`);
+    }
+  }, [commit, showToast]);
+
+  const draftPick = useCallback(
+    (prospectId: string) => {
+      const current = stateRef.current;
+      if (!current?.draft) return;
+      const next = cloneState(current);
+      const draft = next.draft!;
+      const slot = currentPick(draft);
+      if (!slot || slot.teamId !== next.playerTeamId) return;
+      const prospect = draft.prospects.find((p) => p.id === prospectId);
+      if (!prospect || !makePick(draft, prospectId)) return;
+      recordPlayerPick(next, prospect, slot.round);
+      const rng = new Rng(next.rngState);
+      runCpuPicks(next, rng);
+      next.rngState = rng.getState();
+      commit(next);
+      showToast(`${prospect.player.name} を指名しました`);
+    },
+    [commit, showToast],
+  );
+
+  /** ドラフト終了 → 新人加入 → 翌シーズン開幕 */
+  const finishOffseason = useCallback(() => {
+    const current = stateRef.current;
+    if (!current?.draft) return;
+    const next = cloneState(current);
+    const rookies = completeOffseason(next);
+    repairAllSetups(next);
+    commit(next);
+    setPendingReport(true);
+    showToast(`${next.year}年シーズン開幕（新人${rookies.length}人が加入）`);
+  }, [commit, showToast]);
 
   const value = useMemo<StoreValue>(
     () => ({
@@ -176,6 +225,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       playNextGame,
       skipOneDay,
       advanceSeason,
+      draftPick,
+      finishOffseason,
+      pendingReport,
+      dismissReport: () => setPendingReport(false),
       clearLastResult: () => setLastResult(null),
     }),
     [
@@ -193,6 +246,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       playNextGame,
       skipOneDay,
       advanceSeason,
+      draftPick,
+      finishOffseason,
+      pendingReport,
     ],
   );
 

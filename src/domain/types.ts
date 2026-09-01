@@ -103,6 +103,8 @@ export interface PlayerExtensions {
   conditionTimer: number;
   /** 直近7日分の調子（古い順、最後が今日）。PHASE 2.5 */
   conditionHistory: ConditionId[];
+  /** プロ入り年（通算年数の計算に使う）。PHASE 3.1 */
+  debutYear: number | null;
   /** モチベーション 0〜100 */
   motivation: number;
   /** 個人の士気 0〜100 */
@@ -311,6 +313,12 @@ export interface GameState {
   lastGrowthReport: GrowthReport | null;
   /** 直近の怪我・復帰などの通知（新しいものが後ろ） */
   notices: GameNotice[];
+  /** 引退選手の記録（PHASE 3.1） */
+  retiredPlayers: RetiredPlayerRecord[];
+  /** 進行中のドラフト（null ならドラフト中ではない）。PHASE 3.1 */
+  draft: DraftState | null;
+  /** 最後にドラフトを実施した年（二重実行の防止）。PHASE 3.1 */
+  lastDraftYear: number | null;
 }
 
 /** シーズン終了時の成長レポート（表示用） */
@@ -318,6 +326,64 @@ export interface GrowthReport {
   year: number;
   teamId: string;
   players: GrowthReportEntry[];
+  /** 今季かぎりで引退した選手（プレイヤー球団）。PHASE 3.1 */
+  retirements: RetiredPlayerRecord[];
+}
+
+/**
+ * 引退した選手の記録（PHASE 3.1）。
+ * 将来の殿堂・歴代記録で使えるよう最小限の情報を残す。
+ */
+export interface RetiredPlayerRecord {
+  playerId: string;
+  name: string;
+  teamId: string;
+  age: number;
+  /** 通算在籍年数 */
+  years: number;
+  finalOverall: number;
+  mainPosition: PositionId;
+  /** 引退した年 */
+  retiredAt: number;
+}
+
+/** ドラフト候補（PHASE 3.1）。現役選手とは明確に分けて扱う */
+export interface DraftProspect {
+  id: string;
+  /** 加入前の選手データ（teamId は空文字） */
+  player: Player;
+  /** 事前評価順（1が最上位） */
+  draftRank: number;
+  /** 表向きの現在能力の目安 */
+  projectedAbility: number;
+  /** 表向きの将来性ラベル（実数値は見せない） */
+  projectedPotential: string;
+  selectedBy?: string;
+  selectedRound?: number;
+  selectedPick?: number;
+}
+
+export interface DraftPick {
+  round: number;
+  pick: number;
+  teamId: string;
+  /** null は指名なし（パス） */
+  prospectId: string | null;
+}
+
+export interface DraftState {
+  /** ドラフトを行うオフシーズンの年 */
+  year: number;
+  prospects: DraftProspect[];
+  /** 1巡目の指名順（球団ID） */
+  order: string[];
+  rounds: number;
+  /** 次の指名の通し番号（0始まり） */
+  cursor: number;
+  picks: DraftPick[];
+  /** 球団ごとの必要人数 */
+  needs: Record<string, number>;
+  completed: boolean;
 }
 
 export interface GrowthReportEntry {
@@ -330,7 +396,14 @@ export interface GrowthReportEntry {
   changes: Array<{ label: string; before: number; after: number }>;
 }
 
-export type NoticeKind = 'injury' | 'return' | 'condition' | 'season' | 'growth';
+export type NoticeKind =
+  | 'injury'
+  | 'return'
+  | 'condition'
+  | 'season'
+  | 'growth'
+  | 'retire'
+  | 'draft';
 
 export interface GameNotice {
   date: string;

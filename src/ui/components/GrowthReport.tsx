@@ -19,7 +19,26 @@ export function GrowthReportSheet({
 
   return (
     <Sheet title={`${report.year}年 シーズンを終えて`} onClose={onClose}>
-      {changed.length === 0 && <div className="muted">能力が変化した選手はいませんでした。</div>}
+      {report.retirements.length > 0 && (
+        <div className="card" style={{ borderColor: 'var(--line)' }}>
+          <h2>今季かぎりで引退</h2>
+          {report.retirements.map((entry) => (
+            <div key={entry.playerId} style={{ padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>{entry.name}</div>
+              <div className="muted">
+                {entry.age}歳 / 在籍{entry.years}年 / 最終総合 {entry.finalOverall}
+              </div>
+            </div>
+          ))}
+          <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+            長い間おつかれさまでした。
+          </div>
+        </div>
+      )}
+
+      {changed.length === 0 && report.retirements.length === 0 && (
+        <div className="muted">能力が変化した選手はいませんでした。</div>
+      )}
 
       {grown.length > 0 && (
         <div className="card">
