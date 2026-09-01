@@ -14,16 +14,13 @@ export function AbilityBar({
   label,
   value,
   display,
-  showRank = true,
 }: {
   label: string;
   value: number;
   display?: string;
-  /** 弾道のようにランク表示になじまない能力では false */
-  showRank?: boolean;
 }) {
   const rank = rankOf(value);
-  const color = showRank ? RANK_COLORS[rank] : 'var(--accent-2)';
+  const color = RANK_COLORS[rank];
   return (
     <div className="ability">
       <span className="label">{label}</span>
@@ -31,7 +28,7 @@ export function AbilityBar({
         <span style={{ width: `${Math.max(3, Math.min(100, value))}%`, background: color }} />
       </span>
       <span className="val">{display ?? Math.round(value)}</span>
-      {showRank ? <RankBadge value={value} /> : <span className="rank" style={{ opacity: 0 }} />}
+      <RankBadge value={value} />
     </div>
   );
 }

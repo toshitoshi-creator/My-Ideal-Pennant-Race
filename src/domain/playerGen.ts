@@ -134,9 +134,10 @@ export function generateTeamPlayers(rng: Rng, options: GeneratePlayersOptions): 
     }
 
     const power = isPitcher ? ability(rng, 12, 6) : ability(rng, mean);
+    // 弾道は 1〜100。パワーとゆるく相関させつつ、独立したばらつきも持たせる
     const trajectory = isPitcher
-      ? 1
-      : Math.max(1, Math.min(4, 1 + Math.round((power - 20) / 26) + (rng.chance(0.15) ? 1 : 0)));
+      ? ability(rng, 16, 7)
+      : clamp1to100(rng.normal(power * 0.55 + 24, 13));
 
     const player: Player = {
       id: newPlayerId(teamId),

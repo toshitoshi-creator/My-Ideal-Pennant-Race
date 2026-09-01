@@ -22,7 +22,11 @@ export type RosterLevel = 'first' | 'second';
 export type AbilityRank = 'G' | 'F' | 'E' | 'D' | 'C' | 'B' | 'A';
 
 export interface BatterAbilities {
-  /** 弾道 1〜4（この能力だけは 1〜4 の 4 段階） */
+  /**
+   * 弾道 1〜100（他の能力値と同じスケール・G〜Aランク）。
+   * ただし試合計算では他能力と同じ割合で加算せず、
+   * domain/trajectory.ts の独立した係数を通して長打・本塁打率に影響する。
+   */
   trajectory: number;
   /** ミート 1〜100 */
   contact: number;

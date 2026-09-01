@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createNewGame } from './newGame';
 import { advanceToNextPlayerGame, repairAllSetups, validateState } from './engine';
 import { clearSave, hasSave, loadGame, saveGame, SAVE_KEY } from './save';
+import { SAVE_VERSION } from './newGame';
+import type { GameState } from './types';
 import { applyRosterChange, daysUntilChangeable } from './roster';
 import { standingsForLeague } from './standings';
 
@@ -76,6 +78,31 @@ describe('STEP13 セーブ・ロード', () => {
     const next = advanceToNextPlayerGame(loaded);
     expect(next.playerResult).not.toBeNull();
     expect(next.state.records['phoenix'].games).toBe(before + 1);
+    expect(validateState(next.state)).toEqual([]);
+  });
+
+  it('旧バージョン(v1)のセーブデータは弾道を1〜100に移行して読み込める', () => {
+    const state = createNewGame('phoenix', 10, 4242);
+    // v1 相当のセーブデータを作る（弾道は 1〜4）
+    const legacy = JSON.parse(JSON.stringify(state)) as GameState;
+    legacy.version = 1;
+    const expected = new Map<string, number>();
+    legacy.players.forEach((p, i) => {
+      const band = (i % 4) + 1;
+      p.batting.trajectory = band;
+      expected.set(p.id, band * 25);
+    });
+    localStorage.setItem(SAVE_KEY, JSON.stringify(legacy));
+
+    const loaded = loadGame()!;
+    expect(loaded).not.toBeNull();
+    expect(loaded.version).toBe(SAVE_VERSION);
+    for (const player of loaded.players) {
+      expect(player.batting.trajectory).toBe(expected.get(player.id));
+    }
+    // 移行後もそのまま試合を進められる
+    const next = advanceToNextPlayerGame(loaded);
+    expect(next.playerResult).not.toBeNull();
     expect(validateState(next.state)).toEqual([]);
   });
 

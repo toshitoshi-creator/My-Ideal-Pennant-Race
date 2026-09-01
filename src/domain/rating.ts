@@ -2,17 +2,14 @@ import type { Player, PositionId, LineupSlot } from './types';
 import { velocityToScale, clamp1to100, rankOf } from './rank';
 import { effectiveDefense } from './positions';
 
-/** 弾道 1〜4 を 0〜100 スケールへ */
-export function trajectoryScale(trajectory: number): number {
-  return ((trajectory - 1) / 3) * 100;
-}
-
-/** 打撃力（ミート・パワー・弾道） 1〜100 */
+/**
+ * 打撃力（ミート・パワー・弾道） 1〜100。
+ * 画面表示とオーダー自動編成のための指標であり、試合計算には使わない。
+ * 弾道は長打への寄与ぶんだけを小さく反映する。
+ */
 export function battingRating(player: Player): number {
   const b = player.batting;
-  return clamp1to100(
-    b.contact * 0.42 + b.power * 0.4 + trajectoryScale(b.trajectory) * 0.18,
-  );
+  return clamp1to100(b.contact * 0.44 + b.power * 0.42 + b.trajectory * 0.14);
 }
 
 /** 守備力（守備・捕球・肩） 1〜100 */
@@ -41,7 +38,7 @@ export function overallRating(player: Player): number {
   return clamp1to100(
     b.contact * 0.28 +
       b.power * 0.24 +
-      trajectoryScale(b.trajectory) * 0.06 +
+      b.trajectory * 0.06 +
       b.speed * 0.12 +
       b.fielding * 0.14 +
       b.catching * 0.08 +

@@ -2,7 +2,7 @@ import type { Player } from '../../domain/types';
 import { useGame } from '../store';
 import { AbilityBar, KeyValue, RankBadge, Sheet } from './common';
 import { POSITION_LABELS, aptitudeLabel, FIELD_POSITIONS } from '../../domain/positions';
-import { overallRating, trajectoryScale } from '../../domain/rating';
+import { overallRating } from '../../domain/rating';
 import { velocityToScale } from '../../domain/rank';
 import {
   applyRosterChange,
@@ -87,12 +87,7 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
           </>
         ) : (
           <>
-            <AbilityBar
-              label="弾道"
-              value={trajectoryScale(player.batting.trajectory)}
-              display={`${player.batting.trajectory}`}
-              showRank={false}
-            />
+            <AbilityBar label="弾道" value={player.batting.trajectory} />
             <AbilityBar label="ミート" value={player.batting.contact} />
             <AbilityBar label="パワー" value={player.batting.power} />
             <AbilityBar label="走力" value={player.batting.speed} />

@@ -1,6 +1,7 @@
 import type { GameState } from './types';
 import { SAVE_VERSION } from './newGame';
 import { repairAllSetups } from './engine';
+import { LEGACY_TRAJECTORY_MAX, migrateLegacyTrajectory } from './trajectory';
 
 export const SAVE_KEY = 'mipr:save:v1';
 
@@ -62,10 +63,25 @@ export function clearSave(): void {
   store.removeItem(SAVE_KEY);
 }
 
-/** 将来バージョンを増やしたときの変換ポイント */
-function migrate(state: GameState): GameState | null {
+/**
+ * 古いセーブデータを現在のスキーマへ変換する。
+ * 将来バージョンを増やしたときもここに変換を足していく。
+ */
+export function migrate(state: GameState): GameState | null {
   if (typeof state !== 'object' || state === null) return null;
   if (!Array.isArray(state.players) || !Array.isArray(state.teams)) return null;
+
+  // v1 → v2: 弾道が 1〜4 の4段階だったので 1〜100 に変換する
+  if (state.version === 1) {
+    for (const player of state.players) {
+      if (!player.batting) return null;
+      if (player.batting.trajectory <= LEGACY_TRAJECTORY_MAX) {
+        player.batting.trajectory = migrateLegacyTrajectory(player.batting.trajectory);
+      }
+    }
+    state.version = 2;
+  }
+
   if (state.version !== SAVE_VERSION) return null;
   return state;
 }

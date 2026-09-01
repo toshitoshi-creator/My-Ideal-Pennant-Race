@@ -7,7 +7,8 @@ import { generateSchedule, openingDate } from './schedule';
 import { emptySeasonStats } from './stats';
 import { overallRating } from './rating';
 
-export const SAVE_VERSION = 1;
+/** 2: 弾道を 1〜4 から 1〜100 に変更 */
+export const SAVE_VERSION = 2;
 export const START_YEAR = 2026;
 
 /** 1軍スタート人数（残りは 2軍スタート） */

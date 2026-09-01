@@ -2,12 +2,21 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createNewGame } from './newGame';
 import { TEAM_SEEDS, LEAGUES } from './teams';
 import { rankOf } from './rank';
+import {
+  extraBaseFactor,
+  groundBallRate,
+  homeRunFactor,
+  migrateLegacyTrajectory,
+} from './trajectory';
+import { Rng } from './rng';
+import { generateTeamPlayers } from './playerGen';
+import { simulateGame } from './simulation';
 import { positionPenalty, effectiveDefense, FIELD_POSITIONS } from './positions';
 import { advanceToNextPlayerGame, validateState, firstTeamOf, cloneState, repairAllSetups } from './engine';
 import { applyRosterChange, checkRosterChange, daysUntilChangeable, firstTeamCount } from './roster';
 import { addDays } from './dates';
 import { generateSchedule } from './schedule';
-import { validateLineup, nextStarterId } from './setup';
+import { buildAutoSetup, validateLineup, nextStarterId } from './setup';
 import type { GameState, Player } from './types';
 import { FIRST_TEAM_LIMIT, ROSTER_LIMIT } from './types';
 
@@ -65,12 +74,11 @@ describe('STEP3 選手データ', () => {
   it('能力値は1〜100に収まる', () => {
     for (const p of state.players) {
       const b = p.batting;
-      for (const v of [b.contact, b.power, b.speed, b.arm, b.fielding, b.catching]) {
+      for (const v of [b.trajectory, b.contact, b.power, b.speed, b.arm, b.fielding, b.catching]) {
         expect(v).toBeGreaterThanOrEqual(1);
         expect(v).toBeLessThanOrEqual(100);
+        expect(Number.isInteger(v)).toBe(true);
       }
-      expect(b.trajectory).toBeGreaterThanOrEqual(1);
-      expect(b.trajectory).toBeLessThanOrEqual(4);
       if (p.isPitcher) {
         expect(p.pitching).not.toBeNull();
         expect(p.pitching!.velocity).toBeGreaterThanOrEqual(125);
@@ -361,5 +369,82 @@ describe('試合が成立しなくなる降格は禁止', () => {
     repairAllSetups(state);
     expect(state.setups[PLAYER_TEAM].lineup).toHaveLength(9);
     expect(validateState(state)).toEqual([]);
+  });
+});
+
+describe('弾道（1〜100）', () => {
+  const state = newGame();
+  const fielders = state.players.filter((p) => !p.isPitcher);
+
+  it('他の能力値と同じ 1〜100 スケールで G〜A のランクがつく', () => {
+    const ranks = new Set(fielders.map((p) => rankOf(p.batting.trajectory)));
+    // 弱小〜強豪まで揃うので複数のランクが出る
+    expect(ranks.size).toBeGreaterThan(2);
+    for (const p of fielders) {
+      expect(['G', 'F', 'E', 'D', 'C', 'B', 'A']).toContain(rankOf(p.batting.trajectory));
+    }
+  });
+
+  it('旧仕様（1〜4）の弾道は 25 / 50 / 75 / 100 に移行される', () => {
+    expect(migrateLegacyTrajectory(1)).toBe(25);
+    expect(migrateLegacyTrajectory(2)).toBe(50);
+    expect(migrateLegacyTrajectory(3)).toBe(75);
+    expect(migrateLegacyTrajectory(4)).toBe(100);
+  });
+
+  it('本塁打係数は弾道が高いほど大きくなる（旧4段階と同じ値を通る）', () => {
+    expect(homeRunFactor(25)).toBeCloseTo(0.55, 5);
+    expect(homeRunFactor(50)).toBeCloseTo(0.85, 5);
+    expect(homeRunFactor(75)).toBeCloseTo(1.15, 5);
+    expect(homeRunFactor(100)).toBeCloseTo(1.45, 5);
+    expect(homeRunFactor(1)).toBeLessThan(homeRunFactor(100));
+  });
+
+  it('長打係数とゴロ率も弾道の独立した係数として働く', () => {
+    expect(extraBaseFactor(50)).toBeCloseTo(1, 5);
+    expect(extraBaseFactor(100)).toBeGreaterThan(extraBaseFactor(1));
+    // 弾道が高いほどゴロが減る
+    expect(groundBallRate(100)).toBeLessThan(groundBallRate(25));
+    expect(groundBallRate(50)).toBeCloseTo(0.56, 5);
+  });
+
+  it('弾道が高い打者ほど本塁打が出やすい（試合シミュレーションで確認）', () => {
+    const rng = new Rng(20260901);
+    const teamA = TEAM_SEEDS[0];
+    const teamB = TEAM_SEEDS[1];
+    const lowPlayers = generateTeamPlayers(rng, { teamId: teamA.id, strength: 45 });
+    const highPlayers = generateTeamPlayers(rng, { teamId: teamB.id, strength: 45 }).map((p) => ({
+      ...p,
+      batting: { ...p.batting },
+    }));
+    // 弾道だけを変えて比較する
+    for (const p of lowPlayers) p.batting.trajectory = 20;
+    for (const p of highPlayers) p.batting.trajectory = 90;
+    const lowSetup = buildAutoSetup(teamA.id, lowPlayers, true);
+    const highSetup = buildAutoSetup(teamB.id, highPlayers, true);
+
+    let lowHr = 0;
+    let highHr = 0;
+    for (let i = 0; i < 60; i++) {
+      const result = simulateGame({
+        rng,
+        gameId: `traj${i}`,
+        date: '2026-04-01',
+        leagueId: 'ocean',
+        useDH: true,
+        homeTeam: teamA,
+        awayTeam: teamB,
+        homePlayers: lowPlayers,
+        awayPlayers: highPlayers,
+        homeSetup: lowSetup,
+        awaySetup: highSetup,
+      });
+      for (const line of result.playerLines) {
+        if (!line.batting) continue;
+        if (line.teamId === teamA.id) lowHr += line.batting.homeRuns;
+        else highHr += line.batting.homeRuns;
+      }
+    }
+    expect(highHr).toBeGreaterThan(lowHr);
   });
 });

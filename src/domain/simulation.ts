@@ -15,6 +15,7 @@ import { velocityToScale } from './rank';
 import { positionPenalty, effectiveDefense, POSITION_LABELS } from './positions';
 import { emptyBatting, emptyPitching } from './stats';
 import { pitchingRating } from './rating';
+import { extraBaseFactor, groundBallRate, homeRunFactor } from './trajectory';
 import { bullpen, nextStarterId } from './setup';
 
 interface Runner {
@@ -142,8 +143,6 @@ function defenseSummary(ctx: TeamCtx): DefenseSummary {
   return { avgDefense: total / n, avgPenalty: penalty / n, catcherArm, fielders };
 }
 
-const TRAJ_FACTOR = [0.55, 0.85, 1.15, 1.45];
-
 type PaOutcome =
   | { kind: 'walk' }
   | { kind: 'strikeout' }
@@ -181,9 +180,10 @@ function resolvePlateAppearance(
   if (roll < pWalk + pK) return { kind: 'strikeout' };
 
   // 打球
-  const trajF = TRAJ_FACTOR[Math.max(0, Math.min(3, b.trajectory - 1))];
+  // 弾道は他能力と足し込まず、独立した係数として長打・本塁打率に掛ける
+  const trajF = homeRunFactor(b.trajectory);
   const pHr = clamp(
-    0.03 * Math.pow(2, (b.power - 48) / 32) * trajF * Math.pow(2, -(pit.power - 48) / 38),
+    0.032 * Math.pow(2, (b.power - 48) / 32) * trajF * Math.pow(2, -(pit.power - 48) / 38),
     0.002,
     0.16,
   );
@@ -210,14 +210,19 @@ function resolvePlateAppearance(
   }
   if (bip < pHr + pError + pHit) {
     const typeRoll = rng.next();
-    const pDouble = clamp(0.2 * Math.pow(2, (b.power - 50) / 50), 0.08, 0.35);
+    const pDouble = clamp(
+      0.2 * Math.pow(2, (b.power - 50) / 50) * extraBaseFactor(b.trajectory),
+      0.08,
+      0.35,
+    );
     const pTriple = clamp(0.022 * (b.speed / 50), 0.002, 0.06);
     if (typeRoll < pTriple) return { kind: 'triple' };
     if (typeRoll < pTriple + pDouble) return { kind: 'double' };
     return { kind: 'single' };
   }
-  const groundProb = clamp(0.56 - (b.trajectory - 2) * 0.09, 0.28, 0.72);
-  return rng.next() < groundProb ? { kind: 'groundout' } : { kind: 'flyout' };
+  return rng.next() < groundBallRate(b.trajectory)
+    ? { kind: 'groundout' }
+    : { kind: 'flyout' };
 }
 
 function pickErrorFielder(
