@@ -24,9 +24,43 @@ npm run dev          # 開発サーバー（スマートフォン縦画面 390x8
 | `npm run build` | 型チェック + 本番ビルド |
 | `npm test` | ドメインロジックのテスト（53件） |
 | `npm run e2e` | 実ブラウザでのゲームループ通し確認（要 `npm run preview` 起動中） |
+| `npm run build:single` | 1枚だけの HTML（`dist/my-ideal-pennant-race.html`）を出力 |
 | `npm run verify` | 型チェック → テスト → ビルド → e2e をまとめて実行 |
 
 `npm run e2e` は Chromium（Playwright）で実際にゲームを1周し、`e2e/shots/` にスクリーンショットを保存します。
+
+---
+
+## スマートフォンで遊ぶ
+
+### A. 1枚のHTMLファイルにして持ち歩く（いちばん手軽）
+
+```bash
+npm run build:single      # dist/my-ideal-pennant-race.html が出来る
+```
+
+出力された HTML は JS も CSS も内蔵した**完全に自己完結した1ファイル**です。
+AirDrop・クラウドストレージ・メール添付などでスマートフォンに送り、ブラウザで開けばそのまま遊べます。
+Safari の「共有 → ホーム画面に追加」/ Chrome の「ホーム画面に追加」をしておくと、
+アドレスバーのないフルスクリーンでアプリのように起動できます。
+
+### B. 同じ Wi-Fi のPCから開発サーバーを開く
+
+```bash
+npm run dev -- --host     # 表示された Network: http://192.168.x.x:5173/ をスマホで開く
+```
+
+PC とスマートフォンを同じ Wi-Fi につないでおく必要があります。コードを直すとその場で反映されます。
+
+### C. 静的ホスティングに置く
+
+`npm run build` の出力（`dist/`）はどこに置いても動く静的ファイルです（相対パス出力）。
+GitHub Pages / Netlify / Vercel などにそのまま配置できます。
+
+> **セーブデータについて**
+> セーブは開いたブラウザの localStorage に保存されます。
+> PCとスマートフォン、あるいは別のブラウザの間でセーブデータは共有されません。
+> シークレットモードやサイトデータの削除でも消えるのでご注意ください。
 
 ---
 
