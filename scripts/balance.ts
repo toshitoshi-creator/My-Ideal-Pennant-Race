@@ -10,7 +10,8 @@ import { startNextSeason } from '../src/domain/season';
 import { standingsForLeague } from '../src/domain/standings';
 import { overallRating } from '../src/domain/rating';
 import { rankOf } from '../src/domain/rank';
-import { CONDITION_LABELS } from '../src/domain/condition';
+import { CONDITION_LABELS, CONDITIONS } from '../src/domain/condition';
+import type { ConditionId } from '../src/domain/types';
 import { specialAbilityDef } from '../src/domain/specialAbilities';
 import { GROWTH_TYPES } from '../src/domain/growth';
 import type { GameState, Player } from '../src/domain/types';
@@ -23,6 +24,25 @@ const avg = (values: number[]) =>
 
 function abilityAverage(players: Player[]): number {
   return avg(players.map((p) => overallRating(p)));
+}
+
+/** 調子別のパフォーマンス集計（PHASE 2.5 のバランス検証） */
+interface ConditionStat {
+  days: number;
+  atBats: number;
+  hits: number;
+  homeRuns: number;
+  outs: number;
+  earnedRuns: number;
+  strikeouts: number;
+}
+const conditionStats: Record<ConditionId, ConditionStat> = {
+  worst: blankStat(), bad: blankStat(), normal: blankStat(),
+  good: blankStat(), best: blankStat(),
+};
+const conditionMatchups = { games: 0, betterWins: 0, gap: 0 };
+function blankStat(): ConditionStat {
+  return { days: 0, atBats: 0, hits: 0, homeRuns: 0, outs: 0, earnedRuns: 0, strikeouts: 0 };
 }
 
 let state: GameState = createNewGame('phoenix', 143, SEED);
@@ -56,8 +76,46 @@ for (let season = 1; season <= SEASONS; season++) {
   let fatigueSamples = 0;
 
   while (!state.seasonFinished) {
-    state = advanceDay(state).state;
+    // その日の調子を控えてから試合を進め、成績と突き合わせる
+    const conditionToday = new Map(state.players.map((p) => [p.id, p.ext.condition]));
+    const step = advanceDay(state);
+    for (const result of step.results) {
+      for (const line of result.playerLines) {
+        const condition = conditionToday.get(line.playerId);
+        if (!condition) continue;
+        const stat = conditionStats[condition];
+        if (line.batting) {
+          stat.atBats += line.batting.atBats;
+          stat.hits += line.batting.hits;
+          stat.homeRuns += line.batting.homeRuns;
+        }
+        if (line.pitching) {
+          stat.outs += line.pitching.outs;
+          stat.earnedRuns += line.pitching.earnedRuns;
+          stat.strikeouts += line.pitching.strikeouts;
+        }
+      }
+      // 「打線の調子が良い側」が勝ったかどうかを見る
+      const avgCondition = (teamId: string) => {
+        const lineup = step.state.setups[teamId].lineup;
+        const values = lineup
+          .map((slot) => conditionToday.get(slot.playerId))
+          .filter((c): c is ConditionId => !!c)
+          .map((c) => CONDITIONS.indexOf(c));
+        return values.length === 0 ? 2 : values.reduce((a, b) => a + b, 0) / values.length;
+      };
+      const homeAvg = avgCondition(result.homeTeamId);
+      const awayAvg = avgCondition(result.awayTeamId);
+      if (Math.abs(homeAvg - awayAvg) >= 0.3 && result.winnerTeamId) {
+        conditionMatchups.games += 1;
+        conditionMatchups.gap += Math.abs(homeAvg - awayAvg);
+        const betterTeam = homeAvg > awayAvg ? result.homeTeamId : result.awayTeamId;
+        if (result.winnerTeamId === betterTeam) conditionMatchups.betterWins += 1;
+      }
+    }
+    state = step.state;
     for (const p of state.players) {
+      conditionStats[p.ext.condition].days += 1;
       if (p.ext.injury) {
         injuryDaysLost += 1;
         if (!injured.has(p.id)) {
@@ -117,6 +175,24 @@ for (let season = 1; season <= SEASONS; season++) {
       `特殊能力 ${(abilityCount / state.players.length).toFixed(2)}個/人`,
   );
 }
+
+console.log('\n=== 調子別のパフォーマンス（全シーズン合計） ===');
+const totalDays = CONDITIONS.reduce((a, c) => a + conditionStats[c].days, 0) || 1;
+for (const condition of [...CONDITIONS].reverse()) {
+  const stat = conditionStats[condition];
+  const avg = stat.atBats > 0 ? stat.hits / stat.atBats : 0;
+  const era = stat.outs > 0 ? (stat.earnedRuns * 27) / stat.outs : 0;
+  console.log(
+    `${CONDITION_LABELS[condition].padEnd(4)} 出現率 ${((stat.days / totalDays) * 100).toFixed(1).padStart(4)}%  ` +
+      `打率 ${avg.toFixed(3)}  本塁打率 ${(stat.atBats ? (stat.homeRuns / stat.atBats) * 100 : 0).toFixed(2)}%  ` +
+      `防御率 ${era.toFixed(2)}  奪三振率 ${(stat.outs ? (stat.strikeouts * 27) / stat.outs : 0).toFixed(2)}`,
+  );
+}
+
+console.log(
+  `\n打線の調子が良い側の勝率 ${(conditionMatchups.betterWins / Math.max(1, conditionMatchups.games)).toFixed(3)}` +
+    `（対象 ${conditionMatchups.games}試合 / 平均の調子差 ${(conditionMatchups.gap / Math.max(1, conditionMatchups.games)).toFixed(2)}段階）`,
+);
 
 console.log('\n=== 最終状態 ===');
 const ranks: Record<string, number> = {};

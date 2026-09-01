@@ -14,7 +14,12 @@ import { average, formatAverage, formatEra, formatInnings } from '../../domain/s
 import { formatDateJa } from '../../domain/dates';
 import { personalityDef } from '../../domain/personality';
 import { potentialLabel, growthTypeDef } from '../../domain/growth';
-import { CONDITION_ICONS, CONDITION_LABELS, fatigueLabel } from '../../domain/condition';
+import {
+  CONDITION_ICONS,
+  CONDITION_LABELS,
+  ABILITY_CATEGORY_LABELS,
+  fatigueLabel,
+} from '../../domain/condition';
 import { injuryText } from '../../domain/injury';
 import { specialAbilityDef } from '../../domain/specialAbilities';
 import { effectiveBreakdown } from '../../domain/effective';
@@ -186,7 +191,20 @@ function StatusPanel({ player, teamMorale }: { player: Player; teamMorale: numbe
   const ext = player.ext;
   const injury = injuryText(player, state.date);
   const breakdown = effectiveBreakdown(player, { teamMorale });
-  const percent = Math.round((breakdown.total - 1) * 100);
+  const percent = Math.round((breakdown.finalMultiplier - 1) * 100);
+  const allFactors: Array<{ label: string; value: number }> = [
+    { label: '調子', value: breakdown.conditionModifier },
+    { label: '疲労', value: breakdown.fatigueModifier },
+    { label: 'モチベーション', value: breakdown.motivationModifier },
+    { label: 'スランプ', value: breakdown.slumpModifier },
+    { label: 'チーム士気', value: breakdown.moraleModifier },
+    { label: '性格', value: breakdown.personalityModifier },
+  ];
+  const factors = allFactors.filter((f) => Math.abs(f.value) >= 0.005);
+  const history = player.ext.conditionHistory ?? [];
+  const categories = player.isPitcher
+    ? (['pitchPower', 'pitchControl', 'pitchMovement', 'stamina'] as const)
+    : (['contact', 'power', 'speed', 'defense'] as const);
   return (
     <>
       {injury && (
@@ -223,8 +241,77 @@ function StatusPanel({ player, teamMorale }: { player: Player; teamMorale: numbe
           </span>
         }
       />
-      <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>
-        基本能力はそのままで、疲労・コンディション・性格から「その日の実効能力」を計算しています。
+
+      {factors.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>
+            主な要因
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
+            {factors.map((factor) => (
+              <span key={factor.label} style={{ fontSize: 13 }}>
+                <span className="muted">{factor.label} </span>
+                <span
+                  style={{
+                    color: factor.value > 0 ? 'var(--good)' : 'var(--bad)',
+                    fontWeight: 700,
+                  }}
+                >
+                  {factor.value > 0 ? '+' : ''}
+                  {(factor.value * 100).toFixed(1)}%
+                </span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 10 }}>
+        <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>
+          能力カテゴリ別の実効倍率（調子はカテゴリごとに効き方が違う）
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
+          {categories.map((category) => {
+            const value = Math.round((breakdown.byCategory[category] - 1) * 100);
+            return (
+              <span key={category} style={{ fontSize: 13 }}>
+                <span className="muted">{ABILITY_CATEGORY_LABELS[category]} </span>
+                <span
+                  style={{
+                    color: value > 0 ? 'var(--good)' : value < 0 ? 'var(--bad)' : 'var(--text-dim)',
+                    fontWeight: 700,
+                  }}
+                >
+                  {value > 0 ? '+' : ''}
+                  {value}%
+                </span>
+              </span>
+            );
+          })}
+        </div>
+      </div>
+
+      {history.length > 1 && (
+        <div style={{ marginTop: 10 }}>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>
+            調子の推移（直近{history.length}日）
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {history.map((condition, i) => (
+              <span
+                key={i}
+                className="chip"
+                style={{ fontSize: 11, color: conditionColor(condition) }}
+              >
+                {CONDITION_ICONS[condition]} {CONDITION_LABELS[condition]}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+        基本能力はそのままで、調子・疲労・モチベーションから「その日の実効能力」を計算しています。
       </div>
     </>
   );

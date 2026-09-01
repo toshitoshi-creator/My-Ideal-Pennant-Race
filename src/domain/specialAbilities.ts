@@ -230,11 +230,17 @@ function situationActive(situation: SituationKey, flags: SituationFlags): boolea
 /**
  * 選手の持つ特殊能力から、指定した効果キーの合成倍率を返す。
  * 効果がなければ 1。
+ *
+ * conditionScale（PHASE 2.5）は調子による発動しやすさ。
+ * 能力値には触れず、係数の «1 からのズレ» だけを拡大・縮小する。
+ * 好調なら長所が出やすく短所が出にくい／不調ならその逆。
+ * 効果キーごとの上限は最後に必ず適用される。
  */
 export function abilityEffect(
   entries: SpecialAbilityEntry[] | undefined,
   key: EffectKey,
   flags: SituationFlags = {},
+  conditionScale = 1,
 ): number {
   if (!entries || entries.length === 0) return 1;
   let value = 1;
@@ -245,7 +251,9 @@ export function abilityEffect(
     if (factor === undefined) continue;
     if (!situationActive(def.situation, flags)) continue;
     const level = Math.max(1, Math.min(3, entry.level));
-    value *= 1 + (factor - 1) * level;
+    // 長所は好調で伸び、短所は好調なら出にくくなる
+    const scale = def.polarity === 'positive' ? conditionScale : 2 - conditionScale;
+    value *= 1 + (factor - 1) * level * scale;
   }
   const [min, max] = EFFECT_LIMITS[key] ?? EFFECT_LIMITS.default;
   return Math.max(min, Math.min(max, value));

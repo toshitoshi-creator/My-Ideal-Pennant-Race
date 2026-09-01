@@ -54,6 +54,9 @@ await page.getByRole('button', { name: /選手/ }).last().click();
 await page.locator('.player-card').first().waitFor();
 const count = await page.locator('.player-card').count();
 ok(`選手一覧に ${count} 枚の選手カード`);
+const listText = await page.locator('.screen').innerText();
+if (!/(絶好調|好調|普通|不調|絶不調)/.test(listText)) fail('選手一覧に調子が表示されていない');
+else ok('選手一覧に各選手の調子が表示されている');
 await shot('04-players');
 await page.locator('.player-card').first().click();
 await page.locator('.sheet').waitFor();
@@ -65,6 +68,12 @@ for (const label of ['コンディション', '疲労', 'モチベーション',
   if (!detailText.includes(label)) fail(`選手詳細に「${label}」がない`);
 }
 ok('選手詳細に性格・将来性・コンディション・疲労・特殊能力が表示された');
+// PHASE 2.5: 調子と実効能力の内訳
+for (const label of ['今日の実効能力', '能力カテゴリ別の実効倍率', 'ミート系']) {
+  if (!detailText.includes(label)) fail(`選手詳細に「${label}」がない`);
+}
+if (!/[+-]?\d+%/.test(detailText)) fail('実効能力の数値が表示されていない');
+else ok('選手詳細に「今日の実効能力」とカテゴリ別の内訳が表示された');
 await shot('05-player-detail');
 await page.locator('.sheet').getByRole('button', { name: '閉じる' }).click();
 
@@ -190,6 +199,26 @@ ok(`6試合消化: ${state.records.phoenix.wins}勝${state.records.phoenix.losse
 await page.locator('.nav').getByText('ホーム').click();
 await shot('14-home-after');
 
+// PHASE 2.5: 調子が日々変化し、履歴が残る
+const beforeConditions = (await readState()).players
+  .filter((p) => p.teamId === 'phoenix')
+  .map((p) => p.ext.condition)
+  .join(',');
+await page.locator('.nav').getByText('ホーム').click();
+await page.getByRole('button', { name: '1日進める' }).click();
+await page.waitForTimeout(400);
+const afterState = await readState();
+const afterConditions = afterState.players
+  .filter((p) => p.teamId === 'phoenix')
+  .map((p) => p.ext.condition)
+  .join(',');
+if (beforeConditions === afterConditions) fail('日付を進めても調子が変化しない');
+else ok('1日進めると選手の調子が変化する');
+const withHistory = afterState.players.filter((p) => (p.ext.conditionHistory ?? []).length > 0);
+if (withHistory.length !== afterState.players.length) fail('調子の履歴が記録されていない');
+else if (withHistory.some((p) => p.ext.conditionHistory.length > 7)) fail('調子の履歴が7日を超えている');
+else ok(`全選手の調子の履歴が記録されている（最大${Math.max(...withHistory.map((p) => p.ext.conditionHistory.length))}日分）`);
+
 // PHASE 2: シーズンを最後まで進めて成長処理を確認
 for (let i = 0; i < 12; i++) {
   const current = await readState();
@@ -254,6 +283,11 @@ if (!samplePlayer.ext.personality || typeof samplePlayer.ext.potential !== 'numb
   fail('再起動でPHASE2のデータが失われた');
 } else {
   ok(`再起動後もPHASE2のデータが残る（性格 ${samplePlayer.ext.personality} / 潜在 ${samplePlayer.ext.potential}）`);
+}
+if (!samplePlayer.ext.condition || !Array.isArray(samplePlayer.ext.conditionHistory)) {
+  fail('再起動で調子のデータが失われた');
+} else {
+  ok(`再起動後も調子が残る（${samplePlayer.ext.condition} / 履歴${samplePlayer.ext.conditionHistory.length}日分）`);
 }
 await shot('15-reload');
 

@@ -41,6 +41,7 @@ export function defaultExtensions(): PlayerExtensions {
     fatigue: 0,
     condition: 'normal',
     conditionTimer: 1,
+    conditionHistory: [],
     motivation: 55,
     morale: 50,
     injury: null,

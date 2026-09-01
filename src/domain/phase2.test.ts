@@ -251,12 +251,15 @@ describe('PHASE2 疲労・コンディション', () => {
     expect(effectiveBatting(tired).contact).toBeLessThan(effectiveBatting(fresh).contact);
   });
 
-  it('コンディションは5段階で、補正が仕様どおり', () => {
-    expect(CONDITION_MODIFIER.best).toBe(0.08);
-    expect(CONDITION_MODIFIER.good).toBe(0.04);
+  it('コンディションは5段階で、良いほど補正が大きい', () => {
+    // PHASE 2.5 で「一律◯%」からカテゴリ別の補正に変わったため、
+    // ここでは代表値（カテゴリ平均）の大小関係を確認する。
+    // カテゴリごとの具体値は phase25.test.ts で検証する。
+    expect(CONDITION_MODIFIER.best).toBeGreaterThan(CONDITION_MODIFIER.good);
+    expect(CONDITION_MODIFIER.good).toBeGreaterThan(CONDITION_MODIFIER.normal);
     expect(CONDITION_MODIFIER.normal).toBe(0);
-    expect(CONDITION_MODIFIER.bad).toBe(-0.05);
-    expect(CONDITION_MODIFIER.worst).toBe(-0.1);
+    expect(CONDITION_MODIFIER.normal).toBeGreaterThan(CONDITION_MODIFIER.bad);
+    expect(CONDITION_MODIFIER.bad).toBeGreaterThan(CONDITION_MODIFIER.worst);
   });
 
   it('コンディションは変化するが毎日は変わらない', () => {

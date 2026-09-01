@@ -16,7 +16,13 @@ import { positionPenalty, effectiveDefense, POSITION_LABELS } from './positions'
 import { emptyBatting, emptyPitching } from './stats';
 import { pitchingRating } from './rating';
 import { extraBaseFactor, groundBallRate, homeRunFactor } from './trajectory';
-import { effectiveBatting, effectiveMultiplier, effectivePitching } from './effective';
+import {
+  effectiveBatting,
+  effectiveDefenseMultiplier,
+  effectivePitching,
+  effectiveSpeedMultiplier,
+} from './effective';
+import { conditionEventScale } from './condition';
 import type { EffectiveContext } from './effective';
 import { abilityEffect, type SituationFlags } from './specialAbilities';
 import { bullpen, nextStarterId } from './setup';
@@ -155,9 +161,10 @@ function defenseSummary(ctx: TeamCtx): DefenseSummary {
     if (slot.position === 'DH' || slot.position === 'P') continue;
     const player = ctx.byId.get(slot.playerId);
     if (!player) continue;
-    const condition = effectiveMultiplier(player, ectx);
-    const skillBonus = abilityEffect(player.ext.specialAbilities, 'defense');
-    const errorBonus = abilityEffect(player.ext.specialAbilities, 'error');
+    const condition = effectiveDefenseMultiplier(player, ectx);
+    const eventScale = conditionEventScale(player.ext.condition);
+    const skillBonus = abilityEffect(player.ext.specialAbilities, 'defense', {}, eventScale);
+    const errorBonus = abilityEffect(player.ext.specialAbilities, 'error', {}, eventScale);
     const skill = effectiveDefense(player, slot.position) * condition * skillBonus;
     fielders.push({
       player,
@@ -172,7 +179,7 @@ function defenseSummary(ctx: TeamCtx): DefenseSummary {
         player.batting.arm *
         (1 - positionPenalty(player, slot.position)) *
         condition *
-        abilityEffect(player.ext.specialAbilities, 'catcherArm');
+        abilityEffect(player.ext.specialAbilities, 'catcherArm', {}, eventScale);
     }
   }
   const n = Math.max(1, fielders.length);
@@ -223,6 +230,9 @@ function resolvePlateAppearance(
   const pitcherSkills = pitcher.ext.specialAbilities;
   const bFlags = situation.batterFlags;
   const pFlags = situation.pitcherFlags;
+  // 調子は特殊能力の «発動しやすさ» にも影響する（能力値そのものは変えない）
+  const bScale = conditionEventScale(batter.ext.condition);
+  const pScale = conditionEventScale(pitcher.ext.condition);
 
   // 実効能力（基本能力 × 性格・疲労・コンディション・モチベーション・スランプ）
   const pit = effectivePitching(pitcher, situation.pitcherCtx) ?? pitcher.pitching!;
@@ -230,7 +240,7 @@ function resolvePlateAppearance(
 
   const capacity = pitcherCapacity(pitcher, isStarter);
   // 「打たれ強さ」はスタミナ切れの影響を小さくする
-  const fatigueResist = abilityEffect(pitcherSkills, 'pitFatigue', pFlags);
+  const fatigueResist = abilityEffect(pitcherSkills, 'pitFatigue', pFlags, pScale);
   const fatigue = Math.max(
     0.62,
     1 - Math.max(0, bf - capacity) * 0.022 * fatigueResist,
@@ -243,16 +253,16 @@ function resolvePlateAppearance(
 
   const pWalk = clamp(
     (0.076 + (52 - control) * 0.0013 + (b.contact - 50) * 0.0002) *
-      abilityEffect(batterSkills, 'batWalk', bFlags) *
-      abilityEffect(pitcherSkills, 'pitWalk', pFlags) *
-      abilityEffect(batterSkills, 'opponentPitcherWalk', bFlags),
+      abilityEffect(batterSkills, 'batWalk', bFlags, bScale) *
+      abilityEffect(pitcherSkills, 'pitWalk', pFlags, pScale) *
+      abilityEffect(batterSkills, 'opponentPitcherWalk', bFlags, bScale),
     0.015,
     0.26,
   );
   const pK = clamp(
     (0.19 + (stuff - 50) * 0.003 - (b.contact - 50) * 0.0027) *
-      abilityEffect(batterSkills, 'batStrikeout', bFlags) *
-      abilityEffect(pitcherSkills, 'pitStrikeout', pFlags),
+      abilityEffect(batterSkills, 'batStrikeout', bFlags, bScale) *
+      abilityEffect(pitcherSkills, 'pitStrikeout', pFlags, pScale),
     0.03,
     0.46,
   );
@@ -269,8 +279,8 @@ function resolvePlateAppearance(
       Math.pow(2, (b.power - 48) / 32) *
       trajF *
       Math.pow(2, -(pit.power - 48) / 38) *
-      abilityEffect(batterSkills, 'batHomeRun', bFlags) *
-      abilityEffect(pitcherSkills, 'pitHomeRun', pFlags),
+      abilityEffect(batterSkills, 'batHomeRun', bFlags, bScale) *
+      abilityEffect(pitcherSkills, 'pitHomeRun', pFlags, pScale),
     0.001,
     0.2,
   );
@@ -288,9 +298,9 @@ function resolvePlateAppearance(
       (b.power - 50) * 0.0004 -
       (defense.avgDefense - 48) * 0.0018 -
       (stuff - 50) * 0.0009) *
-      abilityEffect(batterSkills, 'batHit', bFlags) *
-      abilityEffect(pitcherSkills, 'pitHit', pFlags) *
-      abilityEffect(pitcherSkills, 'opponentBatterHit', pFlags) *
+      abilityEffect(batterSkills, 'batHit', bFlags, bScale) *
+      abilityEffect(pitcherSkills, 'pitHit', pFlags, pScale) *
+      abilityEffect(pitcherSkills, 'opponentBatterHit', pFlags, pScale) *
       situation.runSupport,
     0.12,
     0.5,
@@ -308,7 +318,7 @@ function resolvePlateAppearance(
       0.2 *
         Math.pow(2, (b.power - 50) / 50) *
         extraBaseFactor(b.trajectory) *
-        abilityEffect(batterSkills, 'batDouble', bFlags),
+        abilityEffect(batterSkills, 'batDouble', bFlags, bScale),
       0.06,
       0.4,
     );
@@ -318,7 +328,7 @@ function resolvePlateAppearance(
     return { kind: 'single' };
   }
   const ground = clamp(
-    groundBallRate(b.trajectory) * abilityEffect(pitcherSkills, 'pitGroundBall', pFlags),
+    groundBallRate(b.trajectory) * abilityEffect(pitcherSkills, 'pitGroundBall', pFlags, pScale),
     0.2,
     0.8,
   );
@@ -509,11 +519,12 @@ function playHalfInning(
       const runnerPlayer = offense.byId.get(bases[0].playerId);
       if (runnerPlayer) {
         const runnerSkills = runnerPlayer.ext.specialAbilities;
+        const runnerScale = conditionEventScale(runnerPlayer.ext.condition);
         const speed =
           runnerPlayer.batting.speed *
-          effectiveMultiplier(runnerPlayer, { teamMorale: offense.morale });
+          effectiveSpeedMultiplier(runnerPlayer, { teamMorale: offense.morale });
         const attempt = clamp(
-          ((speed - 40) / 260) * abilityEffect(runnerSkills, 'stealAttempt'),
+          ((speed - 40) / 260) * abilityEffect(runnerSkills, 'stealAttempt', {}, runnerScale),
           0,
           0.3,
         );
@@ -521,8 +532,13 @@ function playHalfInning(
           const pitcherOnMound = defenseCtx.byId.get(defenseCtx.currentPitcherId);
           const success = clamp(
             (0.62 + (speed - 50) * 0.005 - (defense.catcherArm - 50) * 0.004) *
-              abilityEffect(runnerSkills, 'stealSuccess') *
-              abilityEffect(pitcherOnMound?.ext.specialAbilities, 'pitStealSuppress'),
+              abilityEffect(runnerSkills, 'stealSuccess', {}, runnerScale) *
+              abilityEffect(
+                pitcherOnMound?.ext.specialAbilities,
+                'pitStealSuppress',
+                {},
+                pitcherOnMound ? conditionEventScale(pitcherOnMound.ext.condition) : 1,
+              ),
             0.25,
             0.95,
           );
@@ -644,7 +660,12 @@ function playHalfInning(
           if (bases[1]) {
             const runnerPlayer = offense.byId.get(bases[1].playerId);
             const speed = runnerPlayer?.batting.speed ?? 40;
-            const extra = abilityEffect(runnerPlayer?.ext.specialAbilities, 'extraBase');
+            const extra = abilityEffect(
+              runnerPlayer?.ext.specialAbilities,
+              'extraBase',
+              {},
+              runnerPlayer ? conditionEventScale(runnerPlayer.ext.condition) : 1,
+            );
             if (rng.chance(clamp((0.5 + (speed - 50) * 0.006) * extra, 0.2, 0.92))) {
               score(bases[1], batter.id);
               rbi++;
@@ -655,7 +676,12 @@ function playHalfInning(
           }
           if (bases[0]) {
             const runner = offense.byId.get(bases[0].playerId);
-            const extra = abilityEffect(runner?.ext.specialAbilities, 'extraBase');
+            const extra = abilityEffect(
+              runner?.ext.specialAbilities,
+              'extraBase',
+              {},
+              runner ? conditionEventScale(runner.ext.condition) : 1,
+            );
             if (!bases[2] && rng.chance(Math.min(0.6, 0.28 * extra))) bases[2] = bases[0];
             else bases[1] = bases[0];
             bases[0] = null;
@@ -729,7 +755,16 @@ function playHalfInning(
           bases[0] &&
           outs < 2 &&
           rng.chance(
-            Math.min(0.6, 0.32 * abilityEffect(batter.ext.specialAbilities, 'doublePlay')),
+            Math.min(
+              0.6,
+              0.32 *
+                abilityEffect(
+                  batter.ext.specialAbilities,
+                  'doublePlay',
+                  {},
+                  conditionEventScale(batter.ext.condition),
+                ),
+            ),
           );
         if (dp) {
           bases[0] = null;
@@ -818,7 +853,12 @@ function buildSituation(args: {
 
   // 「負け運」の投手が投げている間は味方打線の援護がやや減る
   const ownPitcher = offense.byId.get(offense.currentPitcherId);
-  const runSupport = abilityEffect(ownPitcher?.ext.specialAbilities, 'runSupport');
+  const runSupport = abilityEffect(
+    ownPitcher?.ext.specialAbilities,
+    'runSupport',
+    {},
+    ownPitcher ? conditionEventScale(ownPitcher.ext.condition) : 1,
+  );
 
   return {
     batterFlags,

@@ -28,6 +28,13 @@ export interface PersonalityEffects {
   fatigueSensitivity: number;
   /** コンディションの振れ幅（小さいほど安定） */
   conditionSwing: number;
+  /**
+   * 不調・絶不調による能力低下の受けやすさ（小さいほど粘れる）。
+   * 絶不調では効果の 75% が適用される。
+   */
+  badConditionResist: number;
+  /** チーム士気の影響の受けやすさ */
+  moraleSensitivity: number;
   /** 接戦（1点差以内・終盤）での実効能力倍率 */
   closeGame: number;
   /** 重要場面のプレッシャーによる低下の受けやすさ（小さいほど動じない） */
@@ -65,6 +72,8 @@ const BASE: PersonalityEffects = {
   fatigueRecovery: 1,
   fatigueSensitivity: 1,
   conditionSwing: 1,
+  badConditionResist: 1,
+  moraleSensitivity: 1,
   closeGame: 1,
   pressureSensitivity: 1,
   losingStreakSensitivity: 1,
@@ -91,9 +100,9 @@ export const PERSONALITIES: PersonalityDef[] = [
   def(
     'hardWorker',
     '努力家',
-    '地道な練習を重ねることで成長しやすい。疲れもすぐに抜ける。',
-    ['成長率 +15%', '疲労回復 +5%'],
-    { growth: 1.15, fatigueRecovery: 1.05 },
+    '地道な練習を重ねることで成長しやすい。疲れもすぐに抜け、不調でも粘れる。',
+    ['成長率 +15%', '疲労回復 +5%', '不調時の能力低下を軽減'],
+    { growth: 1.15, fatigueRecovery: 1.05, badConditionResist: 0.8 },
   ),
   def(
     'genius',
@@ -127,8 +136,13 @@ export const PERSONALITIES: PersonalityDef[] = [
     'moodMaker',
     'ムードメーカー',
     'チームの雰囲気を明るくする。勝ったときの盛り上がりが違う。',
-    ['勝利時のチーム士気上昇 +40%', '連敗時の士気低下を軽減'],
-    { winMoraleBonus: 1.4, losingStreakSensitivity: 0.7, teamMoraleInfluence: 1.2 },
+    ['勝利時のチーム士気上昇 +40%', '連敗時の士気低下を軽減', 'チームの雰囲気に乗りやすい'],
+    {
+      winMoraleBonus: 1.4,
+      losingStreakSensitivity: 0.7,
+      teamMoraleInfluence: 1.2,
+      moraleSensitivity: 1.5,
+    },
   ),
   def(
     'sensitive',
@@ -155,8 +169,13 @@ export const PERSONALITIES: PersonalityDef[] = [
     'craftsman',
     '職人気質',
     '一つの技を磨き続ける。成長は安定していて、特殊能力を身につけやすい。',
-    ['成長が安定', '特殊能力を習得しやすい'],
-    { growthVariance: 0.6, technicalGrowth: 1.05, specialAbilityGain: 1.35 },
+    ['成長が安定', '調子の波が小さい', '特殊能力を習得しやすい'],
+    {
+      growthVariance: 0.6,
+      technicalGrowth: 1.05,
+      specialAbilityGain: 1.35,
+      conditionSwing: 0.85,
+    },
   ),
 ];
 

@@ -49,10 +49,10 @@ export function PlayerCard({
             </span>
           )}
           <span
-            title={CONDITION_LABELS[player.ext.condition]}
-            style={{ fontSize: 12, fontWeight: 800, color: conditionColor(player) }}
+            style={{ fontSize: 11, fontWeight: 800, color: conditionColor(player) }}
           >
             {CONDITION_ICONS[player.ext.condition]}
+            {CONDITION_LABELS[player.ext.condition]}
           </span>
         </span>
         <span className="meta">{summary}</span>

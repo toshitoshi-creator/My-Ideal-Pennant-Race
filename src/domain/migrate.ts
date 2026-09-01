@@ -4,6 +4,7 @@
  * v1: PHASE 1（弾道 1〜4）
  * v2: 弾道 1〜100
  * v3: PHASE 2（性格・潜在能力・成長タイプ・特殊能力・疲労・コンディション・怪我）
+ * v4: PHASE 2.5（調子のカテゴリ別補正・調子の履歴）
  *
  * 古いセーブは不足分を安全な初期値で補完し、既存のデータ（能力・成績・順位・日付・
  * 1軍/2軍・7日制限）は一切書き換えない。
@@ -41,6 +42,20 @@ export function migrateV2ToV3(state: GameState): void {
   state.version = 3;
 }
 
+/** v3 → v4：調子の履歴など PHASE 2.5 のフィールドを補う */
+export function migrateV3ToV4(state: GameState): void {
+  for (const player of state.players) {
+    const ext = player.ext as Partial<Player['ext']>;
+    if (!Array.isArray(ext.conditionHistory)) {
+      // 履歴がない古いセーブは、今の調子だけを記録した状態から始める
+      ext.conditionHistory = ext.condition ? [ext.condition] : [];
+    }
+    if (typeof ext.condition !== 'string') ext.condition = 'normal';
+    if (typeof ext.conditionTimer !== 'number') ext.conditionTimer = 0;
+  }
+  state.version = 4;
+}
+
 /**
  * PHASE 2 のフィールドが欠けている選手に、選手ごとに安定した初期値を入れる。
  * 既存の能力・年齢・成績には触れない。
@@ -75,7 +90,8 @@ export function fillPhase2Extensions(player: Player): void {
   if (!Array.isArray(ext.specialAbilities)) ext.specialAbilities = [];
   if (typeof ext.fatigue !== 'number') ext.fatigue = 0;
   if (typeof ext.condition !== 'string') ext.condition = 'normal';
-  if (typeof ext.conditionTimer !== 'number') ext.conditionTimer = rng.int(1, 5);
+  if (typeof ext.conditionTimer !== 'number') ext.conditionTimer = rng.int(0, 2);
+  if (!Array.isArray(ext.conditionHistory)) ext.conditionHistory = [ext.condition];
   if (typeof ext.motivation !== 'number') ext.motivation = 55;
   if (typeof ext.morale !== 'number') ext.morale = 50;
   if (ext.injury === undefined) ext.injury = null;

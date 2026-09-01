@@ -99,8 +99,10 @@ export interface PlayerExtensions {
   /** 疲労 0〜100 */
   fatigue: number;
   condition: ConditionId;
-  /** コンディションを次に見直すまでの残り日数 */
+  /** 調子を変えずに保つ残り日数（PHASE 2.5） */
   conditionTimer: number;
+  /** 直近7日分の調子（古い順、最後が今日）。PHASE 2.5 */
+  conditionHistory: ConditionId[];
   /** モチベーション 0〜100 */
   motivation: number;
   /** 個人の士気 0〜100 */
