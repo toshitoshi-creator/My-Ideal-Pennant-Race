@@ -106,6 +106,80 @@ describe('STEP13 セーブ・ロード', () => {
     expect(validateState(next.state)).toEqual([]);
   });
 
+  it('PHASE2のデータ（性格・潜在能力・特殊能力・疲労・怪我）が保存・復元される', () => {
+    let state = createNewGame('phoenix', 30, 8888);
+    for (let i = 0; i < 12; i++) state = advanceToNextPlayerGame(state).state;
+    const sample = state.players.find((p) => p.teamId === 'phoenix')!;
+    sample.ext.injury = {
+      level: 'moderate',
+      name: '肉離れ',
+      startDate: state.date,
+      returnDate: '2026-05-30',
+    };
+    sample.ext.fatigue = 43;
+    sample.ext.condition = 'best';
+    sample.ext.motivation = 77;
+    saveGame(state);
+
+    const loaded = loadGame()!;
+    const restored = loaded.players.find((p) => p.id === sample.id)!;
+    expect(restored.ext.personality).toBe(sample.ext.personality);
+    expect(restored.ext.potential).toBe(sample.ext.potential);
+    expect(restored.ext.growthType).toBe(sample.ext.growthType);
+    expect(restored.ext.growthTendency).toBe(sample.ext.growthTendency);
+    expect(restored.ext.specialAbilities).toEqual(sample.ext.specialAbilities);
+    expect(restored.ext.fatigue).toBe(43);
+    expect(restored.ext.condition).toBe('best');
+    expect(restored.ext.motivation).toBe(77);
+    expect(restored.ext.injury).toEqual(sample.ext.injury);
+    expect(loaded.teamMorale['phoenix']).toBe(state.teamMorale['phoenix']);
+    expect(validateState(loaded)).toEqual([]);
+  });
+
+  it('PHASE1(v2)のセーブデータにPHASE2のデータを補完して読み込める', () => {
+    const state = createNewGame('phoenix', 10, 1357);
+    // v2 相当（PHASE 2 のフィールドがない）セーブデータを作る
+    const legacy = JSON.parse(JSON.stringify(state)) as GameState;
+    legacy.version = 2;
+    delete (legacy as Partial<GameState>).teamMorale;
+    delete (legacy as Partial<GameState>).notices;
+    delete (legacy as Partial<GameState>).lastGrowthReport;
+    for (const player of legacy.players) {
+      player.ext = {
+        personality: null,
+        specialSkills: [],
+        potential: null,
+        popularity: null,
+        growthRate: null,
+        fatigue: 0,
+        condition: 3,
+        injury: null,
+        contract: null,
+        faStatus: null,
+      } as unknown as GameState['players'][number]['ext'];
+    }
+    localStorage.setItem(SAVE_KEY, JSON.stringify(legacy));
+
+    const loaded = loadGame()!;
+    expect(loaded).not.toBeNull();
+    expect(loaded.version).toBe(SAVE_VERSION);
+    for (const player of loaded.players) {
+      expect(typeof player.ext.personality).toBe('string');
+      expect(player.ext.potential).toBeGreaterThanOrEqual(1);
+      expect(player.ext.potential).toBeLessThanOrEqual(100);
+      expect(typeof player.ext.growthType).toBe('string');
+      expect(Array.isArray(player.ext.specialAbilities)).toBe(true);
+      expect(player.ext.condition).toBe('normal');
+      expect(player.ext.injury).toBeNull();
+    }
+    expect(loaded.teamMorale['phoenix']).toBe(50);
+    expect(Array.isArray(loaded.notices)).toBe(true);
+    // 補完後もそのまま試合を進められる
+    const next = advanceToNextPlayerGame(loaded);
+    expect(next.playerResult).not.toBeNull();
+    expect(validateState(next.state)).toEqual([]);
+  });
+
   it('壊れたセーブデータは読み込まない', () => {
     localStorage.setItem(SAVE_KEY, '{ broken json');
     expect(loadGame()).toBeNull();

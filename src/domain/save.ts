@@ -1,7 +1,7 @@
 import type { GameState } from './types';
 import { SAVE_VERSION } from './newGame';
 import { repairAllSetups } from './engine';
-import { LEGACY_TRAJECTORY_MAX, migrateLegacyTrajectory } from './trajectory';
+import { migrateV1ToV2, migrateV2ToV3 } from './migrate';
 
 export const SAVE_KEY = 'mipr:save:v1';
 
@@ -71,16 +71,14 @@ export function migrate(state: GameState): GameState | null {
   if (typeof state !== 'object' || state === null) return null;
   if (!Array.isArray(state.players) || !Array.isArray(state.teams)) return null;
 
-  // v1 → v2: 弾道が 1〜4 の4段階だったので 1〜100 に変換する
-  if (state.version === 1) {
-    for (const player of state.players) {
-      if (!player.batting) return null;
-      if (player.batting.trajectory <= LEGACY_TRAJECTORY_MAX) {
-        player.batting.trajectory = migrateLegacyTrajectory(player.batting.trajectory);
-      }
-    }
-    state.version = 2;
+  for (const player of state.players) {
+    if (!player.batting) return null;
   }
+
+  // v1 → v2: 弾道が 1〜4 の4段階だったので 1〜100 に変換する
+  if (state.version === 1) migrateV1ToV2(state);
+  // v2 → v3: PHASE 2 のデータ（性格・潜在能力・成長・特殊能力・状態）を補完する
+  if (state.version === 2) migrateV2ToV3(state);
 
   if (state.version !== SAVE_VERSION) return null;
   return state;

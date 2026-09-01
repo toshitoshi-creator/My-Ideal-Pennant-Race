@@ -12,6 +12,12 @@ import {
 } from '../../domain/roster';
 import { average, formatAverage, formatEra, formatInnings } from '../../domain/stats';
 import { formatDateJa } from '../../domain/dates';
+import { personalityDef } from '../../domain/personality';
+import { potentialLabel, growthTypeDef } from '../../domain/growth';
+import { CONDITION_ICONS, CONDITION_LABELS, fatigueLabel } from '../../domain/condition';
+import { injuryText } from '../../domain/injury';
+import { specialAbilityDef } from '../../domain/specialAbilities';
+import { effectiveBreakdown } from '../../domain/effective';
 
 export function PlayerDetail({ player, onClose }: { player: Player; onClose: () => void }) {
   const { state, mutate, showToast } = useGame();
@@ -65,6 +71,21 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
             </span>
           )}
         </div>
+      </div>
+
+      <div className="card">
+        <h2>コンディション</h2>
+        <StatusPanel player={player} teamMorale={state.teamMorale[player.teamId] ?? 50} />
+      </div>
+
+      <div className="card">
+        <h2>個性</h2>
+        <PersonalityPanel player={player} />
+      </div>
+
+      <div className="card">
+        <h2>特殊能力</h2>
+        <SpecialAbilityPanel player={player} />
       </div>
 
       <div className="card">
@@ -157,5 +178,129 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
         </button>
       )}
     </Sheet>
+  );
+}
+
+function StatusPanel({ player, teamMorale }: { player: Player; teamMorale: number }) {
+  const { state } = useGame();
+  const ext = player.ext;
+  const injury = injuryText(player, state.date);
+  const breakdown = effectiveBreakdown(player, { teamMorale });
+  const percent = Math.round((breakdown.total - 1) * 100);
+  return (
+    <>
+      {injury && (
+        <div
+          style={{
+            background: '#3a1f24',
+            color: '#ff9aa2',
+            borderRadius: 10,
+            padding: '8px 10px',
+            marginBottom: 10,
+            fontWeight: 700,
+          }}
+        >
+          🏥 {injury}
+        </div>
+      )}
+      <KeyValue
+        label="コンディション"
+        value={
+          <span style={{ color: conditionColor(ext.condition) }}>
+            {CONDITION_ICONS[ext.condition]} {CONDITION_LABELS[ext.condition]}
+          </span>
+        }
+      />
+      <KeyValue label="疲労" value={`${Math.round(ext.fatigue)} / 100（${fatigueLabel(ext.fatigue)}）`} />
+      <KeyValue label="モチベーション" value={`${Math.round(ext.motivation)} / 100`} />
+      {ext.slump && <KeyValue label="状態" value={<span style={{ color: 'var(--bad)' }}>スランプ</span>} />}
+      <KeyValue
+        label="今日の実効能力"
+        value={
+          <span style={{ color: percent > 0 ? 'var(--good)' : percent < 0 ? 'var(--bad)' : undefined }}>
+            {percent > 0 ? '+' : ''}
+            {percent}%
+          </span>
+        }
+      />
+      <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>
+        基本能力はそのままで、疲労・コンディション・性格から「その日の実効能力」を計算しています。
+      </div>
+    </>
+  );
+}
+
+function conditionColor(condition: Player['ext']['condition']): string {
+  switch (condition) {
+    case 'best':
+      return '#ff9f43';
+    case 'good':
+      return 'var(--good)';
+    case 'bad':
+      return '#ffca7a';
+    case 'worst':
+      return 'var(--bad)';
+    default:
+      return 'var(--text)';
+  }
+}
+
+function PersonalityPanel({ player }: { player: Player }) {
+  const personality = personalityDef(player.ext.personality);
+  const growth = growthTypeDef(player.ext.growthType);
+  return (
+    <>
+      <KeyValue label="性格" value={personality.name} />
+      <div className="muted" style={{ padding: '6px 0', fontSize: 13 }}>
+        「{personality.description}」
+      </div>
+      <div className="row" style={{ flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+        {personality.summary.map((line) => (
+          <span key={line} className="chip" style={{ fontSize: 12 }}>
+            {line}
+          </span>
+        ))}
+      </div>
+      <KeyValue label="将来性" value={potentialLabel(player.ext.potential)} />
+      <KeyValue label="成長タイプ" value={growth.name} />
+      <div className="muted" style={{ padding: '6px 0', fontSize: 13 }}>
+        {growth.description}
+      </div>
+    </>
+  );
+}
+
+function SpecialAbilityPanel({ player }: { player: Player }) {
+  const entries = player.ext.specialAbilities;
+  if (entries.length === 0) {
+    return <div className="muted">特殊能力はありません。</div>;
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {entries.map((entry) => {
+        const def = specialAbilityDef(entry.id);
+        if (!def) return null;
+        const positive = def.polarity === 'positive';
+        return (
+          <div
+            key={entry.id}
+            style={{
+              borderLeft: `4px solid ${positive ? 'var(--good)' : 'var(--bad)'}`,
+              background: positive ? 'rgba(77,208,122,0.08)' : 'rgba(255,107,107,0.08)',
+              borderRadius: 8,
+              padding: '8px 10px',
+            }}
+          >
+            <div style={{ fontWeight: 800, color: positive ? 'var(--good)' : 'var(--bad)' }}>
+              {def.name}
+              {entry.level > 1 ? ` Lv${entry.level}` : ''}
+            </div>
+            <div className="muted" style={{ fontSize: 12 }}>
+              {def.description}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }

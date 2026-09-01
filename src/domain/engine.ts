@@ -4,6 +4,8 @@ import { addDays } from './dates';
 import { simulateGame } from './simulation';
 import { repairSetup } from './setup';
 import { addBatting, addPitching, emptySeasonStats } from './stats';
+import { applyDailyUpdates } from './daily';
+import { isAvailable } from './injury';
 
 /** 実況を保持しておくプレイヤー球団の試合数 */
 const COMMENTARY_KEEP = 20;
@@ -20,6 +22,13 @@ export function firstTeamOf(state: GameState, teamId: string): Player[] {
   return state.players.filter((p) => p.teamId === teamId && p.roster === 'first');
 }
 
+/** 1軍かつ怪我をしていない、実際に試合に出られる選手（PHASE 2） */
+export function availableFirstTeam(state: GameState, teamId: string): Player[] {
+  return state.players.filter(
+    (p) => p.teamId === teamId && p.roster === 'first' && isAvailable(p),
+  );
+}
+
 /** 1軍から外れた選手がオーダーに残らないように全球団のオーダーを整える */
 export function repairAllSetups(state: GameState): void {
   for (const team of state.teams) {
@@ -27,7 +36,8 @@ export function repairAllSetups(state: GameState): void {
     state.setups[team.id] = repairSetup(
       state.setups[team.id],
       team.id,
-      firstTeamOf(state, team.id),
+      // 怪我人はオーダー・ローテーションから自動的に外れる
+      availableFirstTeam(state, team.id),
       league.useDH,
     );
   }
@@ -114,10 +124,12 @@ export function simulateScheduledGame(
     useDH: league.useDH,
     homeTeam,
     awayTeam,
-    homePlayers: firstTeamOf(state, homeTeam.id),
-    awayPlayers: firstTeamOf(state, awayTeam.id),
+    homePlayers: availableFirstTeam(state, homeTeam.id),
+    awayPlayers: availableFirstTeam(state, awayTeam.id),
     homeSetup,
     awaySetup,
+    homeMorale: state.teamMorale[homeTeam.id] ?? 50,
+    awayMorale: state.teamMorale[awayTeam.id] ?? 50,
   });
 
   // 先発ローテーションを 1 つ進める
@@ -155,6 +167,10 @@ export function advanceDay(state: GameState): AdvanceResult {
     applyGameResult(next, result);
     results.push(result);
   }
+
+  // PHASE 2: 疲労・コンディション・モチベーション・怪我を1日分進める
+  applyDailyUpdates(next, rng, results);
+  repairAllSetups(next);
 
   next.rngState = rng.getState();
   next.date = addDays(next.date, 1);
@@ -216,6 +232,8 @@ export function validateState(state: GameState): string[] {
         errors.push(`${team.name}のオーダーに存在しない選手が入っています`);
       } else if (player.teamId !== team.id || player.roster !== 'first') {
         errors.push(`${team.name}のオーダーに1軍以外の選手が入っています`);
+      } else if (player.ext.injury) {
+        errors.push(`${team.name}のオーダーに怪我人が入っています`);
       }
       if (seen.has(slot.playerId)) {
         errors.push(`${team.name}のオーダーに同じ選手が重複しています`);
@@ -224,7 +242,13 @@ export function validateState(state: GameState): string[] {
     }
     for (const id of setup.rotation) {
       const player = state.players.find((p) => p.id === id);
-      if (!player || player.teamId !== team.id || player.roster !== 'first' || !player.isPitcher) {
+      if (
+        !player ||
+        player.teamId !== team.id ||
+        player.roster !== 'first' ||
+        !player.isPitcher ||
+        player.ext.injury
+      ) {
         errors.push(`${team.name}の先発ローテーションが不正です`);
       }
     }

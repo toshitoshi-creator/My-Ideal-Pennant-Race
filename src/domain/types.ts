@@ -1,9 +1,12 @@
 /**
- * PHASE 1 のデータ構造。
- * PHASE 2 以降（性格・特殊能力・潜在能力・成長・疲労・怪我・契約・FA など）を
- * 後から追加できるよう、Player には拡張用の入れ物 `ext` を用意してある。
- * `ext` は PHASE 1 では読み書きしない（既定値のまま保存されるだけ）。
+ * データ構造。
+ * PHASE 1 の基本能力・編成・試合に、PHASE 2 の個性（性格・潜在能力・成長タイプ・
+ * 特殊能力・疲労・コンディション・モチベーション・怪我）を Player.ext として追加している。
+ * PHASE 3 以降（契約・FA・ドラフト・施設など）も ext に足していける。
  */
+import type { PersonalityId } from './personality';
+import type { SpecialAbilityEntry } from './specialAbilities';
+import type { GrowthTendencyId, GrowthTypeId } from './growth';
 
 export type PositionId =
   | 'P'
@@ -55,19 +58,69 @@ export interface PitcherAbilities {
   movement: number;
 }
 
+/** コンディション（5段階） */
+export type ConditionId = 'best' | 'good' | 'normal' | 'bad' | 'worst';
+
+/** 怪我の重さ */
+export type InjuryLevel = 'minor' | 'moderate' | 'major';
+
+export interface InjuryState {
+  level: InjuryLevel;
+  name: string;
+  /** 発生日 */
+  startDate: string;
+  /** この日から出場可能 */
+  returnDate: string;
+}
+
+export interface SlumpState {
+  /** この日まで不調 */
+  until: string;
+  /** 実効能力の低下率（0.05 なら -5%） */
+  severity: number;
+}
+
 /**
- * PHASE 2 以降で使う予定のフィールド。
- * PHASE 1 では生成時の既定値のまま保持するだけで、ゲームロジックからは参照しない。
+ * PHASE 2 で追加した選手の個性・状態。
+ * PHASE 3 以降のフィールド（契約・FA・人気など）も既に器だけ用意してある。
  */
 export interface PlayerExtensions {
-  personality: string | null;
-  specialSkills: string[];
-  potential: number | null;
-  popularity: number | null;
-  growthRate: number | null;
+  /** 誕生日（YYYY-MM-DD）。年齢は Player.age を正とし、こちらは表示用 */
+  birthDate: string | null;
+  /** 潜在能力 1〜100。プレイヤーには数値を見せない */
+  potential: number;
+  growthType: GrowthTypeId;
+  /** 能力ごとの成長傾向 */
+  growthTendency: GrowthTendencyId;
+  /** 成長率 0.5〜1.5 */
+  growthRate: number;
+  personality: PersonalityId;
+  specialAbilities: SpecialAbilityEntry[];
+  /** 疲労 0〜100 */
   fatigue: number;
-  condition: number;
-  injury: null | { name: string; returnDate: string };
+  condition: ConditionId;
+  /** コンディションを次に見直すまでの残り日数 */
+  conditionTimer: number;
+  /** モチベーション 0〜100 */
+  motivation: number;
+  /** 個人の士気 0〜100 */
+  morale: number;
+  injury: InjuryState | null;
+  /** 怪我で1軍を外れた選手（7日ルールの例外扱い） */
+  injuryDemotion: boolean;
+  slump: SlumpState | null;
+  /** 直近の調子（0〜100、50が標準）。スランプ判定に使う */
+  form: number;
+  /** 連続出場日数 */
+  consecutiveGames: number;
+  /** 今シーズン1軍で出場した試合数 */
+  firstTeamGames: number;
+  /** 今シーズン2軍で過ごした日数（簡易） */
+  secondTeamDays: number;
+  /** 隠しパラメータ（PHASE 3 以降の拡張用） */
+  hiddenAttributes: Record<string, number>;
+  /** 以下は PHASE 3 以降で使用 */
+  popularity: number | null;
   contract: null | { salary: number; years: number };
   faStatus: null | { serviceDays: number; eligible: boolean };
 }
@@ -250,6 +303,37 @@ export interface GameState {
   stats: Record<string, PlayerSeasonStats>;
   /** シーズン終了フラグ */
   seasonFinished: boolean;
+  /** 球団ごとのチーム士気 0〜100（PHASE 2） */
+  teamMorale: Record<string, number>;
+  /** 直近のシーズン終了時の成長結果（プレイヤー球団のみ保持） */
+  lastGrowthReport: GrowthReport | null;
+  /** 直近の怪我・復帰などの通知（新しいものが後ろ） */
+  notices: GameNotice[];
+}
+
+/** シーズン終了時の成長レポート（表示用） */
+export interface GrowthReport {
+  year: number;
+  teamId: string;
+  players: GrowthReportEntry[];
+}
+
+export interface GrowthReportEntry {
+  playerId: string;
+  name: string;
+  ageBefore: number;
+  ageAfter: number;
+  awakened: boolean;
+  total: number;
+  changes: Array<{ label: string; before: number; after: number }>;
+}
+
+export type NoticeKind = 'injury' | 'return' | 'condition' | 'season' | 'growth';
+
+export interface GameNotice {
+  date: string;
+  kind: NoticeKind;
+  message: string;
 }
 
 /** 1軍登録の上限 */

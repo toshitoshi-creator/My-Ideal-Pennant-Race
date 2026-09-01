@@ -7,8 +7,8 @@ import { generateSchedule, openingDate } from './schedule';
 import { emptySeasonStats } from './stats';
 import { overallRating } from './rating';
 
-/** 2: 弾道を 1〜4 から 1〜100 に変更 */
-export const SAVE_VERSION = 2;
+/** 2: 弾道を 1〜4 から 1〜100 に変更 / 3: PHASE 2（性格・潜在能力・成長・特殊能力・疲労・怪我） */
+export const SAVE_VERSION = 3;
 export const START_YEAR = 2026;
 
 /** 1軍スタート人数（残りは 2軍スタート） */
@@ -40,6 +40,7 @@ export function createNewGame(
     const teamPlayers = generateTeamPlayers(rng, {
       teamId: teamSeed.id,
       strength,
+      startYear: START_YEAR,
       starCount: 2,
       starBonus: isPlayerTeam ? [7, 14] : [10, 19],
     });
@@ -68,6 +69,9 @@ export function createNewGame(
     records: {},
     stats: {},
     seasonFinished: false,
+    teamMorale: {},
+    lastGrowthReport: null,
+    notices: [],
   };
 
   for (const team of TEAMS) {
@@ -75,6 +79,7 @@ export function createNewGame(
     const firstTeam = players.filter((p) => p.teamId === team.id && p.roster === 'first');
     state.setups[team.id] = buildAutoSetup(team.id, firstTeam, league.useDH);
     state.records[team.id] = emptyRecord(team.id);
+    state.teamMorale[team.id] = 50;
   }
   for (const player of players) {
     state.stats[player.id] = emptySeasonStats(player.id);

@@ -10,6 +10,7 @@ import {
   validateState,
 } from '../domain/engine';
 import { clearSave, hasSave, loadGame, saveGame } from '../domain/save';
+import { startNextSeason } from '../domain/season';
 import { addDays } from '../domain/dates';
 
 export type ScreenId = 'home' | 'game' | 'players' | 'roster' | 'standings';
@@ -30,6 +31,8 @@ interface StoreValue {
   mutate(fn: (draft: GameState) => void): void;
   playNextGame(): GameResult | null;
   skipOneDay(): void;
+  /** シーズンを締めて翌シーズンを開始する（選手が成長・衰退する） */
+  advanceSeason(): void;
   clearLastResult(): void;
 }
 
@@ -144,6 +147,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [state, persist, showToast]);
 
+  const advanceSeason = useCallback(() => {
+    const current = stateRef.current;
+    if (!current || !current.seasonFinished) return;
+    const draft = cloneState(current);
+    startNextSeason(draft);
+    repairAllSetups(draft);
+    stateRef.current = draft;
+    setState(draft);
+    if (saveGame(draft)) setSaveExists(true);
+    showToast(`${draft.year}年シーズンが開幕しました`);
+  }, [showToast]);
+
   const value = useMemo<StoreValue>(
     () => ({
       state,
@@ -160,6 +175,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       mutate,
       playNextGame,
       skipOneDay,
+      advanceSeason,
       clearLastResult: () => setLastResult(null),
     }),
     [
@@ -176,6 +192,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       mutate,
       playNextGame,
       skipOneDay,
+      advanceSeason,
     ],
   );
 

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useGame, usePlayerMap } from '../store';
 import { formatDateFull, formatDateJa } from '../../domain/dates';
 import { nextGameForTeam } from '../../domain/schedule';
@@ -6,9 +6,11 @@ import { nextStarterId } from '../../domain/setup';
 import { teamPower } from '../../domain/rating';
 import { rankOfTeam, formatWinPct, winPct } from '../../domain/standings';
 import { KeyValue, RankBadge } from '../components/common';
+import { GrowthReportSheet } from '../components/GrowthReport';
 
 export function HomeScreen() {
-  const { state, playNextGame, skipOneDay, setScreen } = useGame();
+  const { state, playNextGame, skipOneDay, setScreen, advanceSeason } = useGame();
+  const [showReport, setShowReport] = useState(false);
   const byId = usePlayerMap();
   const team = state.teams.find((t) => t.id === state.playerTeamId)!;
   const league = state.leagues.find((l) => l.id === team.leagueId)!;
@@ -140,13 +142,53 @@ export function HomeScreen() {
       </div>
 
       {state.seasonFinished && (
-        <div className="card">
+        <div className="card" style={{ borderColor: 'var(--accent)' }}>
           <h2>シーズン終了</h2>
-          <div>
+          <div style={{ marginBottom: 10 }}>
             {state.year}年シーズンが終了しました。最終成績は {record.wins}勝{record.losses}敗
             {record.draws}分（{rank}位）です。
           </div>
+          <button
+            className="btn primary"
+            onClick={() => {
+              advanceSeason();
+              setShowReport(true);
+            }}
+          >
+            オフシーズンへ（{state.year + 1}年を始める）
+          </button>
+          <div className="muted" style={{ marginTop: 8 }}>
+            選手が1歳年をとり、成長・衰退します。
+          </div>
         </div>
+      )}
+
+      {state.notices.length > 0 && (
+        <div className="card">
+          <h2>球団ニュース</h2>
+          {state.notices
+            .slice(-5)
+            .reverse()
+            .map((notice, i) => (
+              <div key={i} style={{ padding: '5px 0', fontSize: 14 }}>
+                <span className="muted">{formatDateJa(notice.date)}　</span>
+                {notice.message}
+              </div>
+            ))}
+        </div>
+      )}
+
+      {state.lastGrowthReport && !state.seasonFinished && (
+        <button className="btn secondary" onClick={() => setShowReport(true)}>
+          {state.lastGrowthReport.year}年オフの成長結果を見る
+        </button>
+      )}
+
+      {showReport && state.lastGrowthReport && (
+        <GrowthReportSheet
+          report={state.lastGrowthReport}
+          onClose={() => setShowReport(false)}
+        />
       )}
     </div>
   );

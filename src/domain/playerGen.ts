@@ -1,7 +1,12 @@
-import type { Player, PlayerExtensions, PositionId } from './types';
+import type { ConditionId, Player, PlayerExtensions, PositionId } from './types';
 import { Rng } from './rng';
-import { clamp1to100 } from './rank';
+import { clamp1to100, velocityToScale } from './rank';
 import { SURNAMES, GIVEN_NAMES } from './names';
+import { PERSONALITY_IDS, personalityEffects } from './personality';
+import type { PersonalityId } from './personality';
+import type { GrowthTendencyId, GrowthTypeId } from './growth';
+import type { SpecialAbilityEntry, SpecialAbilityId } from './specialAbilities';
+import { toDateString } from './dates';
 
 /** プレイヤー球団の基本構成：投手10・捕手3・内野7・外野5 = 25人 */
 export const DEFAULT_POSITION_PLAN: PositionId[] = [
@@ -23,19 +28,82 @@ const SUB_POSITION_CANDIDATES: Record<PositionId, PositionId[]> = {
   RF: ['LF', 'CF'],
 };
 
-function emptyExtensions(): PlayerExtensions {
+/** PHASE 2 の個性を持たない既定値（セーブ移行時の補完にも使う） */
+export function defaultExtensions(): PlayerExtensions {
   return {
-    personality: null,
-    specialSkills: [],
-    potential: null,
-    popularity: null,
-    growthRate: null,
+    birthDate: null,
+    potential: 50,
+    growthType: 'normal',
+    growthTendency: 'balanced',
+    growthRate: 1,
+    personality: 'hardWorker',
+    specialAbilities: [],
     fatigue: 0,
-    condition: 3,
+    condition: 'normal',
+    conditionTimer: 1,
+    motivation: 55,
+    morale: 50,
     injury: null,
+    injuryDemotion: false,
+    slump: null,
+    form: 50,
+    consecutiveGames: 0,
+    firstTeamGames: 0,
+    secondTeamDays: 0,
+    hiddenAttributes: {},
+    popularity: null,
     contract: null,
     faStatus: null,
   };
+}
+
+/** 投手／野手それぞれの成長傾向 */
+function pickGrowthTendency(
+  rng: Rng,
+  isPitcher: boolean,
+  mainPosition: PositionId,
+  power: number,
+  speed: number,
+): GrowthTendencyId {
+  if (isPitcher) return rng.chance(0.5) ? 'pitchingPower' : 'pitchingControl';
+  const roll = rng.next();
+  if (power >= 55 && roll < 0.5) return 'power';
+  if (speed >= 55 && roll < 0.5) return 'speed';
+  if ((mainPosition === 'SS' || mainPosition === 'C' || mainPosition === 'CF') && roll < 0.55) {
+    return 'defense';
+  }
+  if (roll < 0.35) return 'hitting';
+  if (roll < 0.5) return 'balanced';
+  if (roll < 0.65) return 'defense';
+  if (roll < 0.8) return 'power';
+  return 'speed';
+}
+
+function pickGrowthType(rng: Rng, age: number): GrowthTypeId {
+  const roll = rng.next();
+  if (roll < 0.16) return 'early';
+  if (roll < 0.46) return 'normal';
+  if (roll < 0.64) return 'late';
+  if (roll < 0.72) return 'superLate';
+  if (roll < 0.78) return 'genius';
+  if (roll < 0.9) return 'stable';
+  void age;
+  return 'volatile';
+}
+
+/**
+ * 現在能力・性格から潜在能力を決める。
+ * 若い選手ほど「現在能力＜潜在能力」の幅が大きくなる。
+ */
+function makePotential(
+  rng: Rng,
+  currentOverall: number,
+  age: number,
+  personality: PersonalityId,
+): number {
+  const youth = Math.max(0, 30 - age);
+  const headroom = rng.normal(youth * 1.15 + 4, 8) + personalityEffects(personality).potentialBonus;
+  return clamp1to100(currentOverall + Math.max(-4, headroom));
 }
 
 const NUMBER_RANGES: Record<'P' | 'C' | 'IF' | 'OF', number[]> = {
@@ -78,6 +146,8 @@ function pickAge(rng: Rng): number {
 
 export interface GeneratePlayersOptions {
   teamId: string;
+  /** 誕生年の計算に使う（省略時 2026） */
+  startYear?: number;
   /** チームの平均能力の目安（1〜100） */
   strength: number;
   count?: number;
@@ -105,8 +175,148 @@ export function resetPlayerIdCounter(): void {
   idCounter = 0;
 }
 
+
+/** 現在能力のおおまかな総合値（潜在能力の基準に使う） */
+function currentOverall(player: Player): number {
+  if (player.isPitcher && player.pitching) {
+    const p = player.pitching;
+    return clamp1to100(
+      velocityToScale(p.velocity) * 0.24 +
+        p.control * 0.26 +
+        p.stamina * 0.14 +
+        p.power * 0.22 +
+        p.movement * 0.14,
+    );
+  }
+  const b = player.batting;
+  return clamp1to100(
+    b.contact * 0.3 + b.power * 0.26 + b.speed * 0.14 + b.fielding * 0.16 + b.catching * 0.08 + b.arm * 0.06,
+  );
+}
+
+/**
+ * 特殊能力を抽選する。
+ *
+ * 個数はまず「枠」を決めてから、どの能力になるかを能力値に応じた重みで選ぶ。
+ * 能力の高い選手はプラスがつきやすく低い選手はマイナスがつきやすいが、
+ * 誰にでも一定の確率があるので「強い選手だけがさらに強くなる」形にはしない。
+ */
+function rollSpecialAbilities(rng: Rng, player: Player): SpecialAbilityEntry[] {
+  const gain = personalityEffects(player.ext.personality).specialAbilityGain;
+  const overall = currentOverall(player);
+  // 総合が高いほどプラスが多く、低いほどマイナスが多い（ただし差は小さめ）
+  const positiveBias = (overall - 42) / 60;
+  const negativeBias = (42 - overall) / 60;
+
+  const pickCount = (bias: number, table: number[]): number => {
+    const roll = rng.next() - Math.max(-0.2, Math.min(0.25, bias * 0.35));
+    let acc = 0;
+    for (let i = 0; i < table.length; i++) {
+      acc += table[i];
+      if (roll < acc) return i;
+    }
+    return table.length - 1;
+  };
+
+  const positiveCount = Math.min(
+    3,
+    Math.round(pickCount(positiveBias, [0.36, 0.35, 0.2, 0.09]) * gain),
+  );
+  const negativeCount = pickCount(negativeBias, [0.6, 0.3, 0.1]);
+
+  const high = (value: number) => 0.5 + Math.max(0, (value - 40) / 22);
+  const low = (value: number) => 0.5 + Math.max(0, (44 - value) / 22);
+
+  let positives: Array<[SpecialAbilityId, number]>;
+  let negatives: Array<[SpecialAbilityId, number]>;
+
+  if (player.isPitcher && player.pitching) {
+    const p = player.pitching;
+    const velocity = velocityToScale(p.velocity);
+    positives = [
+      ['strikeoutPitcher', high((velocity + p.power) / 2)],
+      ['risingBall', high(velocity)],
+      ['sharpBreak', high(p.movement)],
+      ['lowBall', high(p.control)],
+      ['heavyBall', high(p.power)],
+      ['pinchStrong', 0.9],
+      ['vsLeftPitcher', 0.9],
+      ['quickDelivery', 0.8],
+      ['toughPitcher', 0.8],
+      ['pitcherIntimidation', high(p.power) * 0.6],
+    ];
+    negatives = [
+      ['wildWalk', low(p.control)],
+      ['gopherBall', low(p.power)],
+      ['blowup', low(p.control) * 0.8],
+      ['unlucky', 0.6],
+      ['pinchWeak', 0.7],
+    ];
+  } else {
+    const b = player.batting;
+    positives = [
+      ['powerHitter', high(b.power)],
+      ['contactHitter', high(b.contact)],
+      ['sprayHitter', high(b.contact) * 0.8],
+      ['goodEye', 0.9],
+      ['basestealer', high(b.speed)],
+      ['baserunning', high(b.speed) * 0.8],
+      ['fieldingMaster', high(b.fielding)],
+      ['laserBeam', high(b.arm) * 0.8],
+      ['clutch', 0.9],
+      ['vsLeftBatter', 0.9],
+      ['adversity', 0.7],
+      ['grandSlam', high(b.power) * 0.4],
+      ['walkOff', 0.6],
+      ['foulOff', high(b.contact) * 0.6],
+      ['intimidation', high(b.power) * 0.5],
+    ];
+    negatives = [
+      ['strikeoutProne', low(b.contact)],
+      ['errorProne', low(b.fielding)],
+      ['throwingTrouble', low(b.arm) * 0.8],
+      ['doublePlayProne', low(b.speed) * 0.8],
+      ['clutchWeak', 0.7],
+      ['vsLeftWeak', 0.7],
+    ];
+  }
+
+  const drawWeighted = (
+    pool: Array<[SpecialAbilityId, number]>,
+    count: number,
+  ): SpecialAbilityId[] => {
+    const chosen: SpecialAbilityId[] = [];
+    const remaining = [...pool];
+    for (let i = 0; i < count && remaining.length > 0; i++) {
+      const total = remaining.reduce((sum, [, w]) => sum + w, 0);
+      let r = rng.next() * total;
+      let index = remaining.length - 1;
+      for (let j = 0; j < remaining.length; j++) {
+        r -= remaining[j][1];
+        if (r <= 0) {
+          index = j;
+          break;
+        }
+      }
+      chosen.push(remaining[index][0]);
+      remaining.splice(index, 1);
+    }
+    return chosen;
+  };
+
+  return [
+    ...drawWeighted(positives, positiveCount),
+    ...drawWeighted(negatives, negativeCount),
+  ].map((id) => ({
+    id,
+    // PHASE 2 では基本 Lv1。ごく一部だけ Lv2
+    level: rng.chance(0.08) ? 2 : 1,
+  }));
+}
+
 export function generateTeamPlayers(rng: Rng, options: GeneratePlayersOptions): Player[] {
   const { teamId, strength } = options;
+  const startYear = options.startYear ?? 2026;
   const plan = options.positionPlan ?? DEFAULT_POSITION_PLAN;
   const count = options.count ?? plan.length;
   const starCount = options.starCount ?? 1;
@@ -174,8 +384,30 @@ export function generateTeamPlayers(rng: Rng, options: GeneratePlayersOptions): 
         : null,
       roster: 'first',
       lastRosterChangeDate: null,
-      ext: emptyExtensions(),
+      ext: defaultExtensions(),
     };
+
+    // ---- PHASE 2: 個性 ----
+    const personality = rng.pick(PERSONALITY_IDS);
+    const ext = player.ext;
+    ext.personality = personality;
+    ext.birthDate = toDateString(startYear - player.age, rng.int(1, 12), rng.int(1, 28));
+    ext.growthType = pickGrowthType(rng, player.age);
+    ext.growthTendency = pickGrowthTendency(
+      rng,
+      isPitcher,
+      mainPosition,
+      player.batting.power,
+      player.batting.speed,
+    );
+    ext.growthRate = Math.round((0.5 + rng.next() * 1.0) * 100) / 100;
+    ext.potential = makePotential(rng, currentOverall(player), player.age, personality);
+    ext.motivation = clamp1to100(rng.normal(58, 12));
+    ext.morale = clamp1to100(rng.normal(52, 8));
+    ext.condition = rng.pick(['normal', 'normal', 'good', 'bad'] as ConditionId[]);
+    ext.conditionTimer = rng.int(1, 5);
+    ext.specialAbilities = rollSpecialAbilities(rng, player);
+
     players.push(player);
   }
   return players;

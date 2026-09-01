@@ -16,6 +16,9 @@ import { positionPenalty, effectiveDefense, POSITION_LABELS } from './positions'
 import { emptyBatting, emptyPitching } from './stats';
 import { pitchingRating } from './rating';
 import { extraBaseFactor, groundBallRate, homeRunFactor } from './trajectory';
+import { effectiveBatting, effectiveMultiplier, effectivePitching } from './effective';
+import type { EffectiveContext } from './effective';
+import { abilityEffect, type SituationFlags } from './specialAbilities';
 import { bullpen, nextStarterId } from './setup';
 
 interface Runner {
@@ -27,6 +30,8 @@ interface Runner {
 
 interface TeamCtx {
   team: Team;
+  /** チーム士気 0〜100（PHASE 2） */
+  morale: number;
   setup: TeamSetup;
   byId: Map<string, Player>;
   lineup: Array<{ playerId: string; position: PositionId | 'DH' }>;
@@ -63,6 +68,9 @@ export interface SimulateGameInput {
   awayPlayers: Player[];
   homeSetup: TeamSetup;
   awaySetup: TeamSetup;
+  /** チーム士気（PHASE 2、省略時 50） */
+  homeMorale?: number;
+  awayMorale?: number;
 }
 
 function statFor<T>(map: Map<string, T>, id: string, make: () => T): T {
@@ -79,7 +87,12 @@ function pitcherCapacity(player: Player, isStarter: boolean): number {
   return isStarter ? 13 + stamina * 0.17 : 4 + stamina * 0.06;
 }
 
-function buildTeamCtx(team: Team, setup: TeamSetup, players: Player[]): TeamCtx {
+function buildTeamCtx(
+  team: Team,
+  setup: TeamSetup,
+  players: Player[],
+  morale: number,
+): TeamCtx {
   const byId = new Map(players.map((p) => [p.id, p]));
   const starterId = nextStarterId(setup) ?? players.find((p) => p.isPitcher)?.id ?? players[0].id;
   const lineup = setup.lineup.map((slot) => ({
@@ -89,6 +102,7 @@ function buildTeamCtx(team: Team, setup: TeamSetup, players: Player[]): TeamCtx 
   const relievers = orderRelievers(players, setup);
   return {
     team,
+    morale,
     setup,
     byId,
     lineup,
@@ -120,27 +134,55 @@ interface DefenseSummary {
   avgDefense: number;
   avgPenalty: number;
   catcherArm: number;
-  fielders: Array<{ player: Player; position: PositionId }>;
+  /** 特殊能力による失策率の平均倍率 */
+  errorFactor: number;
+  fielders: Array<{ player: Player; position: PositionId; errorWeight: number }>;
 }
 
+/**
+ * 守備陣の集計。守備位置ペナルティ（PHASE 1）に加えて、
+ * PHASE 2 の実効能力（疲労・コンディション）と特殊能力を反映する。
+ */
 function defenseSummary(ctx: TeamCtx): DefenseSummary {
-  const fielders: Array<{ player: Player; position: PositionId }> = [];
+  const fielders: Array<{ player: Player; position: PositionId; errorWeight: number }> = [];
   let total = 0;
   let penalty = 0;
+  let errorFactor = 0;
   let catcherArm = 45;
+  const ectx: EffectiveContext = { teamMorale: ctx.morale };
+
   for (const slot of ctx.lineup) {
     if (slot.position === 'DH' || slot.position === 'P') continue;
     const player = ctx.byId.get(slot.playerId);
     if (!player) continue;
-    fielders.push({ player, position: slot.position });
-    total += effectiveDefense(player, slot.position);
+    const condition = effectiveMultiplier(player, ectx);
+    const skillBonus = abilityEffect(player.ext.specialAbilities, 'defense');
+    const errorBonus = abilityEffect(player.ext.specialAbilities, 'error');
+    const skill = effectiveDefense(player, slot.position) * condition * skillBonus;
+    fielders.push({
+      player,
+      position: slot.position,
+      errorWeight: Math.max(0.15, (2.2 - skill / 55) * errorBonus),
+    });
+    total += skill;
     penalty += positionPenalty(player, slot.position);
+    errorFactor += errorBonus;
     if (slot.position === 'C') {
-      catcherArm = player.batting.arm * (1 - positionPenalty(player, slot.position));
+      catcherArm =
+        player.batting.arm *
+        (1 - positionPenalty(player, slot.position)) *
+        condition *
+        abilityEffect(player.ext.specialAbilities, 'catcherArm');
     }
   }
   const n = Math.max(1, fielders.length);
-  return { avgDefense: total / n, avgPenalty: penalty / n, catcherArm, fielders };
+  return {
+    avgDefense: total / n,
+    avgPenalty: penalty / n,
+    catcherArm,
+    errorFactor: errorFactor / n,
+    fielders,
+  };
 }
 
 type PaOutcome =
@@ -154,6 +196,20 @@ type PaOutcome =
   | { kind: 'groundout' }
   | { kind: 'flyout' };
 
+/** 打席ごとの場面情報（性格・特殊能力の発動条件に使う） */
+interface PaSituation {
+  /** 打者側の特殊能力の場面フラグ */
+  batterFlags: SituationFlags;
+  /** 投手側の特殊能力の場面フラグ */
+  pitcherFlags: SituationFlags;
+  /** 打者側の実効能力コンテキスト */
+  batterCtx: EffectiveContext;
+  /** 投手側の実効能力コンテキスト */
+  pitcherCtx: EffectiveContext;
+  /** 投手が「負け運」などで味方打線に与える補正 */
+  runSupport: number;
+}
+
 function resolvePlateAppearance(
   rng: Rng,
   batter: Player,
@@ -161,19 +217,45 @@ function resolvePlateAppearance(
   bf: number,
   isStarter: boolean,
   defense: DefenseSummary,
+  situation: PaSituation,
 ): PaOutcome {
-  const pit = pitcher.pitching!;
+  const batterSkills = batter.ext.specialAbilities;
+  const pitcherSkills = pitcher.ext.specialAbilities;
+  const bFlags = situation.batterFlags;
+  const pFlags = situation.pitcherFlags;
+
+  // 実効能力（基本能力 × 性格・疲労・コンディション・モチベーション・スランプ）
+  const pit = effectivePitching(pitcher, situation.pitcherCtx) ?? pitcher.pitching!;
+  const b = effectiveBatting(batter, situation.batterCtx);
+
   const capacity = pitcherCapacity(pitcher, isStarter);
-  const fatigue = Math.max(0.62, 1 - Math.max(0, bf - capacity) * 0.022);
+  // 「打たれ強さ」はスタミナ切れの影響を小さくする
+  const fatigueResist = abilityEffect(pitcherSkills, 'pitFatigue', pFlags);
+  const fatigue = Math.max(
+    0.62,
+    1 - Math.max(0, bf - capacity) * 0.022 * fatigueResist,
+  );
 
   const vel = velocityToScale(pit.velocity);
   const stuff =
     (vel * 0.3 + pit.power * 0.32 + pit.movement * 0.23 + pit.control * 0.15) * fatigue;
   const control = pit.control * fatigue;
 
-  const b = batter.batting;
-  const pWalk = clamp(0.076 + (52 - control) * 0.0013 + (b.contact - 50) * 0.0002, 0.02, 0.2);
-  const pK = clamp(0.19 + (stuff - 50) * 0.003 - (b.contact - 50) * 0.0027, 0.04, 0.4);
+  const pWalk = clamp(
+    (0.076 + (52 - control) * 0.0013 + (b.contact - 50) * 0.0002) *
+      abilityEffect(batterSkills, 'batWalk', bFlags) *
+      abilityEffect(pitcherSkills, 'pitWalk', pFlags) *
+      abilityEffect(batterSkills, 'opponentPitcherWalk', bFlags),
+    0.015,
+    0.26,
+  );
+  const pK = clamp(
+    (0.19 + (stuff - 50) * 0.003 - (b.contact - 50) * 0.0027) *
+      abilityEffect(batterSkills, 'batStrikeout', bFlags) *
+      abilityEffect(pitcherSkills, 'pitStrikeout', pFlags),
+    0.03,
+    0.46,
+  );
 
   const roll = rng.next();
   if (roll < pWalk) return { kind: 'walk' };
@@ -183,23 +265,35 @@ function resolvePlateAppearance(
   // 弾道は他能力と足し込まず、独立した係数として長打・本塁打率に掛ける
   const trajF = homeRunFactor(b.trajectory);
   const pHr = clamp(
-    0.032 * Math.pow(2, (b.power - 48) / 32) * trajF * Math.pow(2, -(pit.power - 48) / 38),
-    0.002,
-    0.16,
+    0.032 *
+      Math.pow(2, (b.power - 48) / 32) *
+      trajF *
+      Math.pow(2, -(pit.power - 48) / 38) *
+      abilityEffect(batterSkills, 'batHomeRun', bFlags) *
+      abilityEffect(pitcherSkills, 'pitHomeRun', pFlags),
+    0.001,
+    0.2,
   );
   const pError = clamp(
-    0.021 * (1 + defense.avgPenalty * 3) * (1 - (defense.avgDefense - 45) / 170),
-    0.004,
-    0.14,
+    0.021 *
+      (1 + defense.avgPenalty * 3) *
+      (1 - (defense.avgDefense - 45) / 170) *
+      defense.errorFactor,
+    0.003,
+    0.16,
   );
   const pHit = clamp(
-    0.282 +
+    (0.282 +
       (b.contact - 50) * 0.0013 +
       (b.power - 50) * 0.0004 -
       (defense.avgDefense - 48) * 0.0018 -
-      (stuff - 50) * 0.0009,
-    0.16,
-    0.44,
+      (stuff - 50) * 0.0009) *
+      abilityEffect(batterSkills, 'batHit', bFlags) *
+      abilityEffect(pitcherSkills, 'pitHit', pFlags) *
+      abilityEffect(pitcherSkills, 'opponentBatterHit', pFlags) *
+      situation.runSupport,
+    0.12,
+    0.5,
   );
 
   const bip = rng.next();
@@ -211,34 +305,36 @@ function resolvePlateAppearance(
   if (bip < pHr + pError + pHit) {
     const typeRoll = rng.next();
     const pDouble = clamp(
-      0.2 * Math.pow(2, (b.power - 50) / 50) * extraBaseFactor(b.trajectory),
-      0.08,
-      0.35,
+      0.2 *
+        Math.pow(2, (b.power - 50) / 50) *
+        extraBaseFactor(b.trajectory) *
+        abilityEffect(batterSkills, 'batDouble', bFlags),
+      0.06,
+      0.4,
     );
     const pTriple = clamp(0.022 * (b.speed / 50), 0.002, 0.06);
     if (typeRoll < pTriple) return { kind: 'triple' };
     if (typeRoll < pTriple + pDouble) return { kind: 'double' };
     return { kind: 'single' };
   }
-  return rng.next() < groundBallRate(b.trajectory)
-    ? { kind: 'groundout' }
-    : { kind: 'flyout' };
+  const ground = clamp(
+    groundBallRate(b.trajectory) * abilityEffect(pitcherSkills, 'pitGroundBall', pFlags),
+    0.2,
+    0.8,
+  );
+  return rng.next() < ground ? { kind: 'groundout' } : { kind: 'flyout' };
 }
 
 function pickErrorFielder(
   rng: Rng,
   defense: DefenseSummary,
 ): { player: Player; position: PositionId } {
-  // 守備適性の低い選手ほどエラーしやすい
-  const weights = defense.fielders.map((f) => {
-    const skill = effectiveDefense(f.player, f.position);
-    return Math.max(0.2, 2.2 - skill / 55);
-  });
-  const total = weights.reduce((a, b) => a + b, 0);
+  // 守備の下手な選手・「エラー」持ちほど失策しやすい
+  const total = defense.fielders.reduce((sum, f) => sum + f.errorWeight, 0);
   let r = rng.next() * total;
-  for (let i = 0; i < defense.fielders.length; i++) {
-    r -= weights[i];
-    if (r <= 0) return defense.fielders[i];
+  for (const fielder of defense.fielders) {
+    r -= fielder.errorWeight;
+    if (r <= 0) return fielder;
   }
   return defense.fielders[defense.fielders.length - 1];
 }
@@ -249,8 +345,18 @@ function clamp(v: number, min: number, max: number): number {
 
 export function simulateGame(input: SimulateGameInput): GameResult {
   const { rng } = input;
-  const home = buildTeamCtx(input.homeTeam, input.homeSetup, input.homePlayers);
-  const away = buildTeamCtx(input.awayTeam, input.awaySetup, input.awayPlayers);
+  const home = buildTeamCtx(
+    input.homeTeam,
+    input.homeSetup,
+    input.homePlayers,
+    input.homeMorale ?? 50,
+  );
+  const away = buildTeamCtx(
+    input.awayTeam,
+    input.awaySetup,
+    input.awayPlayers,
+    input.awayMorale ?? 50,
+  );
   const commentary: string[] = [];
   const scoringEvents: ScoringEvent[] = [];
 
@@ -402,13 +508,23 @@ function playHalfInning(
     if (bases[0] && !bases[1] && outs < 2) {
       const runnerPlayer = offense.byId.get(bases[0].playerId);
       if (runnerPlayer) {
-        const speed = runnerPlayer.batting.speed;
-        const attempt = clamp((speed - 40) / 260, 0, 0.2);
+        const runnerSkills = runnerPlayer.ext.specialAbilities;
+        const speed =
+          runnerPlayer.batting.speed *
+          effectiveMultiplier(runnerPlayer, { teamMorale: offense.morale });
+        const attempt = clamp(
+          ((speed - 40) / 260) * abilityEffect(runnerSkills, 'stealAttempt'),
+          0,
+          0.3,
+        );
         if (rng.chance(attempt)) {
+          const pitcherOnMound = defenseCtx.byId.get(defenseCtx.currentPitcherId);
           const success = clamp(
-            0.62 + (speed - 50) * 0.005 - (defense.catcherArm - 50) * 0.004,
-            0.3,
-            0.92,
+            (0.62 + (speed - 50) * 0.005 - (defense.catcherArm - 50) * 0.004) *
+              abilityEffect(runnerSkills, 'stealSuccess') *
+              abilityEffect(pitcherOnMound?.ext.specialAbilities, 'pitStealSuppress'),
+            0.25,
+            0.95,
           );
           if (rng.chance(success)) {
             statFor(offense.batting, runnerPlayer.id, emptyBatting).steals += 1;
@@ -432,6 +548,17 @@ function playHalfInning(
     pit.games = 1;
     defenseCtx.pitcherBF += 1;
 
+    const situation = buildSituation({
+      batter,
+      pitcher,
+      offense,
+      defenseCtx,
+      bases,
+      outs,
+      inning,
+      isHomeBatting,
+    });
+
     const outcome = resolvePlateAppearance(
       rng,
       batter,
@@ -439,6 +566,7 @@ function playHalfInning(
       defenseCtx.pitcherBF,
       pitcher.id === defenseCtx.starterId,
       defense,
+      situation,
     );
 
     const runnerOf = (): Runner => ({
@@ -516,7 +644,8 @@ function playHalfInning(
           if (bases[1]) {
             const runnerPlayer = offense.byId.get(bases[1].playerId);
             const speed = runnerPlayer?.batting.speed ?? 40;
-            if (rng.chance(clamp(0.5 + (speed - 50) * 0.006, 0.25, 0.85))) {
+            const extra = abilityEffect(runnerPlayer?.ext.specialAbilities, 'extraBase');
+            if (rng.chance(clamp((0.5 + (speed - 50) * 0.006) * extra, 0.2, 0.92))) {
               score(bases[1], batter.id);
               rbi++;
             } else {
@@ -525,7 +654,9 @@ function playHalfInning(
             bases[1] = null;
           }
           if (bases[0]) {
-            if (!bases[2] && rng.chance(0.28)) bases[2] = bases[0];
+            const runner = offense.byId.get(bases[0].playerId);
+            const extra = abilityEffect(runner?.ext.specialAbilities, 'extraBase');
+            if (!bases[2] && rng.chance(Math.min(0.6, 0.28 * extra))) bases[2] = bases[0];
             else bases[1] = bases[0];
             bases[0] = null;
           }
@@ -594,7 +725,12 @@ function playHalfInning(
       }
       case 'groundout': {
         bat.atBats += 1;
-        const dp = bases[0] && outs < 2 && rng.chance(0.32);
+        const dp =
+          bases[0] &&
+          outs < 2 &&
+          rng.chance(
+            Math.min(0.6, 0.32 * abilityEffect(batter.ext.specialAbilities, 'doublePlay')),
+          );
         if (dp) {
           bases[0] = null;
           outs += 2;
@@ -642,6 +778,55 @@ function playHalfInning(
   }
 
   if (runsThisInning > 0) commentary.push(`　この回 ${runsThisInning}点`);
+}
+
+/** 打席の場面から、性格・特殊能力の発動条件を組み立てる */
+function buildSituation(args: {
+  batter: Player;
+  pitcher: Player;
+  offense: TeamCtx;
+  defenseCtx: TeamCtx;
+  bases: Array<Runner | null>;
+  outs: number;
+  inning: number;
+  isHomeBatting: boolean;
+}): PaSituation {
+  const { batter, pitcher, offense, defenseCtx, bases, inning } = args;
+  const scoringPosition = !!bases[1] || !!bases[2];
+  const basesLoaded = !!bases[0] && !!bases[1] && !!bases[2];
+  const diff = offense.runs - defenseCtx.runs;
+  const lateClose = inning >= 7 && Math.abs(diff) <= 2;
+  const behind = diff < 0;
+  const closeGame = inning >= 7 && Math.abs(diff) <= 1;
+  const pressure = lateClose ? Math.min(1, (inning - 6) * 0.25) : 0;
+
+  const batterFlags: SituationFlags = {
+    scoringPosition,
+    basesLoaded,
+    lateClose,
+    behind,
+    vsLeftHand: pitcher.throws === 'L',
+  };
+  const pitcherFlags: SituationFlags = {
+    scoringPosition,
+    basesLoaded,
+    lateClose,
+    behind: diff > 0,
+    vsLeftHand: batter.bats === 'L',
+    pinch: scoringPosition,
+  };
+
+  // 「負け運」の投手が投げている間は味方打線の援護がやや減る
+  const ownPitcher = offense.byId.get(offense.currentPitcherId);
+  const runSupport = abilityEffect(ownPitcher?.ext.specialAbilities, 'runSupport');
+
+  return {
+    batterFlags,
+    pitcherFlags,
+    batterCtx: { closeGame, pressure, teamMorale: offense.morale },
+    pitcherCtx: { closeGame, pressure, teamMorale: defenseCtx.morale },
+    runSupport,
+  };
 }
 
 function addOuts(defenseCtx: TeamCtx, outs: number): void {

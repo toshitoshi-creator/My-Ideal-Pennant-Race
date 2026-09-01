@@ -10,7 +10,7 @@ import {
 import { standingsForLeague } from './standings';
 import { simulateGame } from './simulation';
 import { Rng } from './rng';
-import { TEAM_SEEDS } from './teams';
+import { PLAYER_TEAM_STRENGTH, TEAM_SEEDS } from './teams';
 import { generateTeamPlayers } from './playerGen';
 import { buildAutoSetup } from './setup';
 import { diffDays } from './dates';
@@ -84,9 +84,14 @@ describe('STEP9 試合シミュレーション', () => {
     const rng = new Rng(2024);
     const strongTeam = TEAM_SEEDS[0];
     const weakTeam = TEAM_SEEDS[11];
-    // ゲーム内で実際に起こりうる最大の戦力差（最強CPU球団 41 vs プレイヤー球団 33）
+    // ゲーム内で実際に起こりうる最大の戦力差（最強CPU球団 vs プレイヤー球団）
     const strongPlayers = generateTeamPlayers(rng, { teamId: strongTeam.id, strength: 41, starCount: 3 });
-    const weakPlayers = generateTeamPlayers(rng, { teamId: weakTeam.id, strength: 33, starCount: 2, starBonus: [7, 14] });
+    const weakPlayers = generateTeamPlayers(rng, {
+      teamId: weakTeam.id,
+      strength: PLAYER_TEAM_STRENGTH,
+      starCount: 2,
+      starBonus: [7, 14],
+    });
     const strongSetup = buildAutoSetup(strongTeam.id, strongPlayers, true);
     const weakSetup = buildAutoSetup(weakTeam.id, weakPlayers, true);
 

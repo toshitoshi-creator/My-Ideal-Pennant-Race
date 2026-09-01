@@ -43,7 +43,11 @@ export function checkRosterChange(
   if (to === 'second') {
     // 試合が組めなくなる降格は禁止（オーダーに穴が開くのを防ぐ）
     const first = state.players.filter(
-      (p) => p.teamId === player.teamId && p.roster === 'first' && p.id !== player.id,
+      (p) =>
+        p.teamId === player.teamId &&
+        p.roster === 'first' &&
+        p.id !== player.id &&
+        p.ext.injury === null,
     );
     if (!player.isPitcher && first.filter((p) => !p.isPitcher).length < MIN_FIRST_TEAM_FIELDERS) {
       return {
@@ -61,6 +65,9 @@ export function checkRosterChange(
     }
   }
   if (to === 'first') {
+    if (player.ext.injury) {
+      return { allowed: false, daysLeft: 0, reason: '怪我のため登録できません' };
+    }
     const count = state.players.filter(
       (p) => p.teamId === player.teamId && p.roster === 'first',
     ).length;
@@ -89,6 +96,7 @@ export function applyRosterChange(
   const player = state.players.find((p) => p.id === playerId)!;
   player.roster = to;
   player.lastRosterChangeDate = state.date;
+  player.ext.injuryDemotion = false;
   return { ok: true, reason: null };
 }
 

@@ -1,0 +1,99 @@
+/**
+ * セーブデータの移行（PHASE 2）。
+ *
+ * v1: PHASE 1（弾道 1〜4）
+ * v2: 弾道 1〜100
+ * v3: PHASE 2（性格・潜在能力・成長タイプ・特殊能力・疲労・コンディション・怪我）
+ *
+ * 古いセーブは不足分を安全な初期値で補完し、既存のデータ（能力・成績・順位・日付・
+ * 1軍/2軍・7日制限）は一切書き換えない。
+ */
+import type { GameState, Player } from './types';
+import { Rng, seedFrom } from './rng';
+import { LEGACY_TRAJECTORY_MAX, migrateLegacyTrajectory } from './trajectory';
+import { defaultExtensions } from './playerGen';
+import { PERSONALITY_IDS } from './personality';
+import { GROWTH_TENDENCY_IDS, GROWTH_TYPE_IDS } from './growth';
+import { overallRating } from './rating';
+import { clamp1to100 } from './rank';
+
+/** v1 → v2：弾道を 1〜4 から 1〜100 へ */
+export function migrateV1ToV2(state: GameState): void {
+  for (const player of state.players) {
+    if (player.batting && player.batting.trajectory <= LEGACY_TRAJECTORY_MAX) {
+      player.batting.trajectory = migrateLegacyTrajectory(player.batting.trajectory);
+    }
+  }
+  state.version = 2;
+}
+
+/** v2 → v3：PHASE 2 のデータを補完する */
+export function migrateV2ToV3(state: GameState): void {
+  for (const player of state.players) {
+    fillPhase2Extensions(player);
+  }
+  if (!state.teamMorale) state.teamMorale = {};
+  for (const team of state.teams) {
+    if (typeof state.teamMorale[team.id] !== 'number') state.teamMorale[team.id] = 50;
+  }
+  if (state.lastGrowthReport === undefined) state.lastGrowthReport = null;
+  if (!Array.isArray(state.notices)) state.notices = [];
+  state.version = 3;
+}
+
+/**
+ * PHASE 2 のフィールドが欠けている選手に、選手ごとに安定した初期値を入れる。
+ * 既存の能力・年齢・成績には触れない。
+ */
+export function fillPhase2Extensions(player: Player): void {
+  const defaults = defaultExtensions();
+  const previous = (player.ext ?? {}) as Partial<typeof defaults>;
+  const rng = new Rng(seedFrom(player.id));
+
+  const ext = { ...defaults, ...previous } as typeof defaults;
+
+  // 旧データは personality が null / 旧文字列のことがある
+  if (!PERSONALITY_IDS.includes(ext.personality)) {
+    ext.personality = rng.pick(PERSONALITY_IDS);
+  }
+  if (!GROWTH_TYPE_IDS.includes(ext.growthType)) {
+    ext.growthType = rng.pick(GROWTH_TYPE_IDS);
+  }
+  if (!GROWTH_TENDENCY_IDS.includes(ext.growthTendency)) {
+    ext.growthTendency = player.isPitcher
+      ? rng.pick(['pitchingPower', 'pitchingControl'] as const)
+      : rng.pick(['hitting', 'power', 'speed', 'defense', 'balanced'] as const);
+  }
+  if (typeof ext.growthRate !== 'number' || !Number.isFinite(ext.growthRate)) {
+    ext.growthRate = Math.round((0.5 + rng.next()) * 100) / 100;
+  }
+  if (typeof ext.potential !== 'number' || !Number.isFinite(ext.potential)) {
+    const current = overallRating(player);
+    const youth = Math.max(0, 30 - player.age);
+    ext.potential = clamp1to100(current + rng.normal(youth * 1.1 + 4, 8));
+  }
+  if (!Array.isArray(ext.specialAbilities)) ext.specialAbilities = [];
+  if (typeof ext.fatigue !== 'number') ext.fatigue = 0;
+  if (typeof ext.condition !== 'string') ext.condition = 'normal';
+  if (typeof ext.conditionTimer !== 'number') ext.conditionTimer = rng.int(1, 5);
+  if (typeof ext.motivation !== 'number') ext.motivation = 55;
+  if (typeof ext.morale !== 'number') ext.morale = 50;
+  if (ext.injury === undefined) ext.injury = null;
+  if (typeof ext.injuryDemotion !== 'boolean') ext.injuryDemotion = false;
+  if (ext.slump === undefined) ext.slump = null;
+  if (typeof ext.form !== 'number') ext.form = 50;
+  if (typeof ext.consecutiveGames !== 'number') ext.consecutiveGames = 0;
+  if (typeof ext.firstTeamGames !== 'number') ext.firstTeamGames = 0;
+  if (typeof ext.secondTeamDays !== 'number') ext.secondTeamDays = 0;
+  if (!ext.hiddenAttributes || typeof ext.hiddenAttributes !== 'object') {
+    ext.hiddenAttributes = {};
+  }
+  if (ext.popularity === undefined) ext.popularity = null;
+  if (ext.contract === undefined) ext.contract = null;
+  if (ext.faStatus === undefined) ext.faStatus = null;
+
+  // PHASE 1 の置き場所だった specialSkills は specialAbilities に統合済み
+  delete (ext as unknown as Record<string, unknown>).specialSkills;
+
+  player.ext = ext;
+}

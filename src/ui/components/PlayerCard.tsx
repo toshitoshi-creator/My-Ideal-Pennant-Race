@@ -4,6 +4,8 @@ import { overallRating, defenseRating } from '../../domain/rating';
 import { rankOf } from '../../domain/rank';
 import { RankBadge } from './common';
 import { daysUntilChangeable } from '../../domain/roster';
+import { CONDITION_ICONS, CONDITION_LABELS } from '../../domain/condition';
+import { daysUntilReturn } from '../../domain/injury';
 
 export function PlayerCard({
   player,
@@ -41,6 +43,17 @@ export function PlayerCard({
               <span className="badge-2nd">2軍</span>
             ))}
           {lock > 0 && <span className="badge-lock">あと{lock}日</span>}
+          {player.ext.injury && (
+            <span className="badge-lock">
+              🏥{daysUntilReturn(player, today)}日
+            </span>
+          )}
+          <span
+            title={CONDITION_LABELS[player.ext.condition]}
+            style={{ fontSize: 12, fontWeight: 800, color: conditionColor(player) }}
+          >
+            {CONDITION_ICONS[player.ext.condition]}
+          </span>
         </span>
         <span className="meta">{summary}</span>
       </span>
@@ -50,4 +63,19 @@ export function PlayerCard({
       </span>
     </button>
   );
+}
+
+function conditionColor(player: Player): string {
+  switch (player.ext.condition) {
+    case 'best':
+      return '#ff9f43';
+    case 'good':
+      return 'var(--good)';
+    case 'bad':
+      return '#ffca7a';
+    case 'worst':
+      return 'var(--bad)';
+    default:
+      return 'var(--text-dim)';
+  }
 }

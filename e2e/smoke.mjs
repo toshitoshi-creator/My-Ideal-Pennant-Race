@@ -35,7 +35,7 @@ ok('タイトル画面が表示された');
 await page.getByRole('button', { name: '新規ゲーム' }).click();
 await page.getByText('東都フェニックス').first().click();
 await page.getByRole('button', { name: '次へ' }).click();
-await page.getByText('30試合').click();
+await page.getByText('10試合').click();
 await shot('02-newgame');
 await page.getByRole('button', { name: 'この設定で開始' }).click();
 await page.locator('.appbar h1').waitFor();
@@ -57,8 +57,14 @@ ok(`選手一覧に ${count} 枚の選手カード`);
 await shot('04-players');
 await page.locator('.player-card').first().click();
 await page.locator('.sheet').waitFor();
-if (!(await page.locator('.sheet').getByText('能力').first().isVisible())) fail('能力が表示されない');
+if (!(await page.locator('.sheet').getByText('能力', { exact: true }).first().isVisible())) fail('能力が表示されない');
 else ok('選手詳細に能力が表示された');
+// PHASE 2: 個性・状態の表示
+const detailText = await page.locator('.sheet').innerText();
+for (const label of ['コンディション', '疲労', 'モチベーション', '性格', '将来性', '成長タイプ', '特殊能力']) {
+  if (!detailText.includes(label)) fail(`選手詳細に「${label}」がない`);
+}
+ok('選手詳細に性格・将来性・コンディション・疲労・特殊能力が表示された');
 await shot('05-player-detail');
 await page.locator('.sheet').getByRole('button', { name: '閉じる' }).click();
 
@@ -184,6 +190,51 @@ ok(`6試合消化: ${state.records.phoenix.wins}勝${state.records.phoenix.losse
 await page.locator('.nav').getByText('ホーム').click();
 await shot('14-home-after');
 
+// PHASE 2: シーズンを最後まで進めて成長処理を確認
+for (let i = 0; i < 12; i++) {
+  const current = await readState();
+  if (current.seasonFinished) break;
+  await page.locator('.nav').getByText('ホーム').click();
+  const button = page.getByRole('button', { name: '次の試合へ' });
+  if (!(await button.isEnabled())) break;
+  await button.click();
+  await page.waitForTimeout(250);
+}
+await page.locator('.nav').getByText('ホーム').click();
+const finished = await readState();
+if (!finished.seasonFinished) fail('シーズンが終了しなかった');
+else ok(`シーズン終了（${finished.records.phoenix.wins}勝${finished.records.phoenix.losses}敗${finished.records.phoenix.draws}分）`);
+await shot('16-season-end');
+
+const agesBefore = new Map(finished.players.map((p) => [p.id, p.age]));
+const abilitiesBefore = new Map(finished.players.map((p) => [p.id, p.batting.contact + p.batting.power]));
+await page.getByRole('button', { name: /オフシーズンへ/ }).click();
+await page.locator('.sheet').waitFor();
+const reportText = await page.locator('.sheet').innerText();
+if (!/→/.test(reportText)) fail('成長レポートに能力の変化が出ていない');
+else ok('シーズン終了時の成長結果が表示された');
+await shot('17-growth-report');
+await page.locator('.sheet').getByRole('button', { name: '閉じる' }).click();
+
+const nextSeason = await readState();
+if (nextSeason.year !== finished.year + 1) fail('年度が進んでいない');
+else ok(`翌シーズンが開幕（${finished.year}年 → ${nextSeason.year}年）`);
+const agedCorrectly = nextSeason.players.every((p) => p.age === agesBefore.get(p.id) + 1);
+if (!agedCorrectly) fail('年齢が1歳加算されていない');
+else ok('全選手の年齢が1歳加算された');
+const changed = nextSeason.players.filter((p) => p.batting.contact + p.batting.power !== abilitiesBefore.get(p.id));
+if (changed.length === 0) fail('シーズン終了時に能力が変化していない');
+else ok(`${changed.length}人の能力が成長・衰退した`);
+if (nextSeason.records.phoenix.games !== 0) fail('新シーズンの成績がリセットされていない');
+else ok('新シーズンの成績・日程がリセットされた');
+
+// 新シーズンでも試合ができる
+await page.getByRole('button', { name: '次の試合へ' }).click();
+await page.waitForTimeout(400);
+const afterNew = await readState();
+if (afterNew.records.phoenix.games !== 1) fail('新シーズンで試合ができない');
+else ok('新シーズンでも試合を進められる');
+
 // リロード（アプリ再起動）
 const snapshot = await readState();
 await page.reload();
@@ -196,8 +247,14 @@ if (reloaded.date !== snapshot.date || reloaded.records.phoenix.games !== snapsh
   ok(`再起動しても続きからプレイできる（${reloaded.date} / ${reloaded.records.phoenix.games}試合）`);
 }
 const stillDemoted = reloaded.players.find((p) => p.id === demoteTarget.id);
-if (stillDemoted.roster !== 'second' || !stillDemoted.lastRosterChangeDate) fail('再起動で登録情報が失われた');
-else ok('再起動後も1軍/2軍と7日制限が保持されている');
+if (stillDemoted.roster !== 'second') fail('再起動で登録情報が失われた');
+else ok('再起動後も1軍/2軍の登録が保持されている');
+const samplePlayer = reloaded.players.find((p) => p.teamId === 'phoenix');
+if (!samplePlayer.ext.personality || typeof samplePlayer.ext.potential !== 'number') {
+  fail('再起動でPHASE2のデータが失われた');
+} else {
+  ok(`再起動後もPHASE2のデータが残る（性格 ${samplePlayer.ext.personality} / 潜在 ${samplePlayer.ext.potential}）`);
+}
 await shot('15-reload');
 
 await browser.close();

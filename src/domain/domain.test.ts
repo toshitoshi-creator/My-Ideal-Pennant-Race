@@ -97,16 +97,20 @@ describe('STEP3 選手データ', () => {
     expect(aRank.length).toBeLessThanOrEqual(3);
   });
 
-  it('PHASE2用の拡張フィールドを持つ', () => {
+  it('PHASE2の個性フィールドと、PHASE3以降の拡張用フィールドを持つ', () => {
     const p = playerTeam[0];
-    expect(p.ext).toHaveProperty('personality');
-    expect(p.ext).toHaveProperty('specialSkills');
-    expect(p.ext).toHaveProperty('potential');
-    expect(p.ext).toHaveProperty('fatigue');
-    expect(p.ext).toHaveProperty('condition');
-    expect(p.ext).toHaveProperty('injury');
+    // PHASE 2 で実装済み
+    for (const key of [
+      'personality', 'potential', 'growthType', 'growthTendency', 'growthRate',
+      'specialAbilities', 'fatigue', 'condition', 'motivation', 'morale', 'injury',
+      'slump', 'birthDate', 'hiddenAttributes',
+    ]) {
+      expect(p.ext).toHaveProperty(key);
+    }
+    // PHASE 3 以降のための器
     expect(p.ext).toHaveProperty('contract');
     expect(p.ext).toHaveProperty('faStatus');
+    expect(p.ext).toHaveProperty('popularity');
   });
 });
 
