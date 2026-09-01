@@ -91,6 +91,7 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
               label="弾道"
               value={trajectoryScale(player.batting.trajectory)}
               display={`${player.batting.trajectory}`}
+              showRank={false}
             />
             <AbilityBar label="ミート" value={player.batting.contact} />
             <AbilityBar label="パワー" value={player.batting.power} />

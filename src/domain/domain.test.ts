@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createNewGame } from './newGame';
 import { TEAM_SEEDS, LEAGUES } from './teams';
 import { rankOf } from './rank';
-import { positionPenalty, FIELD_POSITIONS } from './positions';
+import { positionPenalty, effectiveDefense, FIELD_POSITIONS } from './positions';
 import { advanceToNextPlayerGame, validateState, firstTeamOf, cloneState, repairAllSetups } from './engine';
 import { applyRosterChange, checkRosterChange, daysUntilChangeable, firstTeamCount } from './roster';
 import { addDays } from './dates';
@@ -138,6 +138,17 @@ describe('STEP11 守備適性ペナルティ', () => {
 
   it('本職捕手を遊撃は大きなペナルティ', () => {
     expect(positionPenalty(catcher, 'SS')).toBeGreaterThan(positionPenalty(ss, '2B') * 2);
+  });
+
+  it('一塁・左翼は負担が軽い', () => {
+    expect(positionPenalty(ss, '1B')).toBeLessThan(positionPenalty(ss, '2B'));
+    expect(positionPenalty(catcher, '1B')).toBeLessThan(positionPenalty(catcher, 'SS'));
+  });
+
+  it('ペナルティが大きいほど守備力が下がる', () => {
+    const own = effectiveDefense(catcher, 'C');
+    const away = effectiveDefense(catcher, 'SS');
+    expect(away).toBeLessThan(own);
   });
 });
 

@@ -42,6 +42,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [lastResult, setLastResult] = useState<GameResult | null>(null);
   const [saveExists, setSaveExists] = useState<boolean>(() => hasSave());
   const toastTimer = useRef<number | null>(null);
+  const stateRef = useRef<GameState | null>(null);
+  stateRef.current = state;
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -50,6 +52,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const persist = useCallback((next: GameState) => {
+    stateRef.current = next;
     setState(next);
     if (saveGame(next)) setSaveExists(true);
   }, []);
@@ -72,6 +75,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setSaveExists(false);
       return false;
     }
+    stateRef.current = loaded;
     setState(loaded);
     setScreen('home');
     setLastResult(null);
@@ -79,34 +83,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const quitToTitle = useCallback(() => {
-    setState((current) => {
-      if (current) saveGame(current);
-      return null;
-    });
+    if (stateRef.current) saveGame(stateRef.current);
+    stateRef.current = null;
+    setState(null);
     setLastResult(null);
   }, []);
 
   const deleteSave = useCallback(() => {
     clearSave();
     setSaveExists(false);
+    stateRef.current = null;
     setState(null);
     setLastResult(null);
   }, []);
 
-  const mutate = useCallback(
-    (fn: (draft: GameState) => void) => {
-      setState((current) => {
-        if (!current) return current;
-        const draft = cloneState(current);
-        fn(draft);
-        repairAllSetups(draft);
-        saveGame(draft);
-        setSaveExists(true);
-        return draft;
-      });
-    },
-    [],
-  );
+  const mutate = useCallback((fn: (draft: GameState) => void) => {
+    const current = stateRef.current;
+    if (!current) return;
+    const draft = cloneState(current);
+    fn(draft);
+    repairAllSetups(draft);
+    stateRef.current = draft;
+    setState(draft);
+    if (saveGame(draft)) setSaveExists(true);
+  }, []);
 
   const playNextGame = useCallback((): GameResult | null => {
     if (!state) return null;
@@ -131,8 +131,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     const step = advanceDay(state);
     persist(step.state);
-    if (step.playerResult) setLastResult(step.playerResult);
-  }, [state, persist]);
+    if (step.playerResult) {
+      const r = step.playerResult;
+      setLastResult(r);
+      const home = step.state.teams.find((t) => t.id === r.homeTeamId)!;
+      const away = step.state.teams.find((t) => t.id === r.awayTeamId)!;
+      showToast(
+        `${away.shortName} ${r.away.runs} - ${r.home.runs} ${home.shortName}（試合タブで詳細）`,
+      );
+    } else {
+      showToast('1日進めました');
+    }
+  }, [state, persist, showToast]);
 
   const value = useMemo<StoreValue>(
     () => ({

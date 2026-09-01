@@ -39,8 +39,8 @@ export function createNewGame(
     const teamPlayers = generateTeamPlayers(rng, {
       teamId: teamSeed.id,
       strength,
-      starCount: isPlayerTeam ? 2 : strength >= 40 ? 3 : 2,
-      starBonus: isPlayerTeam ? [7, 14] : [12, 22],
+      starCount: 2,
+      starBonus: isPlayerTeam ? [7, 14] : [10, 19],
     });
     // 総合評価の低い選手から 2軍スタート
     const sorted = [...teamPlayers].sort((a, b) => overallRating(b) - overallRating(a));

@@ -31,4 +31,4 @@ export const TEAM_SEEDS: TeamSeed[] = [
 export const TEAMS: Team[] = TEAM_SEEDS.map(({ strength: _strength, ...team }) => team);
 
 /** プレイヤーが選んだ球団は「弱小球団」としてスタートする */
-export const PLAYER_TEAM_STRENGTH = 33;
+export const PLAYER_TEAM_STRENGTH = 35;

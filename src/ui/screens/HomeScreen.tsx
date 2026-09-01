@@ -8,7 +8,7 @@ import { rankOfTeam, formatWinPct, winPct } from '../../domain/standings';
 import { KeyValue, RankBadge } from '../components/common';
 
 export function HomeScreen() {
-  const { state, playNextGame, skipOneDay, setScreen, showToast } = useGame();
+  const { state, playNextGame, skipOneDay, setScreen } = useGame();
   const byId = usePlayerMap();
   const team = state.teams.find((t) => t.id === state.playerTeamId)!;
   const league = state.leagues.find((l) => l.id === team.leagueId)!;
@@ -133,10 +133,7 @@ export function HomeScreen() {
         </button>
         <button
           className="btn secondary"
-          onClick={() => {
-            skipOneDay();
-            showToast('1日進めました');
-          }}
+          onClick={() => skipOneDay()}
         >
           1日進める
         </button>

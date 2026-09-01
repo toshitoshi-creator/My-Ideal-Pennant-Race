@@ -76,6 +76,9 @@ export function positionPenalty(player: Player, assigned: PositionId): number {
   else if (from === to) base = 0.1;
   else base = 0.3; // 内野 <-> 外野
 
+  // 一塁と左翼は誰でもある程度こなせるので負担を半分にする
+  if ((assigned === '1B' || assigned === 'LF') && from !== 'P') base *= 0.5;
+
   const gap = Math.max(0, DIFFICULTY[assigned] - DIFFICULTY[player.mainPosition]);
   return Math.min(0.6, base + gap * 0.04);
 }
