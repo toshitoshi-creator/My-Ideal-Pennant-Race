@@ -56,12 +56,6 @@ export function average(stats: BattingStats): number {
   return stats.atBats === 0 ? 0 : stats.hits / stats.atBats;
 }
 
-/** 出塁率（PHASE 1 は四球のみ考慮の簡易版） */
-export function onBase(stats: BattingStats): number {
-  const denom = stats.atBats + stats.walks;
-  return denom === 0 ? 0 : (stats.hits + stats.walks) / denom;
-}
-
 /** 防御率 */
 export function era(stats: PitchingStats): number {
   if (stats.outs === 0) return 0;

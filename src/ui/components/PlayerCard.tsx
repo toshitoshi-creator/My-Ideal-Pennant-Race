@@ -1,7 +1,7 @@
 import type { Player } from '../../domain/types';
 import { POSITION_SHORT } from '../../domain/positions';
-import { overallRating, battingRating, pitchingRating, defenseRating } from '../../domain/rating';
-import { rankOf, velocityToScale } from '../../domain/rank';
+import { overallRating, defenseRating } from '../../domain/rating';
+import { rankOf } from '../../domain/rank';
 import { RankBadge } from './common';
 import { daysUntilChangeable } from '../../domain/roster';
 
@@ -50,23 +50,4 @@ export function PlayerCard({
       </span>
     </button>
   );
-}
-
-export function playerMainRatings(player: Player): Array<[string, number]> {
-  if (player.isPitcher && player.pitching) {
-    return [
-      ['球速', velocityToScale(player.pitching.velocity)],
-      ['制球', player.pitching.control],
-      ['スタミナ', player.pitching.stamina],
-    ];
-  }
-  return [
-    ['ミート', player.batting.contact],
-    ['パワー', player.batting.power],
-    ['守備', defenseRating(player)],
-  ];
-}
-
-export function playerSummaryRating(player: Player): number {
-  return player.isPitcher ? pitchingRating(player) : battingRating(player);
 }
