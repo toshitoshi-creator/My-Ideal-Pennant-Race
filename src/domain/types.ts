@@ -319,6 +319,8 @@ export interface GameState {
   draft: DraftState | null;
   /** 最後にドラフトを実施した年（二重実行の防止）。PHASE 3.1 */
   lastDraftYear: number | null;
+  /** 球団ごとのスカウト能力・調査ポイント・調査結果。PHASE 3.2 */
+  scouting: ScoutingState;
 }
 
 /** シーズン終了時の成長レポート（表示用） */
@@ -371,7 +373,75 @@ export interface DraftPick {
   prospectId: string | null;
 }
 
+/** スカウトの調査項目（PHASE 3.2） */
+export type ScoutCategory = 'currentAbility' | 'potential' | 'personality' | 'skills';
+
+/** 球団のスカウト能力（0〜100） */
+export interface TeamScoutAbility {
+  /** 現在能力の調査精度 */
+  currentAbility: number;
+  /** 潜在能力の調査精度 */
+  potential: number;
+  /** 性格・成長タイプの調査精度 */
+  personality: number;
+  /** 特殊能力の発見率 */
+  skills: number;
+}
+
+/** 調査で判明した特殊能力（段階的に詳細になる） */
+export interface DiscoveredAbility {
+  id: string;
+  polarity: 'positive' | 'negative';
+  /** hint: 兆候だけ / name: 能力名まで / full: Lv まで */
+  detail: 'hint' | 'name' | 'full';
+  text: string;
+  level?: number;
+}
+
+/** 調査で得られた推定情報（真の Player データとは別物） */
+export interface ScoutEstimate {
+  /** 推定現在能力の下限・上限（真の総合値そのものは持たない） */
+  abilityLow: number;
+  abilityHigh: number;
+  /** 将来性のラベル。未調査なら null */
+  potential: string | null;
+  /** 成長タイプの推定テキスト。未調査なら null */
+  growthType: string | null;
+  /** 性格の推定テキスト。未調査なら null */
+  personality: string | null;
+  skills: DiscoveredAbility[];
+}
+
+/**
+ * 球団がドラフト候補を調査した結果（PHASE 3.2）。
+ * Player の真の能力値は一切書き換えない。
+ */
+export interface ScoutReport {
+  prospectId: string;
+  /** 項目ごとの調査進行度 0〜100 */
+  progress: Record<ScoutCategory, number>;
+  estimate: ScoutEstimate;
+  /** 項目ごとの情報精度 0〜1（信頼度の表示に使う） */
+  accuracy: Record<ScoutCategory, number>;
+  updatedAt: number;
+}
+
+export interface TeamScouting {
+  ability: TeamScoutAbility;
+  /** 残りスカウトポイント */
+  points: number;
+  /** 候補ごとの調査結果（球団ごとに独立） */
+  reports: Record<string, ScoutReport>;
+}
+
+export interface ScoutingState {
+  year: number;
+  teams: Record<string, TeamScouting>;
+}
+
 export interface DraftState {
+  /** 'scouting' の間は調査だけ、'picking' で指名が始まる */
+  phase: 'scouting' | 'picking';
   /** ドラフトを行うオフシーズンの年 */
   year: number;
   prospects: DraftProspect[];

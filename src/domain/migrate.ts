@@ -6,6 +6,7 @@
  * v3: PHASE 2（性格・潜在能力・成長タイプ・特殊能力・疲労・コンディション・怪我）
  * v4: PHASE 2.5（調子のカテゴリ別補正・調子の履歴）
  * v5: PHASE 3.1（引退記録・ドラフト）
+ * v6: PHASE 3.2（スカウト能力・調査ポイント・ScoutReport）
  *
  * 古いセーブは不足分を安全な初期値で補完し、既存のデータ（能力・成績・順位・日付・
  * 1軍/2軍・7日制限）は一切書き換えない。
@@ -17,6 +18,7 @@ import { defaultExtensions } from './playerGen';
 import { PERSONALITY_IDS } from './personality';
 import { GROWTH_TENDENCY_IDS, GROWTH_TYPE_IDS } from './growth';
 import { overallRating } from './rating';
+import { createScoutAbilities, createScoutingState, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { clamp1to100 } from './rank';
 
 /** v1 → v2：弾道を 1〜4 から 1〜100 へ */
@@ -70,6 +72,27 @@ export function migrateV4ToV5(state: GameState): void {
     }
   }
   state.version = 5;
+}
+
+/** v5 → v6：スカウト情報を補う */
+export function migrateV5ToV6(state: GameState): void {
+  if (!state.scouting || typeof state.scouting !== 'object' || !state.scouting.teams) {
+    state.scouting = createScoutingState(state.teams, new Rng(seedFrom(`scout${state.seed}`)), state.year);
+  } else {
+    for (const team of state.teams) {
+      if (!state.scouting.teams[team.id]) {
+        const rng = new Rng(seedFrom(`scout${state.seed}${team.id}`));
+        state.scouting.teams[team.id] = {
+          ability: createScoutAbilities([team], rng)[team.id],
+          points: SCOUT_POINTS_PER_YEAR,
+          reports: {},
+        };
+      }
+    }
+  }
+  // 進行中の古いドラフトは指名段階として扱う
+  if (state.draft && !state.draft.phase) state.draft.phase = 'picking';
+  state.version = 6;
 }
 
 /**

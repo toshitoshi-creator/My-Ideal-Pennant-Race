@@ -12,6 +12,7 @@ import {
 import {
   autoPick,
   availableProspects,
+  beginDraftPicks,
   createDraft,
   currentPick,
   draftOrder,
@@ -255,6 +256,8 @@ describe('PHASE3.1 ドラフト', () => {
     for (const p of state.players.slice(0, 40)) p.age = 41;
     state = cloneState(state);
     startOffseason(state);
+    // PHASE 3.2 でドラフト前にスカウト期間が入ったため、指名を開始しておく
+    beginDraftPicks(state, new Rng(1));
   });
 
   it('前年成績が悪い球団から指名順が決まる', () => {
@@ -362,6 +365,7 @@ describe('PHASE3.1 ドラフト', () => {
     let s = playSeason(newGame(10, 5150));
     s = cloneState(s);
     startOffseason(s);
+    beginDraftPicks(s, new Rng(3));
     const draft = s.draft;
     if (!draft) return; // 引退者がいなければドラフトなし
     for (const pick of draft.picks) {
@@ -476,6 +480,7 @@ describe('PHASE3.1 セーブ', () => {
     for (const p of s.players.slice(0, 30)) p.age = 41;
     s = cloneState(s);
     startOffseason(s);
+    beginDraftPicks(s, new Rng(4));
     expect(s.draft).not.toBeNull();
     saveGame(s);
 
@@ -583,6 +588,7 @@ describe('PHASE3.1 既存システムが壊れていない', () => {
     startOffseason(s);
     const draft = s.draft!;
     const rng = new Rng(2);
+    beginDraftPicks(s, rng);
     let guard = 0;
     while (currentPick(draft) && guard++ < 200) autoPick(s, draft, rng);
     expect(draft.completed).toBe(true);

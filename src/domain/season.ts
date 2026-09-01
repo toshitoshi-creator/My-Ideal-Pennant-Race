@@ -21,7 +21,8 @@ import { emptySeasonStats } from './stats';
 import { defaultExtensions } from './playerGen';
 import { playingTimeOf, rollRetirement } from './retirement';
 import { overallRating } from './rating';
-import { createDraft, finishDraft, runCpuPicks, autoPick, currentPick } from './draft';
+import { createDraft, finishDraft, autoPick, currentPick, beginDraftPicks } from './draft';
+import { resetScoutingForDraft, runCpuScouting } from './scouting';
 import { repairAllSetups } from './engine';
 import { ensureFirstTeamViable } from './daily';
 
@@ -150,9 +151,12 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
   // 引退で穴が空いたオーダーを整える
   repairAllSetups(state);
 
-  // ---- ドラフト準備 ----
+  // ---- ドラフト準備（PHASE 3.2：まずスカウト期間から始まる） ----
   state.draft = createDraft(state, rng);
-  if (state.draft) runCpuPicks(state, rng);
+  if (state.draft) {
+    resetScoutingForDraft(state.scouting, state.year);
+    runCpuScouting(state, rng);
+  }
 
   state.rngState = rng.getState();
 
@@ -176,6 +180,7 @@ export function autoCompleteDraft(state: GameState): void {
   const draft = state.draft;
   if (!draft || draft.completed) return;
   const rng = new Rng(state.rngState);
+  beginDraftPicks(state, rng);
   let guard = 0;
   while (!draft.completed && currentPick(draft) && guard++ < 500) {
     autoPick(state, draft, rng);

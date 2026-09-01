@@ -248,25 +248,107 @@ else ok(`ドラフト開始（候補${offseason.draft.prospects.length}人 / 全
 const retiredCount = offseason.retiredPlayers.length;
 if (retiredCount === 0) ok('今オフの引退者はいなかった');
 else ok(`${retiredCount}人が引退した`);
-ok(
-  offseason.draft.picks.length > 0
-    ? `CPU球団が先に${offseason.draft.picks.length}人を指名した`
-    : 'プレイヤー球団が1巡目最初の指名権を持っている（前年最下位）',
-);
 await shot('16b-draft');
 
-// プレイヤー球団が指名する
+// PHASE 3.2: スカウト期間
+if (offseason.draft.phase !== 'scouting') fail('スカウト期間から始まっていない');
+else ok('ドラフトはスカウト期間から始まる');
 const prospectCards = await page.locator('.player-card').count();
 if (prospectCards === 0) fail('ドラフト候補が表示されていない');
 else ok(`ドラフト候補が${prospectCards}人表示されている`);
-const draftText = await page.locator('.screen').innerText();
-for (const label of ['将来性', 'あなたの球団の指名です']) {
-  if (!draftText.includes(label)) fail(`ドラフト画面に「${label}」がない`);
+const scoutText = await page.locator('.screen').innerText();
+for (const label of ['スカウト期間', '将来性', '調査']) {
+  if (!scoutText.includes(label)) fail(`スカウト画面に「${label}」がない`);
 }
-ok('候補カードに将来性ラベルが表示されている（潜在能力の数値は非表示）');
+const pointsBefore = offseason.scouting.teams.phoenix.points;
+ok(`スカウト画面が表示された（調査ポイント ${pointsBefore}）`);
+
+// 候補を選んで将来性を調査する
+await page.locator('.player-card button').first().click();
+await page.locator('.sheet').waitFor();
+const detailBefore = await page.locator('.sheet').innerText();
+if (!detailBefore.includes('未調査')) fail('未調査の項目が表示されていない');
+else ok('未調査の項目が「未調査」と表示されている');
+await shot('16b1-scout-detail');
+
+const scoutButtons = page.locator('.sheet button', { hasText: /調査 \d+pt/ });
+const scoutButtonCount = await scoutButtons.count();
+if (scoutButtonCount < 4) fail(`調査ボタンが4項目そろっていない（${scoutButtonCount}）`);
+else ok('現在能力・将来性・性格・特殊能力の4項目を個別に調査できる');
+
+// 将来性を2回調査する
+for (let i = 0; i < 2; i++) {
+  await page.locator('.sheet .spread', { hasText: '将来性' }).locator('button').first().click();
+  await page.waitForTimeout(250);
+}
+const afterScout = await readState();
+const scoutState = afterScout.scouting.teams.phoenix;
+const firstProspectId = Object.keys(scoutState.reports)[0];
+const report = scoutState.reports[firstProspectId];
+if (!report || report.progress.potential === 0) fail('将来性の調査が反映されていない');
+else ok(`将来性の調査が進んだ（進行度 ${report.progress.potential}%）`);
+if (scoutState.points >= pointsBefore) fail('スカウトポイントが消費されていない');
+else ok(`スカウトポイントが消費された（${pointsBefore} → ${scoutState.points}）`);
+if (!report.estimate.potential) fail('将来性の推定が生成されていない');
+else ok(`将来性の推定が得られた（${report.estimate.potential}）`);
+
+const detailAfter = await page.locator('.sheet').innerText();
+if (!detailAfter.includes('信頼度')) fail('信頼度が表示されていない');
+else ok('推定情報に信頼度が表示されている');
+await shot('16b2-scout-done');
+await page.locator('.sheet').getByRole('button', { name: '閉じる' }).click();
+
+// 別の候補も調査する
+await page.locator('.player-card button').nth(1).click();
+await page.locator('.sheet').waitFor();
+await page.locator('.sheet .spread', { hasText: '現在能力' }).locator('button').first().click();
+await page.waitForTimeout(250);
+const twoScouted = await readState();
+if (Object.keys(twoScouted.scouting.teams.phoenix.reports).length < 2) {
+  fail('2人目の調査が記録されていない');
+} else {
+  ok('複数の候補を調査できる');
+}
+await page.locator('.sheet').getByRole('button', { name: '閉じる' }).click();
+
+// リロードして調査情報が復元されることを確認する
+const scoutSnapshot = await readState();
+await page.reload();
+await page.getByRole('button', { name: '続きから' }).click();
+await page.getByRole('heading', { name: /ドラフト会議/ }).waitFor();
+const reloadedScout = await readState();
+const restored = reloadedScout.scouting.teams.phoenix;
+if (
+  restored.points !== scoutSnapshot.scouting.teams.phoenix.points ||
+  Object.keys(restored.reports).length !== Object.keys(scoutSnapshot.scouting.teams.phoenix.reports).length
+) {
+  fail('リロードでスカウト情報が失われた');
+} else {
+  ok(`リロード後もスカウト情報が残る（ポイント${restored.points} / 調査済み${Object.keys(restored.reports).length}人）`);
+}
+
+// 他球団の調査情報は独立している
+const cpuReports = Object.keys(reloadedScout.scouting.teams.bluewave.reports).length;
+if (cpuReports === 0) fail('CPU球団がスカウトしていない');
+else ok(`CPU球団も独自に調査している（関東ブルーウェーブ ${cpuReports}人）`);
+
+// ドラフト会議を開始する
+await page.getByRole('button', { name: 'ドラフト会議を始める' }).click();
+await page.waitForTimeout(400);
+const picking = await readState();
+if (picking.draft.phase !== 'picking') fail('指名段階に移行していない');
+else ok('ドラフト会議が始まった');
+
+const draftText = await page.locator('.screen').innerText();
+if (!draftText.includes('将来性')) fail('ドラフト画面に将来性がない');
+ok('スカウト結果を見ながら指名できる');
 
 let myPicks = 0;
 for (let i = 0; i < 8; i++) {
+  const state2 = await readState();
+  if (!state2.draft) break;
+  const slotTeam = state2.draft.order[state2.draft.cursor % state2.draft.order.length];
+  void slotTeam;
   const button = page.getByRole('button', { name: 'この選手を指名' }).first();
   if ((await button.count()) === 0) break;
   await button.click();

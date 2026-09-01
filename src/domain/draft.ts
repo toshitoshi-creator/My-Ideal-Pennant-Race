@@ -17,6 +17,7 @@ import type {
   GameState,
   Player,
   PositionId,
+  ScoutReport,
   Team,
 } from './types';
 import { ROSTER_LIMIT } from './types';
@@ -25,6 +26,7 @@ import { createPlayer } from './playerGen';
 import { overallRating } from './rating';
 import { potentialLabel } from './growth';
 import { standingsForLeague } from './standings';
+import { scoutedEvaluation } from './scouting';
 
 /** 1球団あたりの候補数（12球団なら 108人） */
 export const PROSPECTS_PER_TEAM = 9;
@@ -132,7 +134,9 @@ export function generateProspects(
       player,
       draftRank: 0,
       projectedAbility: overallRating(player),
-      projectedPotential: potentialLabel(player.ext.potential),
+      // 世評（下馬評）。真の潜在能力に大きな誤差を乗せたもので、
+      // 正確な情報はスカウト調査（PHASE 3.2）でしか得られない
+      projectedPotential: potentialLabel(player.ext.potential + rng.normal(0, 12)),
     });
   }
 
@@ -189,6 +193,7 @@ export function createDraft(state: GameState, rng: Rng): DraftState | null {
   const prospects = generateProspects(rng, state.year, state.teams.length);
 
   return {
+    phase: 'scouting',
     year: state.year,
     prospects,
     order: draftOrder(state, rng),
@@ -284,6 +289,29 @@ export function makePick(draft: DraftState, prospectId: string): boolean {
   return true;
 }
 
+/**
+ * スカウト情報にもとづく評価（PHASE 3.2）。
+ * 真の潜在能力ではなく、その球団が調査で得た推定値を使う。
+ * 未調査の候補は公開情報だけで判断することになる。
+ */
+export function evaluateProspectScouted(
+  prospect: DraftProspect,
+  teamRoster: Player[],
+  report: ScoutReport | undefined,
+  rng?: Rng,
+): number {
+  const { ability, potential } = scoutedEvaluation(report, prospect);
+  const group = positionGroupOf(prospect.player.mainPosition);
+  const have = teamRoster.filter((p) => positionGroupOf(p.mainPosition) === group).length;
+  const quota = POSITION_QUOTA[group];
+  const shortage = Math.max(0, Math.min(1, (quota - have) / quota));
+  const positionFit = have < quota ? 1 : 0;
+  const jitter = rng ? rng.normal(0, 3) : 0;
+  return (
+    ability * 0.5 + potential * 0.3 + shortage * 100 * 0.15 + positionFit * 100 * 0.05 + jitter
+  );
+}
+
 /** いま指名権のある球団に自動で指名させる */
 export function autoPick(state: GameState, draft: DraftState, rng: Rng): DraftProspect | null {
   const slot = currentPick(draft);
@@ -294,10 +322,11 @@ export function autoPick(state: GameState, draft: DraftState, rng: Rng): DraftPr
     draft.completed = true;
     return null;
   }
+  const reports = state.scouting?.teams[slot.teamId]?.reports ?? {};
   let best = available[0];
   let bestScore = -Infinity;
   for (const prospect of available) {
-    const score = evaluateProspect(prospect, roster, rng);
+    const score = evaluateProspectScouted(prospect, roster, reports[prospect.id], rng);
     if (score > bestScore) {
       bestScore = score;
       best = prospect;
@@ -313,7 +342,7 @@ export function autoPick(state: GameState, draft: DraftState, rng: Rng): DraftPr
  */
 export function runCpuPicks(state: GameState, rng: Rng): void {
   const draft = state.draft;
-  if (!draft) return;
+  if (!draft || draft.phase !== 'picking') return;
   let guard = 0;
   while (guard++ < 500) {
     const slot = currentPick(draft);
@@ -335,6 +364,14 @@ export function runCpuPicks(state: GameState, rng: Rng): void {
 function pushDraftNotice(state: GameState, message: string): void {
   state.notices.push({ date: state.date, kind: 'draft', message });
   if (state.notices.length > 60) state.notices.splice(0, state.notices.length - 60);
+}
+
+/** スカウト期間を終えて指名を開始する */
+export function beginDraftPicks(state: GameState, rng: Rng): void {
+  const draft = state.draft;
+  if (!draft || draft.phase === 'picking') return;
+  draft.phase = 'picking';
+  runCpuPicks(state, rng);
 }
 
 export function recordPlayerPick(state: GameState, prospect: DraftProspect, round: number): void {

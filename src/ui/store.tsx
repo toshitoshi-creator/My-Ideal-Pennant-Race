@@ -11,7 +11,9 @@ import {
 } from '../domain/engine';
 import { clearSave, hasSave, loadGame, saveGame } from '../domain/save';
 import { completeOffseason, startOffseason } from '../domain/season';
-import { makePick, recordPlayerPick, runCpuPicks, currentPick } from '../domain/draft';
+import { makePick, recordPlayerPick, runCpuPicks, currentPick, beginDraftPicks } from '../domain/draft';
+import { investigate } from '../domain/scouting';
+import type { ScoutCategory } from '../domain/types';
 import { Rng } from '../domain/rng';
 import { addDays } from '../domain/dates';
 
@@ -35,6 +37,10 @@ interface StoreValue {
   skipOneDay(): void;
   /** シーズンを締めてオフシーズン（成長・引退・ドラフト）に入る */
   advanceSeason(): void;
+  /** ドラフト候補を調査する */
+  scout(prospectId: string, category: ScoutCategory): void;
+  /** スカウト期間を終えて指名を開始する */
+  startDraftPicks(): void;
   /** ドラフトでプレイヤー球団が指名する */
   draftPick(prospectId: string): void;
   /** ドラフトを終えて翌シーズンを開幕する */
@@ -176,6 +182,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [commit, showToast]);
 
+  const scout = useCallback(
+    (prospectId: string, category: ScoutCategory) => {
+      const current = stateRef.current;
+      if (!current?.draft) return;
+      const next = cloneState(current);
+      const prospect = next.draft!.prospects.find((p) => p.id === prospectId);
+      if (!prospect) return;
+      const result = investigate(next.scouting, next.playerTeamId, prospect, category);
+      if (!result.ok) {
+        showToast(result.reason ?? '調査できません');
+        return;
+      }
+      commit(next);
+    },
+    [commit, showToast],
+  );
+
+  const startDraftPicks = useCallback(() => {
+    const current = stateRef.current;
+    if (!current?.draft || current.draft.phase === 'picking') return;
+    const next = cloneState(current);
+    const rng = new Rng(next.rngState);
+    beginDraftPicks(next, rng);
+    next.rngState = rng.getState();
+    commit(next);
+  }, [commit]);
+
   const draftPick = useCallback(
     (prospectId: string) => {
       const current = stateRef.current;
@@ -225,6 +258,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       playNextGame,
       skipOneDay,
       advanceSeason,
+      scout,
+      startDraftPicks,
       draftPick,
       finishOffseason,
       pendingReport,
@@ -246,6 +281,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       playNextGame,
       skipOneDay,
       advanceSeason,
+      scout,
+      startDraftPicks,
       draftPick,
       finishOffseason,
       pendingReport,

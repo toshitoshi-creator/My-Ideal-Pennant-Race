@@ -1,7 +1,13 @@
 import type { GameState } from './types';
 import { SAVE_VERSION } from './newGame';
 import { repairAllSetups } from './engine';
-import { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5 } from './migrate';
+import {
+  migrateV1ToV2,
+  migrateV2ToV3,
+  migrateV3ToV4,
+  migrateV4ToV5,
+  migrateV5ToV6,
+} from './migrate';
 
 export const SAVE_KEY = 'mipr:save:v1';
 
@@ -83,6 +89,8 @@ export function migrate(state: GameState): GameState | null {
   if (state.version === 3) migrateV3ToV4(state);
   // v4 → v5: PHASE 3.1 の引退・ドラフトのデータを補完する
   if (state.version === 4) migrateV4ToV5(state);
+  // v5 → v6: PHASE 3.2 のスカウト情報を補完する
+  if (state.version === 5) migrateV5ToV6(state);
 
   if (state.version !== SAVE_VERSION) return null;
   return state;
