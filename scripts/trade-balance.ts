@@ -13,6 +13,13 @@ import type { GameState } from '../src/domain/types';
 
 const SEASONS = Number(process.argv[2] ?? 30);
 const SEEDS = Number(process.argv[3] ?? 100);
+/**
+ * シードの開始位置。--from=25 のように渡すと、100シードを何回かに分けて回せる。
+ * （長時間の実行が途中で止まる環境向け。既定では従来どおり先頭から）
+ */
+const SEED_FROM = Number(
+  (process.argv.find((a) => a.startsWith('--from=')) ?? '--from=0').slice(7),
+);
 const VERBOSE = process.argv.includes('--log');
 
 function playSeason(state: GameState): GameState {
@@ -42,7 +49,7 @@ const lastByTeam = new Map<string, number>();
 let totalTrades = 0;
 let totalMoved = 0;
 
-for (let s = 0; s < SEEDS; s++) {
+for (let s = SEED_FROM; s < SEED_FROM + SEEDS; s++) {
   const seed = 2000 + s * 7907;
   let state = createNewGame('phoenix', 30, seed);
 
