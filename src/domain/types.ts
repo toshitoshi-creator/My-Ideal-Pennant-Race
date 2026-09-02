@@ -330,7 +330,14 @@ export interface GameState {
   lastPayrollYear: number | null;
   /** 契約年数を減算した年（二重減算の防止）。PHASE 3.3 */
   lastContractYear: number | null;
-  /** 直近のオフシーズンの増減（表示・検証用）。PHASE 3.3 */
+  /**
+   * 直近のオフシーズンの増減（表示・検証用）。PHASE 3.3 / 3.4
+   *
+   * released は「今オフに球団を離れて未所属のまま終わった人数（差引）」。
+   * FA市場で他球団と契約した選手はここから差し引かれるため、
+   *   players 数 = 前年 - 引退 + 新人 - released
+   * が常に成立する。
+   */
   lastOffseason: {
     year: number;
     retired: number;
@@ -338,7 +345,21 @@ export interface GameState {
     released: number;
     /** 契約更改の対象になった選手数 */
     renewalTargets: number;
+    /** FA市場に出た人数（PHASE 3.4） */
+    faListed: number;
+    /** FA市場で契約が成立した人数（PHASE 3.4） */
+    faSigned: number;
+    /** うちプレイヤー球団が獲得した人数（PHASE 3.4） */
+    faSignedByPlayer: number;
+    /** FA市場に残った人数（PHASE 3.4） */
+    faUnsigned: number;
   } | null;
+  /** 未所属（FA）の選手。teamId は '' で、state.players には含まれない。PHASE 3.4 */
+  freeAgents: Player[];
+  /** 進行中のFA市場（null ならFA期間ではない）。PHASE 3.4 */
+  fa: FAState | null;
+  /** FA市場を開催した年（二重開催の防止）。PHASE 3.4 */
+  lastFaYear: number | null;
 }
 
 /** シーズン終了時の成長レポート（表示用） */
@@ -432,6 +453,70 @@ export interface ContractPhase {
     salary: number;
     years: number;
   }>;
+  completed: boolean;
+}
+
+/* ---------------- FA（フリーエージェント）：PHASE 3.4 ---------------- */
+
+/** FA選手に期待される役割。市場での位置づけを表すラベル */
+export type FARole = 'STARTER' | 'ROTATION' | 'BENCH' | 'PROSPECT';
+
+/** FA市場での状態 */
+export type FAListingStatus = 'AVAILABLE' | 'OFFERED' | 'SIGNED';
+
+/** オファーの状態 */
+export type FAOfferStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
+
+/** FA市場に出ている選手1人分の情報 */
+export interface FAMarketPlayer {
+  playerId: string;
+  /** 市場に出た年 */
+  listedYear: number;
+  marketValue: number;
+  /** 希望年俸 */
+  askingSalary: number;
+  /** これを下回るオファーは原則受け入れない（市場価値の70%） */
+  minimumSalary: number;
+  /** 希望契約年数 */
+  preferredYears: number;
+  role: FARole;
+  status: FAListingStatus;
+}
+
+/** 1球団から1選手への契約提示 */
+export interface FAOffer {
+  id: string;
+  playerId: string;
+  teamId: string;
+  salary: number;
+  years: number;
+  offeredYear: number;
+  /** 解決時に計算された評価点（0〜1）。解決前は undefined */
+  offerScore?: number;
+  status: FAOfferStatus;
+}
+
+/** FA契約が成立した記録（表示・検証用） */
+export interface FASignRecord {
+  playerId: string;
+  name: string;
+  teamId: string;
+  salary: number;
+  years: number;
+  /** その選手に届いていたオファー数 */
+  offers: number;
+}
+
+/** 進行中のFA市場（PHASE 3.4） */
+export interface FAState {
+  year: number;
+  /** open: 提示受付中 / resolved: 解決済み */
+  phase: 'open' | 'resolved';
+  listings: FAMarketPlayer[];
+  offers: FAOffer[];
+  results: FASignRecord[];
+  /** 今オフ、契約先が決まらなかった選手数 */
+  unsigned: number;
   completed: boolean;
 }
 
@@ -530,6 +615,7 @@ export interface GrowthReportEntry {
 
 export type NoticeKind =
   | 'contract'
+  | 'fa'
   | 'injury'
   | 'return'
   | 'condition'

@@ -16,8 +16,9 @@ import { createContract, createTeamFinance, marketValue, refreshPayrolls } from 
  * 5: PHASE 3.1（引退・ドラフト・新人加入）
  * 6: PHASE 3.2（スカウト・調査ポイント・ScoutReport）
  * 7: PHASE 3.3（契約・年俸・球団資金）
+ * 8: PHASE 3.4（FA市場・オファー・未所属選手）
  */
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 export const START_YEAR = 2026;
 
 /** 1軍スタート人数（残りは 2軍スタート） */
@@ -90,6 +91,9 @@ export function createNewGame(
     lastPayrollYear: null,
     lastContractYear: null,
     lastOffseason: null,
+    freeAgents: [],
+    fa: null,
+    lastFaYear: null,
   };
 
   for (const team of TEAMS) {

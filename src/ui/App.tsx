@@ -8,6 +8,7 @@ import { RosterScreen } from './screens/RosterScreen';
 import { StandingsScreen } from './screens/StandingsScreen';
 import { DraftScreen } from './screens/DraftScreen';
 import { ContractScreen } from './screens/ContractScreen';
+import { FAScreen } from './screens/FAScreen';
 import { formatDateJa } from '../domain/dates';
 
 const NAV: Array<{ id: ScreenId; label: string; icon: string }> = [
@@ -27,7 +28,7 @@ export function App() {
 }
 
 function Root() {
-  const { state, screen, setScreen, toast, quitToTitle } = useStore();
+  const { state, screen, setScreen, toast, quitToTitle, faHidden } = useStore();
 
   if (!state) {
     return (
@@ -51,6 +52,15 @@ function Root() {
     return (
       <>
         <ContractScreen />
+        {toast && <div className="toast">{toast}</div>}
+      </>
+    );
+  }
+  // FA市場は「先に球団を確認する」で一時的に閉じられる
+  if (state.fa && !faHidden) {
+    return (
+      <>
+        <FAScreen />
         {toast && <div className="toast">{toast}</div>}
       </>
     );

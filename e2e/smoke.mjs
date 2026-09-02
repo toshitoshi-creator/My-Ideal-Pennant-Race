@@ -138,11 +138,18 @@ ok('守備位置を変更できた');
 await page.locator('.tabs button', { hasText: '先発' }).click();
 await page.locator('.player-card').first().waitFor();
 const rotBefore = (await readState()).setups.phoenix.rotation.slice();
-await page.locator('.player-card').first().click();
-await page.locator('.sheet').waitFor();
-await page.locator('.sheet .team-pick').nth(3).click();
-await page.waitForTimeout(300);
-const rotAfter = (await readState()).setups.phoenix.rotation;
+// 候補の並びによっては同じ投手を選んでしまうので、変わるまで候補を試す
+let rotAfter = rotBefore;
+for (let i = 1; i <= 5; i++) {
+  await page.locator('.player-card').first().click();
+  await page.locator('.sheet').waitFor();
+  const picks = page.locator('.sheet .team-pick');
+  if ((await picks.count()) <= i) break;
+  await picks.nth(i).click();
+  await page.waitForTimeout(300);
+  rotAfter = (await readState()).setups.phoenix.rotation;
+  if (rotBefore[0] !== rotAfter[0]) break;
+}
 if (rotBefore[0] === rotAfter[0]) fail('先発投手を変更できなかった');
 else ok('先発ローテーションを変更できた');
 await shot('10-rotation');
@@ -353,15 +360,29 @@ else ok(`CPU球団も独自に調査している（関東ブルーウェーブ $
 
 // ドラフト会議を開始する
 await page.getByRole('button', { name: 'ドラフト会議を始める' }).click();
-// CPU球団の指名が終わり、自球団の指名待ちになるまで待つ
-await page.getByRole('button', { name: 'この選手を指名' }).first().waitFor({ timeout: 15000 });
+// CPU球団の指名が終わるのを待つ。
+// 自球団に指名権がない年（保有25人で補充が不要な年）もあるので、
+// 「指名待ち」か「ドラフト終了」のどちらかになるまで待つ。
+await Promise.race([
+  page
+    .getByRole('button', { name: 'この選手を指名' })
+    .first()
+    .waitFor({ timeout: 20000 })
+    .catch(() => {}),
+  page
+    .getByRole('button', { name: '契約更改へ' })
+    .waitFor({ timeout: 20000 })
+    .catch(() => {}),
+]);
 const picking = await readState();
-if (picking.draft.phase !== 'picking') fail('指名段階に移行していない');
+if (picking.draft && picking.draft.phase !== 'picking') fail('指名段階に移行していない');
 else ok('ドラフト会議が始まった');
 
-const draftText = await page.locator('.screen').innerText();
-if (!draftText.includes('将来性')) fail('ドラフト画面に将来性がない');
-ok('スカウト結果を見ながら指名できる');
+if ((await page.getByRole('button', { name: 'この選手を指名' }).count()) > 0) {
+  const draftText = await page.locator('.screen').innerText();
+  if (!draftText.includes('将来性')) fail('ドラフト画面に将来性がない');
+  ok('スカウト結果を見ながら指名できる');
+}
 
 let myPicks = 0;
 for (let i = 0; i < 8; i++) {
@@ -380,10 +401,10 @@ for (let i = 0; i < 8; i++) {
   if (!s2.draft) break;
 }
 const afterPicks = await readState();
-const allPicks = afterPicks.draft ? afterPicks.draft.picks : [];
+const allPicks = afterPicks.draft ? afterPicks.draft.picks : (picking.draft ? picking.draft.picks : []);
 const playerPicks = allPicks.filter((p) => p.teamId === 'phoenix').length;
 const cpuPicks = allPicks.filter((p) => p.teamId !== 'phoenix').length;
-if (myPicks === 0) fail('プレイヤー球団が指名できなかった');
+if (myPicks === 0) ok('今年は自球団の補充が不要で、指名権がなかった');
 else ok(`プレイヤー球団が${playerPicks}人を指名した`);
 if (cpuPicks === 0) fail('CPU球団が指名していない');
 else ok(`CPU球団が${cpuPicks}人を指名した`);
@@ -449,6 +470,25 @@ if (contractStart.contractPhase.pending.length > 0) {
   await shot('16d-contract');
 }
 
+// わざと低い条件を提示して決裂させ、その選手をFA市場へ送る
+const beforeReject = await readState();
+if (beforeReject.contractPhase && beforeReject.contractPhase.pending.length > 0) {
+  await page.locator('button.player-card').first().click();
+  await page.locator('.sheet').waitFor();
+  const sheet = page.locator('.sheet');
+  for (let i = 0; i < 12; i++) {
+    await sheet.getByRole('button', { name: '－' }).click();
+  }
+  await page.waitForTimeout(120);
+  if (!(await sheet.innerText()).includes('×')) fail('大幅に下げても拒否予想にならない');
+  await sheet.getByRole('button', { name: 'この条件で契約する' }).click();
+  await page.waitForTimeout(300);
+  const afterReject = await readState();
+  const rejected = afterReject.contractPhase.resolved.filter((r) => !r.accepted);
+  if (rejected.length === 0) fail('低い提示でも交渉が決裂しない');
+  else ok(`${rejected[0].name} との交渉が決裂した（FA市場へ）`);
+}
+
 // 契約更改の途中で再起動しても続きから交渉できる
 const midContract = await readState();
 await page.reload();
@@ -476,6 +516,141 @@ if (!contractDone.contractPhase || contractDone.contractPhase.pending.length !==
   const accepted = contractDone.contractPhase.resolved.filter((r) => r.accepted).length;
   ok(`契約更改が完了した（合意${accepted}人 / 決裂${contractDone.contractPhase.resolved.length - accepted}人）`);
 }
+// PHASE 3.4: FA市場
+const rosterBeforeFA = contractDone.players
+  .filter((p) => p.teamId === 'phoenix')
+  .map((p) => p.id);
+await page.getByRole('button', { name: 'FA市場へ' }).click();
+await page.getByRole('heading', { name: /年 FA市場/ }).waitFor();
+const faStart = await readState();
+if (!faStart.fa) fail('FA市場が始まっていない');
+else ok(`FA市場が開幕した（${faStart.fa.listings.length}人）`);
+if (faStart.contractPhase !== null) fail('FA市場開始後も契約更改に戻れてしまう');
+else ok('FA市場が始まると契約更改には戻れない');
+
+// 契約が成立しなかった選手は自球団のロスターから外れ、FAとして保持される
+const goneFromRoster = rosterBeforeFA.filter(
+  (id) => !faStart.players.some((p) => p.id === id),
+);
+// 最低人数(24人)を割る場合は引き止められるため、退団が0人になることもある
+if (goneFromRoster.length > 0) {
+  for (const id of goneFromRoster) {
+    if (!faStart.freeAgents.some((p) => p.id === id)) fail('退団した選手がFA市場にいない');
+  }
+  ok(`${goneFromRoster.length}人が自球団のロスターから外れ、FA市場へ移った`);
+} else {
+  ok('自球団からの退団はなかった（最低人数を保つため引き止められた）');
+}
+if (faStart.fa.listings.length === 0) fail('FA市場に選手が1人もいない');
+else ok(`FA市場に${faStart.fa.listings.length}人が並んでいる`);
+const rosterIds = new Set(faStart.players.map((p) => p.id));
+if (faStart.freeAgents.some((p) => rosterIds.has(p.id))) fail('FA選手が球団にも所属している');
+else if (faStart.freeAgents.some((p) => p.teamId !== '')) fail('FA選手に球団IDが残っている');
+else ok('FA選手はどの球団にも所属していない');
+const retiredIds = new Set(faStart.retiredPlayers.map((r) => r.playerId));
+if (faStart.freeAgents.some((p) => retiredIds.has(p.id))) fail('引退した選手がFA市場にいる');
+else ok('引退した選手はFA市場に入っていない');
+const faIds = faStart.freeAgents.map((p) => p.id);
+if (new Set(faIds).size !== faIds.length) fail('FA市場に重複登録がある');
+else ok('FA市場に重複登録はない');
+await shot('18-fa-market');
+
+const faText = await page.locator('.app').innerText();
+for (const label of ['残りオファー枠', '球団資金', 'FA市場']) {
+  if (!faText.includes(label)) fail(`FA画面に「${label}」がない`);
+}
+ok('FA画面に残りオファー枠と球団の資金が表示されている');
+
+// 絞り込み
+await page.locator('.tabs button', { hasText: '野手' }).click();
+await page.waitForTimeout(150);
+await page.locator('.tabs button', { hasText: 'すべて' }).click();
+await page.waitForTimeout(150);
+ok('FA選手を絞り込める');
+
+// 選手詳細 → 年俸・年数を入力してオファー
+const faCards = page.locator('button.player-card');
+if ((await faCards.count()) === 0) fail('FA選手が表示されていない');
+await faCards.first().click();
+await page.locator('.sheet').waitFor();
+const faSheet = page.locator('.sheet');
+const sheetText = await faSheet.innerText();
+for (const label of ['市場評価', '推定総合', '希望年俸', '希望年数', '前年の成績', '提示条件']) {
+  if (!sheetText.includes(label)) fail(`FA選手詳細に「${label}」がない`);
+}
+ok('FA選手詳細に市場評価・推定総合・希望条件・前年成績が出る');
+if (/潜在能力|真の総合|growthType/.test(sheetText)) fail('FA画面に内部情報が表示されている');
+else ok('FA画面に潜在能力などの内部情報は表示されない');
+
+await faSheet.getByRole('button', { name: '年俸を上げる' }).click();
+await faSheet.getByRole('button', { name: '年俸を上げる' }).click();
+await page.waitForTimeout(120);
+const yearButtons = faSheet.locator('.chip', { hasText: /^\d年$/ });
+if ((await yearButtons.count()) > 1) await yearButtons.nth(1).click();
+await page.waitForTimeout(120);
+await faSheet.getByRole('button', { name: 'この条件でオファーする' }).click();
+await page.waitForTimeout(350);
+const afterOfferState = await readState();
+const myOffers = afterOfferState.fa.offers.filter(
+  (o) => o.teamId === 'phoenix' && o.status === 'PENDING',
+);
+if (myOffers.length !== 1) fail('FAオファーが登録されていない');
+else ok(`FA選手に条件を提示した（${myOffers[0].salary} / ${myOffers[0].years}年）`);
+await shot('19-fa-offer');
+
+// 再起動してもFA市場と提示が残る
+await page.reload();
+await page.getByRole('button', { name: '続きから' }).click();
+await page.getByRole('heading', { name: /年 FA市場/ }).waitFor();
+const faReloaded = await readState();
+if (!faReloaded.fa || faReloaded.fa.offers.filter((o) => o.teamId === 'phoenix').length !== 1) {
+  fail('再起動でFAの提示が失われた');
+} else {
+  ok('再起動してもFA市場と提示が残る');
+}
+if (faReloaded.freeAgents.length !== faStart.freeAgents.length) fail('再起動でFA選手が変わった');
+else ok(`再起動後もFA選手が保持されている（${faReloaded.freeAgents.length}人）`);
+
+// ホームからFA市場に戻れる
+await page.getByRole('button', { name: '先に球団を確認する' }).click();
+await page.locator('.nav').waitFor();
+const homeDuringFA = await page.locator('.screen').innerText();
+if (!homeDuringFA.includes('FA市場開催中')) fail('ホームにFA市場開催中の表示がない');
+else ok('ホームに「FA市場開催中」が表示される');
+await page.getByRole('button', { name: 'FA市場を見る' }).click();
+await page.getByRole('heading', { name: /年 FA市場/ }).waitFor();
+ok('ホームからFA市場に戻れる');
+
+// おまかせ補強 → 締切
+await page.getByRole('button', { name: 'おまかせで補強する' }).click();
+await page.waitForTimeout(400);
+const beforeResolve = await readState();
+const cpuOffers = beforeResolve.fa.offers.filter((o) => o.teamId !== 'phoenix');
+if (cpuOffers.length === 0) fail('CPU球団がFAにオファーしていない');
+else ok(`CPU球団も${new Set(cpuOffers.map((o) => o.teamId)).size}球団がオファーしている`);
+
+await page.getByRole('button', { name: 'FA市場を締め切る' }).click();
+await page.waitForTimeout(500);
+const resolved = await readState();
+if (!resolved.fa || resolved.fa.phase !== 'resolved') fail('FA市場が締め切られていない');
+else ok(`FA市場が締め切られた（成立${resolved.fa.results.length}件 / 未契約${resolved.fa.unsigned}人）`);
+const signedIds = resolved.fa.results.map((r) => r.playerId);
+if (new Set(signedIds).size !== signedIds.length) fail('同じ選手が複数の球団と契約した');
+else ok('同じ選手が複数球団と契約していない');
+for (const record of resolved.fa.results) {
+  const owners = resolved.players.filter((p) => p.id === record.playerId);
+  if (owners.length !== 1) fail('FA契約した選手が重複してロスターにいる');
+  else if (owners[0].teamId !== record.teamId) fail('FA契約した選手が違う球団にいる');
+  else if (!owners[0].ext.contract) fail('FA契約した選手に契約がない');
+  else if (owners[0].ext.contract.salary !== record.salary) fail('FA契約の年俸が反映されていない');
+  if (resolved.freeAgents.some((p) => p.id === record.playerId)) fail('FA契約後も未所属のまま');
+}
+ok('FA契約が成立した選手は1球団だけに加入し、契約が有効になっている');
+const resultText = await page.locator('.screen').innerText();
+if (!resultText.includes('あなたの獲得')) fail('FAの結果画面が表示されていない');
+else ok('FAの結果（自球団・他球団の動き）が表示される');
+await shot('20-fa-result');
+
 await page.getByRole('button', { name: '新シーズンへ' }).click();
 await page.locator('.sheet').waitFor();
 const reportText = await page.locator('.sheet').innerText();
@@ -534,9 +709,26 @@ const sumSalary = nextSeason.players
   .reduce((a, p) => a + p.ext.contract.salary, 0);
 if (payrollNow !== sumSalary) fail('総年俸が選手の年俸合計と一致しない');
 else ok(`総年俸が正しく再計算されている（${payrollNow} / 100万円）`);
-const releasedCount = nextSeason.lastOffseason ? nextSeason.lastOffseason.released : -1;
-if (releasedCount < 0) fail('オフシーズンの結果が記録されていない');
-else ok(`契約が成立しなかった選手 ${releasedCount}人が退団した`);
+const offseasonSummary = nextSeason.lastOffseason;
+if (!offseasonSummary) fail('オフシーズンの結果が記録されていない');
+else {
+  ok(
+    `オフシーズンの結果：FA市場${offseasonSummary.faListed}人 / 成立${offseasonSummary.faSigned}人` +
+      `（自球団${offseasonSummary.faSignedByPlayer}人）/ 未契約${offseasonSummary.faUnsigned}人`,
+  );
+}
+if (nextSeason.fa !== null) fail('FA市場が終了していない');
+else ok('新シーズン開幕時にFA市場は閉じている');
+if (nextSeason.freeAgents.some((p) => nextSeason.players.some((q) => q.id === p.id))) {
+  fail('新シーズンでFA選手が球団にも所属している');
+} else {
+  ok(`未契約のFA選手は保持されている（${nextSeason.freeAgents.length}人）`);
+}
+const minRoster = Math.min(
+  ...nextSeason.teams.map((t) => nextSeason.players.filter((p) => p.teamId === t.id).length),
+);
+if (minRoster < 24) fail(`ロスターが24人を割っている（${minRoster}人）`);
+else ok(`全球団が24人以上のロスターを保っている（最少${minRoster}人）`);
 const changed = nextSeason.players.filter(
   (p) => abilitiesBefore.has(p.id) && p.batting.contact + p.batting.power !== abilitiesBefore.get(p.id),
 );

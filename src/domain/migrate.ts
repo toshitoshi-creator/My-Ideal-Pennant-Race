@@ -8,6 +8,7 @@
  * v5: PHASE 3.1（引退記録・ドラフト）
  * v6: PHASE 3.2（スカウト能力・調査ポイント・ScoutReport）
  * v7: PHASE 3.3（契約・年俸・球団資金）
+ * v8: PHASE 3.4（FA市場・未所属選手）
  *
  * 古いセーブは不足分を安全な初期値で補完し、既存のデータ（能力・成績・順位・日付・
  * 1軍/2軍・7日制限）は一切書き換えない。
@@ -21,6 +22,7 @@ import { GROWTH_TENDENCY_IDS, GROWTH_TYPE_IDS } from './growth';
 import { overallRating } from './rating';
 import { createScoutAbilities, createScoutingState, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { createContract, createTeamFinance, marketValue, refreshPayrolls } from './contract';
+import { repairFreeAgents } from './freeAgency';
 import { clamp1to100 } from './rank';
 
 /** v1 → v2：弾道を 1〜4 から 1〜100 へ */
@@ -144,6 +146,26 @@ export function migrateV6ToV7(state: GameState): void {
   if (state.lastOffseason === undefined) state.lastOffseason = null;
   refreshPayrolls(state);
   state.version = 7;
+}
+
+/** v7 → v8：FA市場のフィールドを補う */
+export function migrateV7ToV8(state: GameState): void {
+  if (!Array.isArray(state.freeAgents)) state.freeAgents = [];
+  if (state.fa === undefined) state.fa = null;
+  if (state.lastFaYear === undefined) state.lastFaYear = null;
+
+  // PHASE 3.3 までの lastOffseason には FA の項目がない
+  if (state.lastOffseason) {
+    const summary = state.lastOffseason as Partial<NonNullable<GameState['lastOffseason']>>;
+    if (typeof summary.faListed !== 'number') summary.faListed = 0;
+    if (typeof summary.faSigned !== 'number') summary.faSigned = 0;
+    if (typeof summary.faSignedByPlayer !== 'number') summary.faSignedByPlayer = 0;
+    if (typeof summary.faUnsigned !== 'number') summary.faUnsigned = state.freeAgents.length;
+  }
+
+  // 壊れた未所属データ（所属と二重・引退済み・teamId が残っている）を直す
+  repairFreeAgents(state);
+  state.version = 8;
 }
 
 /**

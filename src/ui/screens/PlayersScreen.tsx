@@ -115,7 +115,7 @@ function ContractTable({ onSelect }: { onSelect: (player: Player) => void }) {
                 <th>年齢</th>
                 <th>総合</th>
                 <th>年俸</th>
-                <th>残り</th>
+                <th>状態</th>
               </tr>
             </thead>
             <tbody>
@@ -133,7 +133,7 @@ function ContractTable({ onSelect }: { onSelect: (player: Player) => void }) {
                     <td>{overallRating(player)}</td>
                     <td>{contract ? formatSalary(contract.salary) : '－'}</td>
                     <td style={{ color: expiring ? 'var(--accent)' : undefined }}>
-                      {expiring ? '満了' : `${contract?.yearsRemaining}年`}
+                      {expiring ? '契約満了' : `契約中 残${contract?.yearsRemaining}年`}
                     </td>
                   </tr>
                 );
@@ -141,8 +141,50 @@ function ContractTable({ onSelect }: { onSelect: (player: Player) => void }) {
             </tbody>
           </table>
         </div>
+        <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+          契約満了の選手は、オフシーズンの契約更改で条件を提示します。
+          合意できなかった選手はFA市場へ移り、自球団の一覧から外れます。
+        </div>
       </div>
+      <FreeAgentTable />
     </>
+  );
+}
+
+/** 未所属（FA）の選手。所属していないのでロスターには出てこない */
+function FreeAgentTable() {
+  const { state } = useGame();
+  const pool = [...state.freeAgents].sort((a, b) => overallRating(b) - overallRating(a));
+  if (pool.length === 0) return null;
+  return (
+    <div className="card">
+      <h2>FA（未所属）の選手</h2>
+      <div className="muted" style={{ marginBottom: 8, fontSize: 12 }}>
+        どの球団にも所属していない選手です（{pool.length}人）。オフシーズンのFA市場で獲得できます。
+      </div>
+      <div className="scroll-x">
+        <table className="data">
+          <thead>
+            <tr>
+              <th className="l">選手</th>
+              <th>年齢</th>
+              <th>総合</th>
+              <th>状態</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pool.slice(0, 40).map((player) => (
+              <tr key={player.id}>
+                <td className="l">{player.name}</td>
+                <td>{player.age}</td>
+                <td>{overallRating(player)}</td>
+                <td style={{ color: 'var(--accent)' }}>FA</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 

@@ -22,7 +22,7 @@ import { RankBadge, Sheet } from '../components/common';
  * 契約満了選手に年俸と年数を提示する。予算内で誰を残すかを決める画面。
  */
 export function ContractScreen() {
-  const { state, autoContracts, finishOffseason } = useGame();
+  const { state, autoContracts, startFA } = useGame();
   const phase = state.contractPhase!;
   const team = state.teams.find((t) => t.id === state.playerTeamId)!;
   const finance = state.finances[state.playerTeamId];
@@ -91,10 +91,11 @@ export function ContractScreen() {
           <div className="card" style={{ borderColor: 'var(--accent)' }}>
             <div style={{ fontSize: 18, fontWeight: 800 }}>契約更改が終わりました</div>
             <div className="muted" style={{ marginTop: 4, marginBottom: 10 }}>
-              契約が成立しなかった選手は球団を去ります。
+              契約が成立しなかった選手は球団を去り、FA市場へ移ります。
+              FA市場に進むと契約更改には戻れません。
             </div>
-            <button className="btn primary" onClick={() => finishOffseason()}>
-              新シーズンへ
+            <button className="btn primary" onClick={() => startFA()}>
+              FA市場へ
             </button>
           </div>
         )}

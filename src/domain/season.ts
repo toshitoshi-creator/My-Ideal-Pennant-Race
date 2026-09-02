@@ -8,6 +8,7 @@
  * 年齢の加算は applySeasonGrowth の中の1回だけ。引退やドラフトでは加算しない。
  */
 import type {
+  FAState,
   GameState,
   GrowthReport,
   GrowthReportEntry,
@@ -33,6 +34,11 @@ import {
   runCpuRenewals,
   tickContracts,
 } from './contract';
+import {
+  resolveFreeAgency,
+  runCpuFAOffers,
+  startFreeAgency,
+} from './freeAgency';
 import { repairAllSetups } from './engine';
 import { ensureFirstTeamViable } from './daily';
 
@@ -239,6 +245,10 @@ export function startContractPhase(state: GameState): Player[] {
     rookies: rookies.length,
     released: 0,
     renewalTargets,
+    faListed: 0,
+    faSigned: 0,
+    faSignedByPlayer: 0,
+    faUnsigned: 0,
   };
 
   // CPU球団の契約更改
@@ -266,36 +276,90 @@ export function autoCompleteContracts(state: GameState): void {
   const phase = state.contractPhase;
   if (!phase || phase.completed) return;
   const rng = new Rng(state.rngState);
-  renewTeamContracts(state, state.playerTeamId, rng);
+  // すでにプレイヤーが交渉した選手（決裂も含む）は自動更改の対象から外す
+  renewTeamContracts(state, state.playerTeamId, rng, {
+    skip: phase.resolved.map((r) => r.playerId),
+  });
   state.rngState = rng.getState();
   phase.pending = [];
   phase.completed = true;
 }
 
-export function completeOffseason(state: GameState): Player[] {
-  const rookies = state.contractPhase ? [] : startContractPhase(state);
-  const rookieCount = state.contractPhase
-    ? state.players.filter((p) => p.ext.debutYear === state.year + 1).length
-    : rookies.length;
-  autoCompleteContracts(state);
+/**
+ * 契約更改を締めて FA 市場を開く（PHASE 3.4）。
+ * 契約が成立しなかった選手は球団を離れ、FA 市場に並ぶ。
+ * CPU 球団のオファーもこの時点で出そろう。
+ */
+export function startFAPhase(state: GameState): FAState {
+  if (state.contractPhase) {
+    autoCompleteContracts(state);
 
-  // 契約が成立しなかった選手は球団を離れる（PHASE 3.4 の FA へ接続予定）
-  const released = releaseUnsignedPlayers(state);
-  for (const player of released) {
-    if (player.teamId !== state.playerTeamId) continue;
+    // 退団の通知は自球団の選手だけに出す（解除すると teamId が消えるので先に控える）
+    const ownRoster = new Set(
+      state.players.filter((p) => p.teamId === state.playerTeamId).map((p) => p.id),
+    );
+    for (const player of releaseUnsignedPlayers(state)) {
+      if (!ownRoster.has(player.id)) continue;
+      state.notices.push({
+        date: state.date,
+        kind: 'contract',
+        message: `${player.name} と契約が成立せず、FA市場へ移りました`,
+      });
+    }
+    state.contractPhase = null;
+  }
+
+  const fa = startFreeAgency(state);
+  runCpuFAOffers(state);
+  return fa;
+}
+
+/** FA 市場を締め切って契約先を決める */
+export function resolveFAPhase(state: GameState): void {
+  if (!state.fa) return;
+  resolveFreeAgency(state);
+  for (const record of state.fa.results) {
+    if (record.teamId !== state.playerTeamId) continue;
     state.notices.push({
       date: state.date,
-      kind: 'contract',
-      message: `${player.name} と契約が成立せず、球団を去りました`,
+      kind: 'fa',
+      message: `${record.name} とFA契約が成立しました（${record.salary}／${record.years}年）`,
     });
   }
-  state.contractPhase = null;
+}
+
+export function completeOffseason(state: GameState): Player[] {
+  const rookies = state.contractPhase || state.fa ? [] : startContractPhase(state);
+  const rookieCount =
+    state.contractPhase || state.fa
+      ? state.players.filter((p) => p.ext.debutYear === state.year + 1).length
+      : rookies.length;
+
+  // ---- PHASE 3.4: 契約更改 → FA 市場 → 解決 ----
+  const listedBefore = state.freeAgents.length;
+  startFAPhase(state);
+  const faListed = state.fa?.listings.length ?? 0;
+  resolveFAPhase(state);
+  const signings = state.fa?.results ?? [];
+  const faSigned = signings.length;
+  const faSignedByPlayer = signings.filter((r) => r.teamId === state.playerTeamId).length;
+  const faUnsigned = state.freeAgents.length;
+
+  // 「今オフに球団を離れて未所属のまま終わった人数（差引）」
+  // players 数 = 前年 - 引退 + 新人 - released が常に成立する
+  const released = faUnsigned - listedBefore;
+
+  state.fa = null;
   state.lastOffseason = {
     year: state.year,
     retired: state.retiredPlayers.filter((r) => r.retiredAt === state.year).length,
     rookies: rookieCount,
-    released: released.length,
+    released,
     renewalTargets: state.lastOffseason?.renewalTargets ?? 0,
+    faListed,
+    faSigned,
+    faSignedByPlayer,
+    faUnsigned,
   };
 
   const rng = new Rng(state.rngState);

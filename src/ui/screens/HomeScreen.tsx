@@ -16,7 +16,7 @@ import {
 } from '../../domain/contract';
 
 export function HomeScreen() {
-  const { state, playNextGame, skipOneDay, setScreen, advanceSeason, pendingReport, dismissReport } =
+  const { state, playNextGame, skipOneDay, setScreen, advanceSeason, pendingReport, dismissReport, showFA } =
     useGame();
   const [showReport, setShowReport] = useState(false);
   const reportOpen = showReport || pendingReport;
@@ -113,6 +113,30 @@ export function HomeScreen() {
         />
       </div>
 
+      {state.fa && (
+        <div className="card" style={{ borderColor: 'var(--accent)' }}>
+          <h2>FA市場開催中</h2>
+          <div className="spread" style={{ padding: '4px 0' }}>
+            <span className="muted">市場に出ている選手</span>
+            <span style={{ fontWeight: 700 }}>
+              {state.fa.listings.filter((l) => l.status !== 'SIGNED').length}人
+            </span>
+          </div>
+          <div className="spread" style={{ padding: '4px 0' }}>
+            <span className="muted">提示中</span>
+            <span style={{ fontWeight: 700 }}>
+              {state.fa.offers.filter(
+                (o) => o.teamId === team.id && o.status === 'PENDING',
+              ).length}
+              人
+            </span>
+          </div>
+          <button className="btn primary" style={{ marginTop: 10 }} onClick={() => showFA()}>
+            FA市場を見る
+          </button>
+        </div>
+      )}
+
       <div className="card">
         <h2>球団経営</h2>
         <FinanceRows
@@ -125,6 +149,14 @@ export function HomeScreen() {
           <span className="muted">契約満了</span>
           <span style={{ fontWeight: 700 }}>{expiringCount}人</span>
         </div>
+        {state.lastOffseason && state.lastOffseason.faListed > 0 && (
+          <div className="spread" style={{ padding: '6px 0' }}>
+            <span className="muted">今オフのFA補強</span>
+            <span style={{ fontWeight: 700 }}>
+              {state.lastOffseason.faSignedByPlayer}人（市場{state.lastOffseason.faListed}人）
+            </span>
+          </div>
+        )}
         {remaining < 0 && (
           <div style={{ color: 'var(--bad)', fontWeight: 700, marginTop: 6, fontSize: 13 }}>
             ⚠ 総年俸が年間予算（{formatMoney(finance.budget)}）を超えています

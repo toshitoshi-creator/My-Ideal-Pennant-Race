@@ -10,6 +10,7 @@ import {
   daysUntilChangeable,
   nextChangeDate,
 } from '../../domain/roster';
+import { MARKET_GRADE_LABELS, marketGrade } from '../../domain/freeAgency';
 import { average, formatAverage, formatEra, formatInnings } from '../../domain/stats';
 import { formatDateJa } from '../../domain/dates';
 import { personalityDef } from '../../domain/personality';
@@ -411,7 +412,7 @@ function ContractPanel({ player }: { player: Player }) {
           label="契約状態"
           value={<span style={{ color: 'var(--bad)' }}>無契約</span>}
         />
-        <KeyValue label="市場価値" value={formatSalary(market)} />
+        <KeyValue label="市場評価" value={`${marketGrade(market)}（${MARKET_GRADE_LABELS[marketGrade(market)]}）`} />
       </>
     );
   }
@@ -429,9 +430,12 @@ function ContractPanel({ player }: { player: Player }) {
           )
         }
       />
-      <KeyValue label="市場価値" value={formatSalary(market)} />
+      <KeyValue
+        label="市場評価"
+        value={`${marketGrade(market)}（${MARKET_GRADE_LABELS[marketGrade(market)]}）`}
+      />
       <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>
-        市場価値は能力・年齢・実績から算出した年俸の目安です。
+        市場評価は能力・年齢・実績から見た年俸水準の目安です。
       </div>
     </>
   );

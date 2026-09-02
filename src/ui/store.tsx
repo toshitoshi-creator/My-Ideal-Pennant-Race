@@ -13,10 +13,17 @@ import { clearSave, hasSave, loadGame, saveGame } from '../domain/save';
 import {
   autoCompleteContracts,
   completeOffseason,
+  resolveFAPhase,
   startContractPhase,
+  startFAPhase,
   startOffseason,
 } from '../domain/season';
-import { offerContract as offerContractToPlayer } from '../domain/contract';
+import { offerContract as offerContractToPlayer, rememberSalary } from '../domain/contract';
+import {
+  cancelFAOffer as cancelFAOfferForTeam,
+  makeFAOffer as makeFAOfferForTeam,
+  runCpuFAOffers,
+} from '../domain/freeAgency';
 import { makePick, recordPlayerPick, runCpuPicks, currentPick, beginDraftPicks } from '../domain/draft';
 import { investigate } from '../domain/scouting';
 import type { ScoutCategory } from '../domain/types';
@@ -55,7 +62,23 @@ interface StoreValue {
   offerContract(playerId: string, salary: number, years: number): boolean;
   /** 残りの交渉を自動で決める */
   autoContracts(): void;
-  /** 契約更改を終えて翌シーズンを開幕する */
+  /** 契約更改を終えて FA 市場を開く */
+  startFA(): void;
+  /** FA選手に条件を提示する */
+  makeFAOffer(playerId: string, salary: number, years: number): boolean;
+  /** 提示を取り下げる */
+  cancelFAOffer(playerId: string): void;
+  /** 残りの補強をおまかせにする */
+  autoFA(): void;
+  /** FA市場を締め切って契約先を決める */
+  resolveFA(): void;
+  /** FA市場を閉じて球団の画面に戻る（市場は開いたまま） */
+  hideFA(): void;
+  /** 隠したFA市場をもう一度開く */
+  showFA(): void;
+  /** FA市場を一時的に隠しているか */
+  faHidden: boolean;
+  /** オフシーズンを終えて翌シーズンを開幕する */
   finishOffseason(): void;
   /** オフシーズン明けに成長レポートを開くかどうか */
   pendingReport: boolean;
@@ -72,6 +95,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [lastResult, setLastResult] = useState<GameResult | null>(null);
   const [saveExists, setSaveExists] = useState<boolean>(() => hasSave());
   const [pendingReport, setPendingReport] = useState(false);
+  const [faHidden, setFaHidden] = useState(false);
   const toastTimer = useRef<number | null>(null);
   const stateRef = useRef<GameState | null>(null);
   stateRef.current = state;
@@ -261,6 +285,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!player || !phase.pending.includes(playerId)) return false;
 
       const result = offerContractToPlayer(next, player, { salary, years });
+      if (!result.accepted) {
+        // 交渉が決裂した選手は無契約になり、FA市場へ移る
+        rememberSalary(player);
+        player.ext.contract = null;
+      }
       phase.pending = phase.pending.filter((id) => id !== playerId);
       phase.resolved.push({
         playerId,
@@ -290,13 +319,94 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     showToast('残りの契約更改を自動で行いました');
   }, [commit, showToast]);
 
-  /** 契約更改を終えて翌シーズンを開幕する */
+  /* ---------------- PHASE 3.4: FA市場 ---------------- */
+
+  const startFA = useCallback(() => {
+    const current = stateRef.current;
+    if (!current?.contractPhase) return;
+    const next = cloneState(current);
+    const fa = startFAPhase(next);
+    setFaHidden(false);
+    commit(next);
+    showToast(
+      fa.listings.length > 0
+        ? `FA市場が開幕しました（${fa.listings.length}人）`
+        : '今オフのFA選手はいませんでした',
+    );
+  }, [commit, showToast]);
+
+  const makeFAOffer = useCallback(
+    (playerId: string, salary: number, years: number): boolean => {
+      const current = stateRef.current;
+      if (!current?.fa) return false;
+      const next = cloneState(current);
+      // 条件を変える場合は、いったん取り下げてから出し直す
+      cancelFAOfferForTeam(next, next.playerTeamId, playerId);
+      const result = makeFAOfferForTeam(next, next.playerTeamId, playerId, salary, years);
+      if (!result.ok) {
+        // 取り下げだけが通ってしまわないよう、失敗したら state を捨てる
+        showToast(result.message ?? '提示できませんでした');
+        return false;
+      }
+      const player = next.freeAgents.find((p) => p.id === playerId);
+      commit(next);
+      showToast(`${player?.name ?? '選手'} に条件を提示しました`);
+      return true;
+    },
+    [commit, showToast],
+  );
+
+  const cancelFAOffer = useCallback(
+    (playerId: string) => {
+      const current = stateRef.current;
+      if (!current?.fa) return;
+      const next = cloneState(current);
+      if (!cancelFAOfferForTeam(next, next.playerTeamId, playerId)) return;
+      commit(next);
+      showToast('提示を取り下げました');
+    },
+    [commit, showToast],
+  );
+
+  const autoFA = useCallback(() => {
+    const current = stateRef.current;
+    if (!current?.fa || current.fa.phase !== 'open') return;
+    const next = cloneState(current);
+    const before = next.fa!.offers.filter((o) => o.teamId === next.playerTeamId).length;
+    // 自球団だけを CPU と同じ基準で動かす（他球団の提示はすでに出そろっている）
+    runCpuFAOffers(next, { onlyTeamId: next.playerTeamId });
+    const after = next.fa!.offers.filter((o) => o.teamId === next.playerTeamId).length;
+    commit(next);
+    showToast(
+      after > before ? `${after - before}人に条件を提示しました` : '追加で提示できる選手はいませんでした',
+    );
+  }, [commit, showToast]);
+
+  const resolveFA = useCallback(() => {
+    const current = stateRef.current;
+    if (!current?.fa || current.fa.phase !== 'open') return;
+    const next = cloneState(current);
+    resolveFAPhase(next);
+    repairAllSetups(next);
+    setFaHidden(false);
+    commit(next);
+    const mine = next.fa?.results.filter((r) => r.teamId === next.playerTeamId).length ?? 0;
+    showToast(
+      mine > 0 ? `FAで${mine}人を獲得しました` : 'FAでの獲得はありませんでした',
+    );
+  }, [commit, showToast]);
+
+  const hideFA = useCallback(() => setFaHidden(true), []);
+  const showFA = useCallback(() => setFaHidden(false), []);
+
+  /** オフシーズンを終えて翌シーズンを開幕する */
   const finishOffseason = useCallback(() => {
     const current = stateRef.current;
-    if (!current?.contractPhase && !current?.draft) return;
+    if (!current?.contractPhase && !current?.draft && !current?.fa) return;
     const next = cloneState(current!);
     completeOffseason(next);
     repairAllSetups(next);
+    setFaHidden(false);
     commit(next);
     setPendingReport(true);
     const summary = next.lastOffseason;
@@ -328,6 +438,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       startContracts,
       offerContract,
       autoContracts,
+      startFA,
+      makeFAOffer,
+      cancelFAOffer,
+      autoFA,
+      resolveFA,
+      hideFA,
+      showFA,
+      faHidden,
       finishOffseason,
       pendingReport,
       dismissReport: () => setPendingReport(false),
@@ -354,6 +472,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       startContracts,
       offerContract,
       autoContracts,
+      startFA,
+      makeFAOffer,
+      cancelFAOffer,
+      autoFA,
+      resolveFA,
+      hideFA,
+      showFA,
+      faHidden,
       finishOffseason,
       pendingReport,
     ],

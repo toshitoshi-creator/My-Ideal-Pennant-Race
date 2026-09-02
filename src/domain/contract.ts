@@ -21,6 +21,9 @@ export const MIN_SALARY = 15;
 /** 年俸の上限（15億円）。青天井にしないための歯止め */
 export const MAX_SALARY = 1500;
 
+/** 球団が保有する最低人数。これを割らないように契約・FAを調整する */
+export const MINIMUM_ROSTER = 24;
+
 /** 契約年数の上限（年齢で変わる） */
 export function maxContractYears(age: number): number {
   if (age <= 27) return 5;
@@ -145,6 +148,28 @@ export function createContract(salary: number, years: number, signedYear: number
     totalYears: safeYears,
     signedYear,
   };
+}
+
+/**
+ * 直近の年俸を覚えておく（PHASE 3.4）。
+ * 契約を解除すると salary が失われるため、FA の希望年俸の計算に使う。
+ * hiddenAttributes は PHASE 3 以降の拡張用に用意されている置き場所。
+ */
+export function rememberSalary(player: Player): void {
+  const salary = player.ext.contract?.salary;
+  if (typeof salary !== 'number' || !Number.isFinite(salary)) return;
+  if (!player.ext.hiddenAttributes || typeof player.ext.hiddenAttributes !== 'object') {
+    player.ext.hiddenAttributes = {};
+  }
+  player.ext.hiddenAttributes.lastSalary = salary;
+}
+
+/** 覚えている直近の年俸（不明なら 0） */
+export function lastKnownSalary(player: Player): number {
+  const current = player.ext.contract?.salary;
+  if (typeof current === 'number' && Number.isFinite(current)) return current;
+  const remembered = player.ext.hiddenAttributes?.lastSalary;
+  return typeof remembered === 'number' && Number.isFinite(remembered) ? remembered : 0;
 }
 
 /** 契約が切れている（更改が必要な）状態か */
@@ -317,15 +342,35 @@ export function runCpuRenewals(state: GameState, rng: Rng): Record<string, CpuRe
   return summary;
 }
 
+/**
+ * 同じ枠を争う選手が十分にいる（＝余剰である）か。
+ * PHASE 3.4 で、CPUが更改を見送る判断に使う。真の潜在能力は参照しない。
+ */
+export function isSurplusAtPosition(state: GameState, teamId: string, player: Player): boolean {
+  const overall = overallRating(player);
+  const better = state.players.filter((p) => {
+    if (p.id === player.id) return false;
+    if (p.teamId !== teamId) return false;
+    if (p.isPitcher !== player.isPitcher) return false;
+    if (!player.isPitcher && p.mainPosition !== player.mainPosition) return false;
+    return overallRating(p) >= overall;
+  }).length;
+  // 投手はローテ＋救援で枠が広いので、余剰と見なす人数も多くする
+  return player.isPitcher ? better >= 6 : better >= 2;
+}
+
 /** 1球団分の契約更改（CPU用。プレイヤー球団の自動処理にも使う） */
 export function renewTeamContracts(
   state: GameState,
   teamId: string,
   rng: Rng,
+  options: { skip?: string[] } = {},
 ): CpuRenewalSummary {
   const finance = state.finances[teamId];
   const roster = state.players.filter((p) => p.teamId === teamId);
-  const expiring = roster.filter((p) => isExpiring(p));
+  // すでに交渉が終わっている選手（決裂した選手を含む）は対象にしない
+  const skip = new Set(options.skip ?? []);
+  const expiring = roster.filter((p) => isExpiring(p) && !skip.has(p.id));
   if (expiring.length === 0) return { renewed: 0, released: 0 };
 
   // 契約が残っている選手の年俸は確定分として扱う
@@ -350,7 +395,11 @@ export function renewTeamContracts(
   let spent = committed;
   let renewed = 0;
   let released = 0;
-  const minimumRoster = 24;
+  const minimumRoster = MINIMUM_ROSTER;
+  // 余剰を理由に手放すのは1オフに2人まで。
+  // 上限がないとロスターが増えるほど放出も増え、FA市場に選手が溜まり続けてしまう。
+  const maxSurplusReleases = 2;
+  let surplusReleases = 0;
 
   for (const entry of ranked) {
     const stats = state.stats[entry.player.id];
@@ -359,10 +408,26 @@ export function renewTeamContracts(
     const offer = Math.max(expected, Math.round(expected * yearsDiscount(years)));
     const remainingPlayers = roster.length - released;
 
+    // PHASE 3.4: 同じ枠に十分な戦力がいる選手（＝優先度が低く、後ろが詰まっている）は
+    // 更改を見送る。この選手が FA 市場へ出る。最低人数は必ず守る。
+    const lowPriority = ranked.indexOf(entry) >= Math.floor(ranked.length / 2);
+    const surplus =
+      lowPriority &&
+      surplusReleases < maxSurplusReleases &&
+      isSurplusAtPosition(state, teamId, entry.player);
+    if (surplus && remainingPlayers > minimumRoster) {
+      released += 1;
+      surplusReleases += 1;
+      rememberSalary(entry.player);
+      entry.player.ext.contract = null;
+      continue;
+    }
+
     // 予算に余裕がない場合でも、最低人数を割る手前では契約する
     const overBudget = spent + offer > budget * 1.12;
     if (overBudget && remainingPlayers > minimumRoster) {
       released += 1;
+      rememberSalary(entry.player);
       entry.player.ext.contract = null;
       continue;
     }
@@ -372,6 +437,7 @@ export function renewTeamContracts(
       renewed += 1;
     } else {
       released += 1;
+      rememberSalary(entry.player);
       entry.player.ext.contract = null;
     }
   }
@@ -380,10 +446,33 @@ export function renewTeamContracts(
 }
 
 /**
- * 契約が成立しなかった選手を整理する。
- * PHASE 3.3 では FA 市場がないため、そのまま球団を離れる。
+ * 契約が成立しなかった選手を球団から外す。
+ *
+ * PHASE 3.4 からは選手を消さず、未所属（FA）のプールへ移す。
+ * state.players からは外れるので、試合・成績・順位には一切関わらない。
  */
 export function releaseUnsignedPlayers(state: GameState): Player[] {
+  // 最低人数を割ってしまう場合は、評価の高い選手から1年契約で引き止める。
+  // （FA市場が空だと補充できず、1軍を組めなくなるため）
+  for (const team of state.teams) {
+    const roster = state.players.filter((p) => p.teamId === team.id);
+    const signed = roster.filter((p) => p.ext.contract);
+    const unsigned = roster
+      .filter((p) => !p.ext.contract)
+      .sort((a, b) => overallRating(b) - overallRating(a));
+    let keep = MINIMUM_ROSTER - signed.length;
+    for (const player of unsigned) {
+      if (keep <= 0) break;
+      const stats = state.stats[player.id];
+      player.ext.contract = createContract(
+        expectedSalary(player, stats, state.year),
+        1,
+        state.year,
+      );
+      keep -= 1;
+    }
+  }
+
   const released: Player[] = [];
   const remaining: Player[] = [];
   for (const player of state.players) {
@@ -391,9 +480,20 @@ export function releaseUnsignedPlayers(state: GameState): Player[] {
       remaining.push(player);
       continue;
     }
+    rememberSalary(player);
+    player.teamId = '';
     released.push(player);
     delete state.stats[player.id];
   }
   state.players = remaining;
+
+  if (!Array.isArray(state.freeAgents)) state.freeAgents = [];
+  const known = new Set(state.freeAgents.map((p) => p.id));
+  for (const player of released) {
+    // 同じ選手を二重に登録しない
+    if (known.has(player.id)) continue;
+    known.add(player.id);
+    state.freeAgents.push(player);
+  }
   return released;
 }

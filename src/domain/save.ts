@@ -1,6 +1,7 @@
 import type { GameState } from './types';
 import { SAVE_VERSION } from './newGame';
 import { repairAllSetups } from './engine';
+import { repairFreeAgents } from './freeAgency';
 import {
   migrateV1ToV2,
   migrateV2ToV3,
@@ -8,6 +9,7 @@ import {
   migrateV4ToV5,
   migrateV5ToV6,
   migrateV6ToV7,
+  migrateV7ToV8,
 } from './migrate';
 
 export const SAVE_KEY = 'mipr:save:v1';
@@ -56,6 +58,7 @@ export function loadGame(): GameState | null {
     const state = migrate(parsed);
     if (!state) return null;
     // 念のため整合性を取り直す
+    repairFreeAgents(state);
     repairAllSetups(state);
     return state;
   } catch (e) {
@@ -94,6 +97,8 @@ export function migrate(state: GameState): GameState | null {
   if (state.version === 5) migrateV5ToV6(state);
   // v6 → v7: PHASE 3.3 の契約・球団資金を補完する
   if (state.version === 6) migrateV6ToV7(state);
+  // v7 → v8: PHASE 3.4 の FA 市場・未所属選手を補完する
+  if (state.version === 7) migrateV7ToV8(state);
 
   if (state.version !== SAVE_VERSION) return null;
   return state;
