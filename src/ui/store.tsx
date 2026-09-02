@@ -24,13 +24,21 @@ import {
   makeFAOffer as makeFAOfferForTeam,
   runCpuFAOffers,
 } from '../domain/freeAgency';
+import {
+  cancelTradeOffer as cancelTradeOfferById,
+  createTradeOffer,
+  executeTrade,
+  rejectMessage,
+  rejectTradeOffer,
+  respondToOffer,
+} from '../domain/trade';
 import { makePick, recordPlayerPick, runCpuPicks, currentPick, beginDraftPicks } from '../domain/draft';
 import { investigate } from '../domain/scouting';
 import type { ScoutCategory } from '../domain/types';
 import { Rng } from '../domain/rng';
 import { addDays } from '../domain/dates';
 
-export type ScreenId = 'home' | 'game' | 'players' | 'roster' | 'standings';
+export type ScreenId = 'home' | 'game' | 'players' | 'roster' | 'standings' | 'trade';
 
 interface StoreValue {
   state: GameState | null;
@@ -80,6 +88,18 @@ interface StoreValue {
   faHidden: boolean;
   /** オフシーズンを終えて翌シーズンを開幕する */
   finishOffseason(): void;
+  /** CPU球団にトレードを提案する */
+  proposeTrade(
+    toTeamId: string,
+    offeredPlayerIds: string[],
+    requestedPlayerIds: string[],
+  ): { ok: boolean; message: string };
+  /** 届いた提案を受け入れる */
+  acceptTradeOffer(offerId: string): boolean;
+  /** 届いた提案を断る */
+  declineTradeOffer(offerId: string): void;
+  /** 自分が出した提案を取り下げる */
+  withdrawTradeOffer(offerId: string): void;
   /** オフシーズン明けに成長レポートを開くかどうか */
   pendingReport: boolean;
   dismissReport(): void;
@@ -319,6 +339,81 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     showToast('残りの契約更改を自動で行いました');
   }, [commit, showToast]);
 
+  /* ---------------- PHASE 3.5: トレード ---------------- */
+
+  const proposeTrade = useCallback(
+    (toTeamId: string, offeredPlayerIds: string[], requestedPlayerIds: string[]) => {
+      const current = stateRef.current;
+      if (!current) return { ok: false, message: '' };
+      const next = cloneState(current);
+      const offer = createTradeOffer(
+        next,
+        next.playerTeamId,
+        toTeamId,
+        offeredPlayerIds,
+        requestedPlayerIds,
+      );
+      next.trade.offers.push(offer);
+      const result = respondToOffer(next, offer);
+      const teamName = next.teams.find((t) => t.id === toTeamId)?.name ?? toTeamId;
+      const message = result.ok
+        ? `${teamName} とのトレードが成立しました`
+        : (result.message ?? rejectMessage(offer.reason));
+      commit(next);
+      showToast(message);
+      return { ok: result.ok, message };
+    },
+    [commit, showToast],
+  );
+
+  const acceptTradeOffer = useCallback(
+    (offerId: string): boolean => {
+      const current = stateRef.current;
+      if (!current) return false;
+      const next = cloneState(current);
+      const offer = next.trade.offers.find((o) => o.id === offerId && o.status === 'PENDING');
+      if (!offer) return false;
+      const result = executeTrade(next, offer);
+      if (!result.ok) {
+        rejectTradeOffer(offer, 'roster');
+        commit(next);
+        showToast(result.message ?? 'この条件では成立しませんでした');
+        return false;
+      }
+      commit(next);
+      const teamName = next.teams.find((t) => t.id === offer.fromTeamId)?.name ?? offer.fromTeamId;
+      showToast(`${teamName} とのトレードが成立しました`);
+      return true;
+    },
+    [commit, showToast],
+  );
+
+  const declineTradeOffer = useCallback(
+    (offerId: string) => {
+      const current = stateRef.current;
+      if (!current) return;
+      const next = cloneState(current);
+      const offer = next.trade.offers.find((o) => o.id === offerId && o.status === 'PENDING');
+      if (!offer) return;
+      rejectTradeOffer(offer);
+      commit(next);
+      showToast('トレードを断りました');
+    },
+    [commit, showToast],
+  );
+
+  const withdrawTradeOffer = useCallback(
+    (offerId: string) => {
+      const current = stateRef.current;
+      if (!current) return;
+      const next = cloneState(current);
+      if (!cancelTradeOfferById(next, offerId)) return;
+      commit(next);
+      showToast('提案を取り下げました');
+    },
+    [commit, showToast],
+  );
+
   /* ---------------- PHASE 3.4: FA市場 ---------------- */
 
   const startFA = useCallback(() => {
@@ -447,6 +542,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       showFA,
       faHidden,
       finishOffseason,
+      proposeTrade,
+      acceptTradeOffer,
+      declineTradeOffer,
+      withdrawTradeOffer,
       pendingReport,
       dismissReport: () => setPendingReport(false),
       clearLastResult: () => setLastResult(null),
@@ -481,6 +580,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       showFA,
       faHidden,
       finishOffseason,
+      proposeTrade,
+      acceptTradeOffer,
+      declineTradeOffer,
+      withdrawTradeOffer,
       pendingReport,
     ],
   );

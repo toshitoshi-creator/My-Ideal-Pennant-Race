@@ -963,9 +963,10 @@ describe('PHASE3.4 セーブ', () => {
     (globalThis as unknown as { localStorage: MemoryStorage }).localStorage = new MemoryStorage();
   });
 
-  it('セーブバージョンが8になっている', () => {
-    expect(SAVE_VERSION).toBe(8);
-    expect(newGame().version).toBe(8);
+  it('セーブバージョンが最新になっている', () => {
+    // PHASE 3.5 でトレードを追加したため v9
+    expect(SAVE_VERSION).toBe(9);
+    expect(newGame().version).toBe(SAVE_VERSION);
   });
 
   it('FA市場の途中でも保存して復元できる', () => {

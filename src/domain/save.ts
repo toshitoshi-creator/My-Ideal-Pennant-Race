@@ -10,6 +10,7 @@ import {
   migrateV5ToV6,
   migrateV6ToV7,
   migrateV7ToV8,
+  migrateV8ToV9,
 } from './migrate';
 
 export const SAVE_KEY = 'mipr:save:v1';
@@ -99,6 +100,8 @@ export function migrate(state: GameState): GameState | null {
   if (state.version === 6) migrateV6ToV7(state);
   // v7 → v8: PHASE 3.4 の FA 市場・未所属選手を補完する
   if (state.version === 7) migrateV7ToV8(state);
+  // v8 → v9: PHASE 3.5 のトレード・在籍履歴を補完する
+  if (state.version === 8) migrateV8ToV9(state);
 
   if (state.version !== SAVE_VERSION) return null;
   return state;

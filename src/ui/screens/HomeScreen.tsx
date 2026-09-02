@@ -14,6 +14,7 @@ import {
   remainingBudget,
   teamPayroll,
 } from '../../domain/contract';
+import { isTradeOpen, pendingOffersForPlayer } from '../../domain/trade';
 
 export function HomeScreen() {
   const { state, playNextGame, skipOneDay, setScreen, advanceSeason, pendingReport, dismissReport, showFA } =
@@ -36,6 +37,8 @@ export function HomeScreen() {
     [setup, byId],
   );
 
+  const tradeOffers = pendingOffersForPlayer(state);
+  const tradeOpen = isTradeOpen(state);
   const finance = state.finances[team.id];
   const payroll = teamPayroll(state, team.id);
   const remaining = remainingBudget(state, team.id);
@@ -136,6 +139,30 @@ export function HomeScreen() {
           </button>
         </div>
       )}
+
+      <div className="card" style={{ borderColor: tradeOffers.length > 0 ? 'var(--accent)' : undefined }}>
+        <h2>トレード</h2>
+        {tradeOffers.length > 0 ? (
+          <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 6 }}>
+            トレード提案 {tradeOffers.length}件
+          </div>
+        ) : (
+          <div className="muted" style={{ marginBottom: 6 }}>
+            {tradeOpen
+              ? `トレード期限は ${state.trade.deadline} までです`
+              : 'トレード市場は閉鎖されています'}
+          </div>
+        )}
+        <div className="spread" style={{ padding: '4px 0' }}>
+          <span className="muted">今季の成立数</span>
+          <span style={{ fontWeight: 700 }}>
+            {state.trade.history.filter((r) => r.year === state.year).length}件
+          </span>
+        </div>
+        <button className="btn secondary" style={{ marginTop: 10 }} onClick={() => setScreen('trade')}>
+          トレードを見る
+        </button>
+      </div>
 
       <div className="card">
         <h2>球団経営</h2>

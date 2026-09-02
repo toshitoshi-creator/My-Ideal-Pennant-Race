@@ -633,6 +633,8 @@ function joinTeam(state: GameState, player: Player, teamId: string, salary: numb
   player.roster = 'second';
   player.lastRosterChangeDate = null;
   player.ext.injuryDemotion = false;
+  if (!Array.isArray(player.ext.careerTeams)) player.ext.careerTeams = [];
+  player.ext.careerTeams.push({ year: state.year, teamId });
   state.players.push(player);
   if (!state.stats[player.id]) state.stats[player.id] = emptySeasonStats(player.id);
   state.freeAgents = state.freeAgents.filter((p) => p.id !== player.id);

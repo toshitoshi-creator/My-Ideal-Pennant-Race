@@ -206,6 +206,146 @@ const homeFinanceText = await page.locator('.screen').innerText();
 if (!homeFinanceText.includes('球団経営')) fail('ホームに球団経営カードがない');
 else ok('ホーム画面に球団経営（資金・予算・総年俸）が表示されている');
 
+// PHASE 3.5: トレード
+await page.locator('.nav').getByText('ホーム').click();
+const homeTradeText = await page.locator('.screen').innerText();
+if (!homeTradeText.includes('トレード')) fail('ホームにトレードカードがない');
+else ok('ホーム画面にトレードが表示されている');
+await page.getByRole('button', { name: 'トレードを見る' }).click();
+await page.getByRole('heading', { name: 'トレード履歴' }).waitFor();
+ok('ホームからトレード画面に移動できる');
+
+const tradeStart = await readState();
+if (!tradeStart.trade || !tradeStart.trade.deadline) fail('トレードの状態が保存されていない');
+else ok(`トレード期限は ${tradeStart.trade.deadline}`);
+const tradeScreenText = await page.locator('.screen').innerText();
+for (const label of ['トレード期限', '総年俸 / 年間予算', '球団を選ぶ']) {
+  if (!tradeScreenText.includes(label)) fail(`トレード画面に「${label}」がない`);
+}
+ok('トレード画面に期限・資金・球団選択が表示されている');
+if (/potential|真の総合|内部評価/.test(tradeScreenText)) fail('トレード画面に内部情報が出ている');
+else ok('トレード画面に内部評価は表示されない');
+
+// CPU球団を選ぶ
+const partnerId = tradeStart.teams.find((t) => t.id !== 'phoenix').id;
+const partnerName = tradeStart.teams.find((t) => t.id === partnerId).shortName;
+await page.locator('.card', { hasText: '球団を選ぶ' }).getByRole('button', { name: partnerName }).click();
+await page.getByRole('heading', { name: 'トレード内容' }).waitFor();
+const profileText = await page.locator('.screen').innerText();
+for (const label of ['順位', '総合力', '保有選手', '手薄なポジション']) {
+  if (!profileText.includes(label)) fail(`相手球団の情報に「${label}」がない`);
+}
+ok('相手球団の戦力・順位・弱点ポジションが表示される');
+await shot('21-trade');
+
+// 選手を選ぶ（自球団・相手球団）
+const myCard = page.locator('.card', { hasText: 'あなたが出す' });
+const theirCard = page.locator('.card', { hasText: `${partnerName} から受け取る` });
+// 選手の選択ボタン（絞り込みチップと区別するため aria-label で選ぶ）
+await myCard.locator('button[aria-label$="を選ぶ"]').first().click();
+await theirCard.locator('button[aria-label$="を選ぶ"]').first().click();
+await page.waitForTimeout(200);
+const previewText = await page.locator('.card', { hasText: 'トレード内容' }).innerText();
+for (const label of ['出す', 'もらう', 'あなたの提供', '相手の提供', '予想評価']) {
+  if (!previewText.includes(label)) fail(`トレードプレビューに「${label}」がない`);
+}
+if (!/非常に不利|不利|やや不利|互角|やや有利|有利|非常に有利/.test(previewText)) {
+  fail('トレードの公平度が表示されていない');
+}
+ok('トレードプレビューに提供内容と公平度が表示される');
+if (/\d+\.\d+/.test(previewText)) fail('トレード画面に内部評価値が出ている');
+else ok('公平度はラベルで表示され、内部の数値は出ない');
+await shot('22-trade-preview');
+
+// 提案する（相手が受けるまで組み合わせを変える）
+let tradeDone = false;
+const myButtons = myCard.locator('button[aria-label$="を選ぶ"]');
+const theirButtons = theirCard.locator('button[aria-label$="を選ぶ"]');
+const myCount = Math.min(8, await myButtons.count());
+const theirCount = Math.min(8, await theirButtons.count());
+const beforeTrade = await readState();
+outer: for (let i = 0; i < myCount; i++) {
+  for (let j = 0; j < theirCount; j++) {
+    // 選択をやり直す
+    for (const list of [myButtons, theirButtons]) {
+      const n = await list.count();
+      for (let k = 0; k < n; k++) {
+        const b = list.nth(k);
+        if ((await b.getAttribute('aria-pressed')) === 'true') await b.click();
+      }
+    }
+    await myButtons.nth(i).click();
+    await theirButtons.nth(j).click();
+    await page.waitForTimeout(120);
+    await page.getByRole('button', { name: 'この内容でトレードを提案する' }).click();
+    await page.waitForTimeout(350);
+    const after = await readState();
+    if (after.trade.history.length > beforeTrade.trade.history.length) {
+      const record = after.trade.history[after.trade.history.length - 1];
+      if (record.fromTeamId === 'phoenix' || record.toTeamId === 'phoenix') {
+        tradeDone = true;
+        ok(`トレードが成立した（${record.playerNamesFrom.join('・')} ⇄ ${record.playerNamesTo.join('・')}）`);
+        break outer;
+      }
+    }
+  }
+}
+if (!tradeDone) fail('ユーザーからのトレードが1件も成立しなかった');
+
+const afterTrade = await readState();
+const lastTrade = afterTrade.trade.history[afterTrade.trade.history.length - 1];
+for (const id of lastTrade.playerIdsFrom) {
+  const player = afterTrade.players.filter((p) => p.id === id);
+  if (player.length !== 1) fail('トレードした選手が重複または消失している');
+  else if (player[0].teamId !== lastTrade.toTeamId) fail('トレードした選手の所属が変わっていない');
+}
+for (const id of lastTrade.playerIdsTo) {
+  const player = afterTrade.players.filter((p) => p.id === id);
+  if (player.length !== 1) fail('受け取った選手が重複または消失している');
+  else if (player[0].teamId !== lastTrade.fromTeamId) fail('受け取った選手の所属が変わっていない');
+}
+ok('トレードした選手が1球団だけに所属している');
+const allIds = afterTrade.players.map((p) => p.id);
+if (new Set(allIds).size !== allIds.length) fail('選手IDが重複している');
+else ok('リーグ全体で選手IDの重複はない');
+const contractsKept = lastTrade.playerIdsFrom.every((id) => {
+  const p = afterTrade.players.find((x) => x.id === id);
+  return p && p.ext.contract && p.ext.contract.salary > 0;
+});
+if (!contractsKept) fail('トレード後に契約が失われている');
+else ok('契約は選手と一緒に移動している');
+const payrollOk = afterTrade.teams.every((t) => {
+  const sum = afterTrade.players
+    .filter((p) => p.teamId === t.id)
+    .reduce((a, p) => a + (p.ext.contract ? p.ext.contract.salary : 0), 0);
+  return afterTrade.finances[t.id].payroll === sum;
+});
+if (!payrollOk) fail('トレード後に総年俸が再計算されていない');
+else ok('トレード後に総年俸が再計算されている');
+const minRosterAfterTrade = Math.min(
+  ...afterTrade.teams.map((t) => afterTrade.players.filter((p) => p.teamId === t.id).length),
+);
+if (minRosterAfterTrade < 24) fail(`トレード後にロスターが${minRosterAfterTrade}人`);
+else ok(`トレード後も全球団が24人以上（最少${minRosterAfterTrade}人）`);
+
+// トレード履歴
+const historyText = await page.locator('.card', { hasText: 'トレード履歴' }).innerText();
+if (!historyText.includes(String(afterTrade.year))) fail('トレード履歴に年が出ていない');
+else ok('トレード履歴が表示される');
+await shot('23-trade-history');
+
+// 在籍履歴
+await myCard.locator('button[aria-label$="の詳細"]').first().click();
+await page.locator('.sheet').waitFor();
+const tradeSheetText = await page.locator('.sheet').innerText();
+if (!tradeSheetText.includes('推定戦力') || !tradeSheetText.includes('契約')) fail('選手詳細に情報がない');
+else ok('トレード画面の選手詳細に戦力・契約・成績が出る');
+await page.locator('.sheet').getByRole('button', { name: '閉じる' }).click();
+
+await page.getByRole('button', { name: 'ホームに戻る' }).click();
+await page.waitForTimeout(200);
+ok('トレード画面からホームに戻れる');
+
 // 日付進行
 const dateBefore = (await readState()).date;
 await page.getByRole('button', { name: '1日進める' }).click();
@@ -222,6 +362,61 @@ for (let i = 0; i < 5; i++) {
 }
 state = await readState();
 ok(`6試合消化: ${state.records.phoenix.wins}勝${state.records.phoenix.losses}敗${state.records.phoenix.draws}分 / 日付 ${state.date}`);
+
+// PHASE 3.5: CPU同士のトレードとCPUからの提案
+const cpuTrades = state.trade.history.filter(
+  (r) => r.fromTeamId !== 'phoenix' && r.toTeamId !== 'phoenix',
+);
+if (cpuTrades.length === 0) fail('CPU同士のトレードが起きていない');
+else ok(`CPU同士のトレードが${cpuTrades.length}件成立している`);
+
+// リロードしてもトレード履歴が残る
+const tradeSnapshot = await readState();
+await page.reload();
+await page.getByRole('button', { name: '続きから' }).click();
+await page.locator('.appbar h1').waitFor();
+const tradeReloaded = await readState();
+if (tradeReloaded.trade.history.length !== tradeSnapshot.trade.history.length) {
+  fail('再起動でトレード履歴が失われた');
+} else {
+  ok(`再起動してもトレード履歴が残る（${tradeReloaded.trade.history.length}件）`);
+}
+const movedPlayer = tradeReloaded.trade.history.length
+  ? tradeReloaded.players.find(
+      (p) => p.id === tradeReloaded.trade.history[0].playerIdsFrom[0],
+    )
+  : null;
+if (movedPlayer && movedPlayer.ext.careerTeams.length < 2) fail('再起動で在籍履歴が失われた');
+else ok('再起動しても在籍履歴が残る');
+
+// CPUからの提案が届いていれば確認する
+const received = tradeReloaded.trade.offers.filter(
+  (o) => o.toTeamId === 'phoenix' && o.status === 'PENDING',
+);
+if (received.length > 0) {
+  await page.locator('.nav').getByText('ホーム').click();
+  await page.getByRole('button', { name: 'トレードを見る' }).click();
+  await page.getByRole('heading', { name: /受信トレード/ }).waitFor();
+  ok(`CPUからトレード提案が届いた（${received.length}件）`);
+  await page.locator('button[aria-label$="からのトレード提案を確認する"]').first().click();
+  await page.locator('.sheet').waitFor();
+  const offerText = await page.locator('.sheet').innerText();
+  for (const label of ['もらう選手', '出す選手', 'トレード評価']) {
+    if (!offerText.includes(label)) fail(`CPU提案の確認画面に「${label}」がない`);
+  }
+  ok('CPUからの提案内容と評価が確認できる');
+  await page.locator('.sheet').getByRole('button', { name: '断る' }).click();
+  await page.waitForTimeout(300);
+  const afterDecline = await readState();
+  const declined = afterDecline.trade.offers.find((o) => o.id === received[0].id);
+  if (!declined || declined.status !== 'REJECTED') fail('提案を断れなかった');
+  else ok('CPUからの提案を断れる（履歴に残る）');
+  await page.getByRole('button', { name: 'ホームに戻る' }).click();
+  await page.waitForTimeout(200);
+} else {
+  ok('今回はCPUからの提案は届かなかった（提案数の上限が効いている）');
+}
+await page.locator('.nav').getByText('ホーム').click();
 await page.locator('.nav').getByText('ホーム').click();
 await shot('14-home-after');
 

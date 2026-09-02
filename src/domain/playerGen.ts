@@ -56,6 +56,7 @@ export function defaultExtensions(): PlayerExtensions {
     popularity: null,
     contract: null,
     faStatus: null,
+    careerTeams: [],
   };
 }
 

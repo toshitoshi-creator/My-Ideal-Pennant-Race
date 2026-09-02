@@ -9,6 +9,7 @@
  * v6: PHASE 3.2（スカウト能力・調査ポイント・ScoutReport）
  * v7: PHASE 3.3（契約・年俸・球団資金）
  * v8: PHASE 3.4（FA市場・未所属選手）
+ * v9: PHASE 3.5（トレード・在籍履歴）
  *
  * 古いセーブは不足分を安全な初期値で補完し、既存のデータ（能力・成績・順位・日付・
  * 1軍/2軍・7日制限）は一切書き換えない。
@@ -23,6 +24,7 @@ import { overallRating } from './rating';
 import { createScoutAbilities, createScoutingState, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { createContract, createTeamFinance, marketValue, refreshPayrolls } from './contract';
 import { repairFreeAgents } from './freeAgency';
+import { createTradeState, tradeDeadline } from './trade';
 import { clamp1to100 } from './rank';
 
 /** v1 → v2：弾道を 1〜4 から 1〜100 へ */
@@ -168,6 +170,39 @@ export function migrateV7ToV8(state: GameState): void {
   state.version = 8;
 }
 
+/** v8 → v9：トレードのフィールドを補う */
+export function migrateV8ToV9(state: GameState): void {
+  if (!state.trade || typeof state.trade !== 'object') {
+    state.trade = createTradeState(state);
+  } else {
+    const trade = state.trade as Partial<GameState['trade']>;
+    if (typeof trade.year !== 'number') trade.year = state.year;
+    if (typeof trade.deadline !== 'string') trade.deadline = tradeDeadline(state);
+    if (!Array.isArray(trade.offers)) trade.offers = [];
+    if (!Array.isArray(trade.history)) trade.history = [];
+    if (!Array.isArray(trade.tradedThisSeason)) trade.tradedThisSeason = [];
+    if (!trade.countByTeam || typeof trade.countByTeam !== 'object') trade.countByTeam = {};
+  }
+
+  // 在籍履歴がない選手は、今の球団から始まったものとして補う
+  for (const player of [...state.players, ...state.freeAgents]) {
+    const ext = player.ext as Partial<Player['ext']>;
+    if (!Array.isArray(ext.careerTeams) || ext.careerTeams.length === 0) {
+      ext.careerTeams = player.teamId
+        ? [{ year: ext.debutYear ?? state.year, teamId: player.teamId }]
+        : [];
+    }
+  }
+
+  // 実在しない球団・選手を指す提案は落とす
+  state.trade.offers = state.trade.offers.filter(
+    (offer) =>
+      state.teams.some((t) => t.id === offer.fromTeamId) &&
+      state.teams.some((t) => t.id === offer.toTeamId),
+  );
+  state.version = 9;
+}
+
 /**
  * PHASE 2 のフィールドが欠けている選手に、選手ごとに安定した初期値を入れる。
  * 既存の能力・年齢・成績には触れない。
@@ -220,6 +255,7 @@ export function fillPhase2Extensions(player: Player): void {
   if (ext.popularity === undefined) ext.popularity = null;
   if (ext.contract === undefined) ext.contract = null;
   if (ext.faStatus === undefined) ext.faStatus = null;
+  if (!Array.isArray(ext.careerTeams)) ext.careerTeams = [];
 
   // PHASE 1 の置き場所だった specialSkills は specialAbilities に統合済み
   delete (ext as unknown as Record<string, unknown>).specialSkills;

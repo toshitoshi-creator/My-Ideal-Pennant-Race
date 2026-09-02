@@ -14,7 +14,8 @@ import { PLAYER_TEAM_STRENGTH, TEAM_SEEDS } from './teams';
 import { generateTeamPlayers } from './playerGen';
 import { buildAutoSetup } from './setup';
 import { diffDays } from './dates';
-import type { GameState } from './types';
+import { tradedStatsAdjustment } from './trade';
+import type { GameState, PlayerSeasonStats } from './types';
 
 const PLAYER_TEAM = 'phoenix';
 
@@ -178,12 +179,21 @@ describe('STEP10/11/12 成績・順位・日付', () => {
     const end = playFullSeason(createNewGame(PLAYER_TEAM, 10, 321));
     for (const team of end.teams) {
       const players = end.players.filter((p) => p.teamId === team.id);
-      const hits = players.reduce((a, p) => a + end.stats[p.id].batting.hits, 0);
-      const hr = players.reduce((a, p) => a + end.stats[p.id].batting.homeRuns, 0);
-      const runs = players.reduce((a, p) => a + end.stats[p.id].batting.runs, 0);
-      const outs = players.reduce((a, p) => a + end.stats[p.id].pitching.outs, 0);
-      const wins = players.reduce((a, p) => a + end.stats[p.id].pitching.wins, 0);
-      const losses = players.reduce((a, p) => a + end.stats[p.id].pitching.losses, 0);
+      const sum = (fn: (s: PlayerSeasonStats) => number) =>
+        players.reduce((a, p) => a + fn(end.stats[p.id]), 0);
+
+      // PHASE 3.5: 成績は選手についていくので、シーズン中のトレード分を差し引く
+      const moved = tradedStatsAdjustment(end, team.id);
+      const adjust = (fn: (s: PlayerSeasonStats) => number) =>
+        moved.outgoing.reduce((a, s) => a + fn(s), 0) -
+        moved.incoming.reduce((a, s) => a + fn(s), 0);
+
+      const hits = sum((s) => s.batting.hits);
+      const hr = sum((s) => s.batting.homeRuns);
+      const runs = sum((s) => s.batting.runs) + adjust((s) => s.batting.runs);
+      const outs = sum((s) => s.pitching.outs);
+      const wins = sum((s) => s.pitching.wins) + adjust((s) => s.pitching.wins);
+      const losses = sum((s) => s.pitching.losses) + adjust((s) => s.pitching.losses);
 
       expect(runs).toBe(end.records[team.id].runsScored);
       expect(hits).toBeGreaterThanOrEqual(hr);
@@ -253,6 +263,10 @@ describe('STEP10/11/12 成績・順位・日付', () => {
       s.players.filter((p) => p.roster === 'second').map((p) => p.id),
     );
     s = playFullSeason(s);
+    // PHASE 3.5: トレードで移籍した選手は移籍先で1軍に上がることがある
+    for (const record of s.trade.history) {
+      for (const id of [...record.playerIdsFrom, ...record.playerIdsTo]) secondTeamIds.delete(id);
+    }
     for (const id of secondTeamIds) {
       const st = s.stats[id];
       expect(st.batting.plateAppearances).toBe(0);

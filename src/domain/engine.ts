@@ -6,6 +6,7 @@ import { repairSetup } from './setup';
 import { addBatting, addPitching, emptySeasonStats } from './stats';
 import { applyDailyUpdates } from './daily';
 import { isAvailable } from './injury';
+import { runCpuTrades } from './trade';
 
 /** 実況を保持しておくプレイヤー球団の試合数 */
 const COMMENTARY_KEEP = 20;
@@ -170,6 +171,8 @@ export function advanceDay(state: GameState): AdvanceResult {
 
   // PHASE 2: 疲労・コンディション・モチベーション・怪我を1日分進める
   applyDailyUpdates(next, rng, results);
+  // PHASE 3.5: CPU球団のトレード（期限内のみ。専用の乱数列を使う）
+  runCpuTrades(next);
   repairAllSetups(next);
 
   next.rngState = rng.getState();

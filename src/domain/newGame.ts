@@ -8,6 +8,7 @@ import { emptySeasonStats } from './stats';
 import { overallRating } from './rating';
 import { createScoutingState } from './scouting';
 import { createContract, createTeamFinance, marketValue, refreshPayrolls } from './contract';
+import { tradeDeadline } from './trade';
 
 /**
  * 2: 弾道を 1〜4 から 1〜100 に変更
@@ -17,8 +18,9 @@ import { createContract, createTeamFinance, marketValue, refreshPayrolls } from 
  * 6: PHASE 3.2（スカウト・調査ポイント・ScoutReport）
  * 7: PHASE 3.3（契約・年俸・球団資金）
  * 8: PHASE 3.4（FA市場・オファー・未所属選手）
+ * 9: PHASE 3.5（トレード・提案・履歴・在籍履歴）
  */
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 export const START_YEAR = 2026;
 
 /** 1軍スタート人数（残りは 2軍スタート） */
@@ -94,7 +96,16 @@ export function createNewGame(
     freeAgents: [],
     fa: null,
     lastFaYear: null,
+    trade: {
+      year: START_YEAR,
+      deadline: openingDate(START_YEAR),
+      offers: [],
+      history: [],
+      tradedThisSeason: [],
+      countByTeam: {},
+    },
   };
+  state.trade.deadline = tradeDeadline(state);
 
   for (const team of TEAMS) {
     const league = LEAGUES.find((l) => l.id === team.leagueId)!;
@@ -106,6 +117,11 @@ export function createNewGame(
   }
   for (const player of players) {
     state.stats[player.id] = emptySeasonStats(player.id);
+  }
+
+  // ---- PHASE 3.5: 在籍履歴の起点 ----
+  for (const player of players) {
+    player.ext.careerTeams = [{ year: START_YEAR, teamId: player.teamId }];
   }
 
   // ---- PHASE 3.3: 初期契約 ----

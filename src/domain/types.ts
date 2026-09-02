@@ -128,6 +128,11 @@ export interface PlayerExtensions {
   /** 契約（PHASE 3.3）。null は無契約 */
   contract: Contract | null;
   faStatus: null | { serviceDays: number; eligible: boolean };
+  /**
+   * 在籍した球団の履歴（古い順）。PHASE 3.5。
+   * 入団・トレード・FA移籍のたびに1件追加する。
+   */
+  careerTeams: Array<{ year: number; teamId: string }>;
 }
 
 export interface Player {
@@ -360,6 +365,8 @@ export interface GameState {
   fa: FAState | null;
   /** FA市場を開催した年（二重開催の防止）。PHASE 3.4 */
   lastFaYear: number | null;
+  /** トレード（期限・提案・履歴）。PHASE 3.5 */
+  trade: TradeState;
 }
 
 /** シーズン終了時の成長レポート（表示用） */
@@ -454,6 +461,69 @@ export interface ContractPhase {
     years: number;
   }>;
   completed: boolean;
+}
+
+/* ---------------- トレード：PHASE 3.5 ---------------- */
+
+export type TradeOfferStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED' | 'EXPIRED';
+
+/** 断られた理由（内部の数値は見せず、抽象的な理由だけを返す） */
+export type TradeRejectReason = 'value' | 'position' | 'contract' | 'roster' | 'budget';
+
+/** 球団の補強方針（seed から決まる軽い性格づけ） */
+export type TradeTrait = 'WIN_NOW' | 'BALANCED' | 'YOUTH' | 'BUDGET';
+
+/** トレードの提案 */
+export interface TradeOffer {
+  id: string;
+  /** 提案した側 */
+  fromTeamId: string;
+  /** 提案された側 */
+  toTeamId: string;
+  /** fromTeam が渡す選手 */
+  offeredPlayerIds: string[];
+  /** toTeam が渡す選手 */
+  requestedPlayerIds: string[];
+  status: TradeOfferStatus;
+  createdYear: number;
+  createdDate: string;
+  /** この日を過ぎると期限切れ */
+  expiresDate: string;
+  /** 提案された側から見た価値の比率（UIには数値を出さない） */
+  evaluation?: number;
+  reason?: TradeRejectReason;
+}
+
+/** 成立したトレードの記録 */
+export interface TradeRecord {
+  id: string;
+  year: number;
+  date: string;
+  fromTeamId: string;
+  toTeamId: string;
+  playerIdsFrom: string[];
+  playerIdsTo: string[];
+  playerNamesFrom: string[];
+  playerNamesTo: string[];
+  /**
+   * トレード時点での今季成績（選手ID→成績）。
+   * 成績は選手についていくため、球団別の集計を復元するのに使う。
+   */
+  statsAtTrade: Record<string, PlayerSeasonStats>;
+}
+
+export interface TradeState {
+  year: number;
+  /** トレード期限（この日を過ぎると成立しない） */
+  deadline: string;
+  /** 進行中・処理済みの提案（今シーズン分） */
+  offers: TradeOffer[];
+  /** 成立したトレードの履歴（シーズンをまたいで残る） */
+  history: TradeRecord[];
+  /** 今シーズンにトレードされた選手ID（同じ選手を何度も動かさない） */
+  tradedThisSeason: string[];
+  /** 球団ごとの今季トレード成立数 */
+  countByTeam: Record<string, number>;
 }
 
 /* ---------------- FA（フリーエージェント）：PHASE 3.4 ---------------- */
@@ -616,6 +686,7 @@ export interface GrowthReportEntry {
 export type NoticeKind =
   | 'contract'
   | 'fa'
+  | 'trade'
   | 'injury'
   | 'return'
   | 'condition'

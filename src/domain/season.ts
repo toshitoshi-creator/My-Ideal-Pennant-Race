@@ -39,6 +39,7 @@ import {
   runCpuFAOffers,
   startFreeAgency,
 } from './freeAgency';
+import { resetTradeSeason } from './trade';
 import { repairAllSetups } from './engine';
 import { ensureFirstTeamViable } from './daily';
 
@@ -232,6 +233,7 @@ export function startContractPhase(state: GameState): Player[] {
       return prospect?.player.id === rookie.id;
     });
     rookie.ext.contract = rookieContract(rookie, pick?.round ?? 4, state.year, rng);
+    rookie.ext.careerTeams = [{ year: state.year, teamId: rookie.teamId }];
     state.players.push(rookie);
     state.stats[rookie.id] = emptySeasonStats(rookie.id);
   }
@@ -407,6 +409,9 @@ export function completeOffseason(state: GameState): Player[] {
   for (const player of state.players) {
     state.stats[player.id] = emptySeasonStats(player.id);
   }
+
+  // PHASE 3.5: トレード期間を新シーズンぶん作り直す（履歴は残る）
+  resetTradeSeason(state);
 
   // 新人加入・引退を反映してロスターとオーダーを整える
   for (const team of state.teams) {

@@ -495,7 +495,11 @@ describe('PHASE3.3 CPUの契約更改', () => {
     let s = playSeason(newGame(10, 3344));
     s = cloneState(s);
     startOffseason(s);
-    const teamId = s.teams.find((t) => t.id !== PLAYER_TEAM)!.id;
+    // 最低人数(24人)を割っている球団は誰も手放せないので、余裕のある球団で試す
+    const teamId = s.teams
+      .filter((t) => t.id !== PLAYER_TEAM)
+      .map((t) => ({ id: t.id, size: s.players.filter((p) => p.teamId === t.id).length }))
+      .sort((a, b) => b.size - a.size)[0].id;
     // 予算を極端に絞ると契約を見送る選手が出る
     s.finances[teamId].budget = 1;
     for (const player of s.players.filter((p) => p.teamId === teamId)) {
