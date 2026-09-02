@@ -1055,3 +1055,61 @@ describe('PHASE3.6 長期の整合性', () => {
     }
   });
 });
+
+describe('PHASE3.6 予算に見合わない年俸の是正', () => {
+  it('長期間プレイしても総年俸が予算の1.25倍を超える球団が出ない', () => {
+    // かつて 12〜14 年目に総年俸が予算の1.3倍まで膨らんだシード
+    let s = newGame(30, 263139);
+    for (let season = 1; season <= 14; season++) {
+      s = playSeason(s);
+      s = cloneState(s);
+      startNextSeason(s);
+      for (const team of s.teams) {
+        const ratio = teamPayroll(s, team.id) / s.finances[team.id].budget;
+        expect(ratio).toBeLessThanOrEqual(1.25);
+      }
+    }
+  });
+
+  it('予算のための放出をしても最低人数と1軍を組める構成は保たれる', () => {
+    let s = newGame(30, 3602);
+    for (let season = 0; season < 3; season++) {
+      s = playSeason(s);
+      s = cloneState(s);
+      // 全球団の予算を絞って、予算超過による放出を起こす
+      for (const team of s.teams) s.finances[team.id].budget = 700;
+      startNextSeason(s);
+      for (const team of s.teams) {
+        const roster = s.players.filter((p) => p.teamId === team.id);
+        expect(roster.length).toBeGreaterThanOrEqual(MINIMUM_ROSTER);
+        expect(roster.filter((p) => !p.isPitcher).length).toBeGreaterThanOrEqual(11);
+        expect(roster.filter((p) => p.isPitcher).length).toBeGreaterThanOrEqual(8);
+      }
+      expect(validateState(s)).toEqual([]);
+    }
+  });
+
+  it('予算を絞った球団は年俸の高い選手から見直す', () => {
+    let s = newGame(30, 3603);
+    s = playSeason(s);
+    s = cloneState(s);
+    startOffseason(s);
+    const before = s.players.filter((p) => p.teamId === CPU_TEAM);
+    for (const player of before) {
+      if (player.ext.contract) player.ext.contract.yearsRemaining = 0;
+    }
+    const salaryOf = new Map(before.map((p) => [p.id, p.ext.contract?.salary ?? 0]));
+    s.finances[CPU_TEAM].budget = 600;
+
+    startNextSeason(s);
+
+    const kept = new Set(s.players.filter((p) => p.teamId === CPU_TEAM).map((p) => p.id));
+    const leftSalaries = [...salaryOf.entries()].filter(([id]) => !kept.has(id)).map(([, v]) => v);
+    const keptSalaries = [...salaryOf.entries()].filter(([id]) => kept.has(id)).map(([, v]) => v);
+    if (leftSalaries.length > 0 && keptSalaries.length > 0) {
+      const avg = (v: number[]) => v.reduce((a, b) => a + b, 0) / v.length;
+      // 出ていった選手のほうが、残った選手より平均年俸が高い
+      expect(avg(leftSalaries)).toBeGreaterThan(avg(keptSalaries));
+    }
+  });
+});

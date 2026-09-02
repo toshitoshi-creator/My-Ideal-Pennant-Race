@@ -26,9 +26,22 @@ import { overallRating } from './rating';
 import { positionGroup } from './positions';
 import { clamp1to100 } from './rank';
 import { addDays } from './dates';
-import { MINIMUM_ROSTER, marketValue, refreshPayrolls, teamPayroll } from './contract';
+import {
+  MINIMUM_ROSTER,
+  MIN_FIELDERS,
+  MIN_PITCHERS,
+  marketValue,
+  refreshPayrolls,
+  teamPayroll,
+} from './contract';
 import { repairAllSetups } from './engine';
 import { ensureFirstTeamViable } from './daily';
+
+/**
+ * トレード後に必要な野手・投手の人数（contract.ts と共有）。
+ * 1軍は野手9人・投手5人が必要なので、怪我が重なっても組めるだけの余裕を残す。
+ */
+export { MIN_FIELDERS, MIN_PITCHERS };
 
 /** 1回のトレードで動かせる人数の上限（片側） */
 export const MAX_TRADE_PLAYERS = 2;
@@ -57,13 +70,6 @@ export const PAYROLL_CEILING_RATIO = 1.12;
  * 身動きが取れなくなるため、1人ぶんの余裕を必ず残す。
  */
 export const MIN_ROSTER_AFTER_TRADE = MINIMUM_ROSTER + 1;
-
-/**
- * トレード後に必要な野手・投手の人数。
- * 1軍は野手9人・投手5人が必要なので、怪我が重なっても組めるだけの余裕を残す。
- */
-export const MIN_FIELDERS = 11;
-export const MIN_PITCHERS = 8;
 
 /* ---------------- 乱数 ---------------- */
 

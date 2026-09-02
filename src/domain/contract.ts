@@ -24,6 +24,17 @@ export const MAX_SALARY = 1500;
 /** 球団が保有する最低人数。これを割らないように契約・FAを調整する */
 export const MINIMUM_ROSTER = 24;
 
+/** 1軍を組むために最低限必要な野手・投手の人数 */
+export const MIN_FIELDERS = 11;
+export const MIN_PITCHERS = 8;
+
+/**
+ * 予算超過を理由に契約を見送るときに、一時的に割ってよい人数。
+ * ここで外れた選手は releaseUnsignedPlayers が拾い直すので、
+ * 「高年俸の選手を手放して、安くて働ける選手で埋め直す」動きになる。
+ */
+export const BUDGET_RELEASE_FLOOR = MINIMUM_ROSTER - 4;
+
 /** 契約年数の上限（年齢で変わる） */
 export function maxContractYears(age: number): number {
   if (age <= 27) return 5;
@@ -487,22 +498,38 @@ export function renewTeamContracts(
       (sum, entry) => sum + expectedSalary(entry.player, state.stats[entry.player.id], state.year),
       0,
     );
+  // 予算のための放出は、最低人数を一時的に割ってもよい。
+  // 割った分は releaseUnsignedPlayers が「年俸のわりに働ける順」で埋め直すため、
+  // 高年俸の選手を手放して安い選手に入れ替える動きになる。
+  // ただし1軍が組めなくなる（野手・投手が足りなくなる）放出はしない。
+  let remainingFielders = roster.filter((p) => !p.isPitcher).length;
+  let remainingPitchers = roster.filter((p) => p.isPitcher).length;
+
   const skipForBudget = new Set<string>();
   if (projected > budgetCeiling) {
-    // 「優先度 ÷ 年俸」が低い順に見送る。最低人数を割らない範囲で。
-    const byValue = [...ranked].sort((a, b) => {
+    // 見送る候補は優先度の低い側（下半分）だけにする。
+    // 主力まで費用対効果で切ってしまうと、安い控えばかりが残ってしまう。
+    const candidates = ranked.slice(Math.floor(ranked.length / 2));
+    // そのなかで「優先度 ÷ 年俸」が低い順に見送る。
+    const byValue = [...candidates].sort((a, b) => {
       const va = a.priority / Math.max(1, a.value);
       const vb = b.priority / Math.max(1, b.value);
       return va - vb;
     });
     let remaining = projected;
-    let canRelease = roster.length - minimumRoster;
+    let size = roster.length;
+    let fielders = remainingFielders;
+    let pitchers = remainingPitchers;
     for (const entry of byValue) {
-      if (remaining <= budgetCeiling || canRelease <= 0) break;
+      if (remaining <= budgetCeiling || size <= BUDGET_RELEASE_FLOOR) break;
+      const isPitcher = entry.player.isPitcher;
+      if (isPitcher ? pitchers <= MIN_PITCHERS : fielders <= MIN_FIELDERS) continue;
       const cost = expectedSalary(entry.player, state.stats[entry.player.id], state.year);
       skipForBudget.add(entry.player.id);
       remaining -= cost;
-      canRelease -= 1;
+      size -= 1;
+      if (isPitcher) pitchers -= 1;
+      else fielders -= 1;
     }
   }
 
@@ -520,13 +547,27 @@ export function renewTeamContracts(
     const years = adjustYearsForStrategy(cpuContractYears(entry.player, rng), entry.player, strategy);
     const offer = Math.max(expected, Math.round(expected * yearsDiscount(years)));
     const remainingPlayers = roster.length - released;
-
-    // 予算のために見送ると決めた選手
-    if (skipForBudget.has(entry.player.id) && remainingPlayers > minimumRoster) {
+    const isPitcher = entry.player.isPitcher;
+    // 手放しても1軍を組めるか（野手・投手のバランス）
+    const roleRoomLeft = isPitcher
+      ? remainingPitchers > MIN_PITCHERS
+      : remainingFielders > MIN_FIELDERS;
+    // 「割高な選手を入れ替える」ための放出だけは最低人数を一時的に割ってよい。
+    // 単純な予算切れによる打ち切りは、これまで通り最低人数で止める。
+    const canSwapOutForBudget = roleRoomLeft && remainingPlayers > BUDGET_RELEASE_FLOOR;
+    const canCutForBudget = roleRoomLeft && remainingPlayers > minimumRoster;
+    const dropFromRoster = () => {
       released += 1;
+      if (isPitcher) remainingPitchers -= 1;
+      else remainingFielders -= 1;
       if (plan) plan.log.contractsReleased += 1;
       rememberSalary(entry.player);
       entry.player.ext.contract = null;
+    };
+
+    // 予算のために見送ると決めた選手
+    if (skipForBudget.has(entry.player.id) && canSwapOutForBudget) {
+      dropFromRoster();
       continue;
     }
 
@@ -538,21 +579,15 @@ export function renewTeamContracts(
       surplusReleases < maxSurplusReleases &&
       isSurplusAtPosition(state, teamId, entry.player);
     if (surplus && remainingPlayers > minimumRoster) {
-      released += 1;
       surplusReleases += 1;
-      if (plan) plan.log.contractsReleased += 1;
-      rememberSalary(entry.player);
-      entry.player.ext.contract = null;
+      dropFromRoster();
       continue;
     }
 
-    // 予算に余裕がない場合でも、最低人数を割る手前では契約する
+    // 予算に余裕がないなら手放す
     const overBudget = spent + offer > budget * 1.12;
-    if (overBudget && remainingPlayers > minimumRoster) {
-      released += 1;
-      if (plan) plan.log.contractsReleased += 1;
-      rememberSalary(entry.player);
-      entry.player.ext.contract = null;
+    if (overBudget && canCutForBudget) {
+      dropFromRoster();
       continue;
     }
     const result = offerContract(state, entry.player, { salary: offer, years });
@@ -561,10 +596,7 @@ export function renewTeamContracts(
       renewed += 1;
       if (plan) plan.log.contractsKept += 1;
     } else {
-      released += 1;
-      if (plan) plan.log.contractsReleased += 1;
-      rememberSalary(entry.player);
-      entry.player.ext.contract = null;
+      dropFromRoster();
     }
   }
 
@@ -592,15 +624,29 @@ export function releaseUnsignedPlayers(state: GameState): Player[] {
       .filter((p) => !p.ext.contract)
       .sort((a, b) => valuePerCost(b) - valuePerCost(a));
     let keep = MINIMUM_ROSTER - signed.length;
-    for (const player of unsigned) {
-      if (keep <= 0) break;
-      const stats = state.stats[player.id];
+    let fielders = signed.filter((p) => !p.isPitcher).length;
+    let pitchers = signed.filter((p) => p.isPitcher).length;
+    const resign = (player: Player) => {
       player.ext.contract = createContract(
-        expectedSalary(player, stats, state.year),
+        expectedSalary(player, state.stats[player.id], state.year),
         1,
         state.year,
       );
       keep -= 1;
+      if (player.isPitcher) pitchers += 1;
+      else fielders += 1;
+    };
+    // まず1軍を組める人数（野手・投手）を確保する。ここは人数枠より優先する
+    for (const player of unsigned) {
+      if (fielders >= MIN_FIELDERS && pitchers >= MIN_PITCHERS) break;
+      if (player.isPitcher ? pitchers >= MIN_PITCHERS : fielders >= MIN_FIELDERS) continue;
+      resign(player);
+    }
+    // 残りの枠は「年俸のわりに働ける選手」から埋める
+    for (const player of unsigned) {
+      if (keep <= 0) break;
+      if (player.ext.contract) continue;
+      resign(player);
     }
   }
 
