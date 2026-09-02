@@ -1,9 +1,14 @@
 /**
  * PHASE 3.6 球団経営AIの長期バランス検証。
- *   npx tsx scripts/team-ai-balance.ts [seasons] [seeds] [--log]
+ *   npx tsx scripts/team-ai-balance.ts [seasons] [seeds] [--from=N] [--out=file] [--log]
  *
  * 既定は 30 シーズン × 100 シード。異常を検出した場合は FAIL を表示して終了コード 1。
+ *
+ * --out=file を渡すと、1シードごとに結果を JSONL で追記する。
+ * 途中で止まっても、同じ --out をつけて実行し直せば続きから再開できる
+ * （すでに記録されているシードは飛ばし、集計は記録全体から行う）。
  */
+import { existsSync, readFileSync, appendFileSync } from 'node:fs';
 import { createNewGame } from '../src/domain/newGame';
 import { advanceDay, cloneState, validateState } from '../src/domain/engine';
 import { startNextSeason } from '../src/domain/season';
@@ -16,13 +21,12 @@ import type { GameState } from '../src/domain/types';
 
 const SEASONS = Number(process.argv[2] ?? 30);
 const SEEDS = Number(process.argv[3] ?? 100);
-/**
- * シードの開始位置。--from=25 のように渡すと、100シードを何回かに分けて回せる。
- * （長時間の実行が途中で止まる環境向け。既定では従来どおり先頭から）
- */
+/** シードの開始位置。100シードを何回かに分けて回すときに使う */
 const SEED_FROM = Number(
   (process.argv.find((a) => a.startsWith('--from=')) ?? '--from=0').slice(7),
 );
+/** 1シードごとの結果を追記する先（途中再開用） */
+const OUT = process.argv.find((a) => a.startsWith('--out='))?.slice(6) ?? '';
 const VERBOSE = process.argv.includes('--log');
 
 function playSeason(state: GameState): GameState {
@@ -48,18 +52,39 @@ interface Row {
   holes: number;
 }
 
-const failures: string[] = [];
-const rows = new Map<number, Row[]>();
-const strategyCount: Record<string, number> = {};
-const titles = new Map<string, number>();
-const lasts = new Map<string, number>();
-const winsByTeam = new Map<string, number>();
-let totalFa = 0;
-let totalTrades = 0;
-let totalDraft = 0;
+/** 1シードぶんの結果。これを JSONL に書き出して積み上げる */
+interface SeedResult {
+  seed: number;
+  seasons: Array<{ season: number; row: Row }>;
+  failures: string[];
+  titles: Record<string, number>;
+  lasts: Record<string, number>;
+  wins: Record<string, number>;
+  strategyCount: Record<string, number>;
+  totalFa: number;
+  totalTrades: number;
+  totalDraft: number;
+}
 
-for (let s = SEED_FROM; s < SEED_FROM + SEEDS; s++) {
-  const seed = 3000 + s * 7883;
+/* ---------------- 1シードを回す ---------------- */
+
+function runSeed(seed: number): SeedResult {
+  const result: SeedResult = {
+    seed,
+    seasons: [],
+    failures: [],
+    titles: {},
+    lasts: {},
+    wins: {},
+    strategyCount: {},
+    totalFa: 0,
+    totalTrades: 0,
+    totalDraft: 0,
+  };
+  const bump = (map: Record<string, number>, key: string, by = 1) => {
+    map[key] = (map[key] ?? 0) + by;
+  };
+
   let state = createNewGame('phoenix', 30, seed);
 
   for (let season = 1; season <= SEASONS; season++) {
@@ -69,14 +94,11 @@ for (let s = SEED_FROM; s < SEED_FROM + SEEDS; s++) {
 
     for (const league of state.leagues) {
       const table = standingsForLeague(state, league.id);
-      titles.set(table[0].teamId, (titles.get(table[0].teamId) ?? 0) + 1);
-      lasts.set(
-        table[table.length - 1].teamId,
-        (lasts.get(table[table.length - 1].teamId) ?? 0) + 1,
-      );
+      bump(result.titles, table[0].teamId);
+      bump(result.lasts, table[table.length - 1].teamId);
     }
     for (const team of state.teams) {
-      winsByTeam.set(team.id, (winsByTeam.get(team.id) ?? 0) + state.records[team.id].wins);
+      bump(result.wins, team.id, state.records[team.id].wins);
     }
 
     const payrolls = state.teams.map((t) => teamPayroll(state, t.id));
@@ -93,21 +115,21 @@ for (let s = SEED_FROM; s < SEED_FROM + SEEDS; s++) {
     for (const team of state.teams) {
       const plan = state.teamPlans[team.id];
       if (!plan) continue;
-      strategyCount[plan.strategy] = (strategyCount[plan.strategy] ?? 0) + 1;
+      bump(result.strategyCount, plan.strategy);
       faSigned += plan.log.faSigned;
       draftPicks += plan.log.draftPicks;
       holes += POSITION_KEYS.filter((key) => (plan.needs[key] ?? 0) >= 85).length;
-      if (VERBOSE && s === 0 && season % 10 === 0) {
+      if (VERBOSE && season % 10 === 0) {
         console.log(
-          `[AI] year=${season} ${team.shortName} ${STRATEGY_SHORT[plan.strategy]} ` +
+          `[AI] seed=${seed} year=${season} ${team.shortName} ${STRATEGY_SHORT[plan.strategy]} ` +
             `faBudget=${plan.faBudget} faSpent=${plan.faSpent} log=${JSON.stringify(plan.log)}`,
         );
       }
     }
     const seasonTrades = state.trade.history.length - tradesBefore;
-    totalFa += faSigned;
-    totalTrades += seasonTrades;
-    totalDraft += draftPicks;
+    result.totalFa += faSigned;
+    result.totalTrades += seasonTrades;
+    result.totalDraft += draftPicks;
 
     const row: Row = {
       overall: r1(avg(state.players.map((p) => overallRating(p)))),
@@ -122,43 +144,34 @@ for (let s = SEED_FROM; s < SEED_FROM + SEEDS; s++) {
       maxPayrollRatio: Math.max(...ratios),
       holes,
     };
-    if (!rows.has(season)) rows.set(season, []);
-    rows.get(season)!.push(row);
 
     // ---- 異常検出 ----
-    for (const e of validateState(state)) failures.push(`seed${seed} Y${season}: ${e}`);
+    const fail = (msg: string) => result.failures.push(`seed${seed} Y${season}: ${msg}`);
+    for (const e of validateState(state)) fail(e);
     const ids = new Set<string>();
     for (const p of state.players) {
-      if (ids.has(p.id)) failures.push(`seed${seed} Y${season}: 同じ選手が複数球団にいます`);
+      if (ids.has(p.id)) fail('同じ選手が複数球団にいます');
       ids.add(p.id);
       const contract = p.ext.contract;
       if (contract) {
-        if (contract.salary < 0) failures.push(`seed${seed} Y${season}: 年俸がマイナス`);
-        if (contract.yearsRemaining < 0) failures.push(`seed${seed} Y${season}: 契約残年数が不正`);
+        if (contract.salary < 0) fail('年俸がマイナス');
+        if (contract.yearsRemaining < 0) fail('契約残年数が不正');
       }
-      if (p.age < 15 || p.age > 50) failures.push(`seed${seed} Y${season}: 年齢が不正 (${p.age})`);
+      if (p.age < 15 || p.age > 50) fail(`年齢が不正 (${p.age})`);
     }
     const retiredIds = new Set(state.retiredPlayers.map((r) => r.playerId));
     for (const id of retiredIds) {
-      if (ids.has(id)) failures.push(`seed${seed} Y${season}: 引退選手がロスターにいます`);
+      if (ids.has(id)) fail('引退選手がロスターにいます');
     }
     for (const p of state.freeAgents) {
-      if (ids.has(p.id)) failures.push(`seed${seed} Y${season}: FA選手が球団にも所属`);
+      if (ids.has(p.id)) fail('FA選手が球団にも所属');
     }
-    if (row.minRoster < MINIMUM_ROSTER) {
-      failures.push(`seed${seed} Y${season}: ロスター${row.minRoster}人`);
-    }
-    if (row.maxPayrollRatio > 1.25) {
-      failures.push(`seed${seed} Y${season}: 総年俸が予算の${r1(row.maxPayrollRatio)}倍`);
-    }
+    if (row.minRoster < MINIMUM_ROSTER) fail(`ロスター${row.minRoster}人`);
+    if (row.maxPayrollRatio > 1.25) fail(`総年俸が予算の${r1(row.maxPayrollRatio)}倍`);
     for (const t of state.teams) {
       const first = state.players.filter((p) => p.teamId === t.id && p.roster === 'first');
-      if (first.filter((p) => !p.isPitcher).length < 9) {
-        failures.push(`seed${seed} Y${season}: 1軍野手不足`);
-      }
-      if (first.filter((p) => p.isPitcher).length < 5) {
-        failures.push(`seed${seed} Y${season}: 1軍投手不足`);
-      }
+      if (first.filter((p) => !p.isPitcher).length < 9) fail('1軍野手不足');
+      if (first.filter((p) => p.isPitcher).length < 5) fail('1軍投手不足');
     }
 
     state = cloneState(state);
@@ -168,11 +181,76 @@ for (let s = SEED_FROM; s < SEED_FROM + SEEDS; s++) {
     // オフシーズン明け（契約更改・ドラフト・FAのあと）の状態も検査する
     for (const team of state.teams) {
       const size = state.players.filter((p) => p.teamId === team.id).length;
-      if (size < MINIMUM_ROSTER) failures.push(`seed${seed} Y${season}: オフ明けロスター${size}人`);
+      if (size < MINIMUM_ROSTER) fail(`オフ明けロスター${size}人`);
       const ratio = teamPayroll(state, team.id) / state.finances[team.id].budget;
-      if (ratio > 1.25) failures.push(`seed${seed} Y${season}: オフ明け総年俸が予算の${r1(ratio)}倍`);
+      if (ratio > 1.25) fail(`オフ明け総年俸が予算の${r1(ratio)}倍`);
+    }
+
+    result.seasons.push({ season, row });
+  }
+  return result;
+}
+
+/* ---------------- 実行（途中再開に対応） ---------------- */
+
+const seedOf = (index: number) => 3000 + index * 7883;
+const done = new Map<number, SeedResult>();
+
+if (OUT && existsSync(OUT)) {
+  for (const line of readFileSync(OUT, 'utf8').split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const parsed = JSON.parse(line) as SeedResult;
+      done.set(parsed.seed, parsed);
+    } catch {
+      // 途中で切れた行は読み飛ばす
     }
   }
+  if (done.size > 0) console.log(`（記録済み ${done.size} シードを再利用します）`);
+}
+
+const results: SeedResult[] = [];
+for (let s = SEED_FROM; s < SEED_FROM + SEEDS; s++) {
+  const seed = seedOf(s);
+  const cached = done.get(seed);
+  if (cached) {
+    results.push(cached);
+    continue;
+  }
+  const result = runSeed(seed);
+  if (OUT) appendFileSync(OUT, JSON.stringify(result) + '\n');
+  results.push(result);
+}
+
+/* ---------------- 集計 ---------------- */
+
+const rows = new Map<number, Row[]>();
+const strategyCount: Record<string, number> = {};
+const titles = new Map<string, number>();
+const lasts = new Map<string, number>();
+const winsByTeam = new Map<string, number>();
+const failures: string[] = [];
+let totalFa = 0;
+let totalTrades = 0;
+let totalDraft = 0;
+
+for (const result of results) {
+  for (const { season, row } of result.seasons) {
+    if (!rows.has(season)) rows.set(season, []);
+    rows.get(season)!.push(row);
+  }
+  failures.push(...result.failures);
+  for (const [k, v] of Object.entries(result.strategyCount)) {
+    strategyCount[k] = (strategyCount[k] ?? 0) + v;
+  }
+  for (const [k, v] of Object.entries(result.titles)) titles.set(k, (titles.get(k) ?? 0) + v);
+  for (const [k, v] of Object.entries(result.lasts)) lasts.set(k, (lasts.get(k) ?? 0) + v);
+  for (const [k, v] of Object.entries(result.wins)) {
+    winsByTeam.set(k, (winsByTeam.get(k) ?? 0) + v);
+  }
+  totalFa += result.totalFa;
+  totalTrades += result.totalTrades;
+  totalDraft += result.totalDraft;
 }
 
 function summarize(season: number): Row | null {
@@ -194,7 +272,8 @@ function summarize(season: number): Row | null {
   };
 }
 
-console.log(`=== PHASE 3.6 球団経営AIバランス（${SEASONS}シーズン × ${SEEDS}シード）===\n`);
+const seedsRun = results.length;
+console.log(`=== PHASE 3.6 球団経営AIバランス（${SEASONS}シーズン × ${seedsRun}シード）===\n`);
 console.log(
   ['Year', 'Ovr', 'Age', 'Payroll', 'Cash', 'FA', 'Trade', 'Draft', 'Retire', 'MinR', 'MaxRatio', 'Holes'].join('\t'),
 );
@@ -206,7 +285,7 @@ for (const season of [1, 5, 10, 15, 20, 25, 30, 40, 50].filter((y) => y <= SEASO
   );
 }
 
-const seasonsRun = SEEDS * SEASONS;
+const seasonsRun = seedsRun * SEASONS;
 console.log(`\nFA獲得 合計 ${totalFa}（${r1(totalFa / seasonsRun)}件/年）`);
 console.log(`トレード 合計 ${totalTrades}（${r1(totalTrades / seasonsRun)}件/年）`);
 console.log(`ドラフト 合計 ${totalDraft}（${r1(totalDraft / seasonsRun)}人/年）`);
