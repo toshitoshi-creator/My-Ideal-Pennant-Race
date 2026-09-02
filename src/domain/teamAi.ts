@@ -88,10 +88,21 @@ export function estimatePotentialFor(
 
 /** その球団の戦力分析を作る */
 export function analyzeTeam(state: GameState, teamId: string): RosterAnalysis {
-  const known = knownPlayersOf(state, teamId, 'own', (viewer, playerId) =>
-    estimatePotentialFor(state, viewer, playerId),
+  // 選手をIDで引けるようにしてから推定する（毎回の線形探索を避ける）
+  const byId = new Map(state.players.map((p) => [p.id, p]));
+  const known = knownPlayersOf(state, teamId, 'own', (viewer, playerId) => {
+    const player = byId.get(playerId);
+    if (!player) return 45;
+    if (player.teamId === viewer) return player.ext.potential;
+    return estimatePotentialFor(state, viewer, playerId);
+  });
+  return analyzeRoster(
+    teamId,
+    known,
+    staminaLookup(state),
+    financeOf(state, teamId),
+    PAYROLL_CEILING_RATIO,
   );
-  return analyzeRoster(teamId, known, staminaLookup(state), financeOf(state, teamId), PAYROLL_CEILING_RATIO);
 }
 
 /* ---------------- 経営プラン ---------------- */
