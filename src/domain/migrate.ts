@@ -173,6 +173,9 @@ export function migrateV7ToV8(state: GameState): void {
 
 /** v8 → v9：トレードのフィールドを補う */
 export function migrateV8ToV9(state: GameState): void {
+  // v8 から直接読み込む場合、FA のフィールドが無いことがある
+  if (!Array.isArray(state.freeAgents)) state.freeAgents = [];
+  if (state.fa === undefined) state.fa = null;
   if (!state.trade || typeof state.trade !== 'object') {
     state.trade = createTradeState(state);
   } else {

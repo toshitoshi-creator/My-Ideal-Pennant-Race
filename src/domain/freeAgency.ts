@@ -15,6 +15,7 @@
  */
 import type {
   FAMarketPlayer,
+  TeamAiPlan,
   FAOffer,
   FARole,
   FASignRecord,
@@ -449,6 +450,8 @@ export function estimatedAbility(state: GameState, teamId: string, player: Playe
 
 interface TeamNeed {
   teamId: string;
+  /** PHASE 3.6: 球団の経営プラン（戦略・補強ポイント・FA予算） */
+  plan?: TeamAiPlan;
   rosterShortage: number;
   /** 控えを増やす余地（人数が少ないほど大きい） */
   depthRoom: number;
@@ -457,6 +460,15 @@ interface TeamNeed {
   headroom: number;
   budget: number;
   eagerness: number;
+}
+
+/** 経営プランで使う枠のキー（rosterAnalysis と同じ分け方） */
+function planKeyOf(player: Player): string {
+  if (player.isPitcher) return (player.pitching?.stamina ?? 0) >= 45 ? 'SP' : 'RP';
+  const pos = player.mainPosition;
+  if (pos === 'C') return 'C';
+  if (pos === 'LF' || pos === 'CF' || pos === 'RF') return 'OF';
+  return pos;
 }
 
 function analyzeNeed(state: GameState, team: Team): TeamNeed {
@@ -470,6 +482,7 @@ function analyzeNeed(state: GameState, team: Team): TeamNeed {
   const cashFactor = clamp01(((finance?.cash ?? 0) + 500) / 3000);
   return {
     teamId: team.id,
+    plan: state.teamPlans?.[team.id],
     rosterShortage: Math.max(0, MINIMUM_ROSTER + 1 - roster.length),
     depthRoom: Math.max(0, 28 - roster.length),
     fielderShortage: Math.max(0, 13 - fielders),
@@ -512,6 +525,20 @@ export function cpuInterest(
   // 6. 予算に対して十分に安い選手は、控えとして確保する価値がある
   if (need.depthRoom > 0 && listing.askingSalary <= need.budget * 0.05) score += 0.24;
 
+  // 7. PHASE 3.6: 経営プランの補強ポイント・戦略・FA予算を反映する
+  const plan = need.plan;
+  if (plan) {
+    const positionNeed = plan.needs?.[planKeyOf(player)] ?? 50;
+    score += (positionNeed - 50) * 0.004;
+    if (plan.strategy === 'WIN_NOW') score += player.age >= 27 && player.age <= 33 ? 0.08 : -0.04;
+    else if (plan.strategy === 'YOUTH') score += player.age <= 25 ? 0.1 : -0.08;
+    else if (plan.strategy === 'BUDGET' && listing.askingSalary > need.budget * 0.06) score -= 0.14;
+    // 配分した FA 予算を超える買い物はしない（人数が足りていない場合を除く）
+    if (need.rosterShortage <= 0 && listing.askingSalary > plan.faBudget - plan.faSpent) {
+      score -= 0.45;
+    }
+  }
+
   return clamp01(score);
 }
 
@@ -526,8 +553,15 @@ export function cpuOfferSalary(listing: FAMarketPlayer, interest: number, rng: R
 }
 
 /** CPU が提示する契約年数 */
-export function cpuOfferYears(player: Player, listing: FAMarketPlayer, rng: Rng): number {
+export function cpuOfferYears(
+  player: Player,
+  listing: FAMarketPlayer,
+  rng: Rng,
+  tightBudget = false,
+): number {
   const max = maxContractYears(player.age);
+  // 予算が逼迫している球団は将来の負担を増やさない
+  if (tightBudget) return 1;
   const years = listing.preferredYears + rng.int(-1, 0);
   return Math.max(1, Math.min(max, years));
 }
@@ -567,9 +601,17 @@ export function runCpuFAOffers(
       .sort((a, b) => b.interest - a.interest || (a.listing.playerId < b.listing.playerId ? -1 : 1));
 
     // 参加人数は 0〜3 人。ロスターが足りない球団は必ず動く
+    // PHASE 3.6: 戦略と球団の癖で積極さが変わる
+    const eagerness = clamp01(
+      need.eagerness +
+        (need.plan
+          ? (need.plan.profile.faActivity - 50) / 250 +
+            (need.plan.strategy === 'WIN_NOW' ? 0.12 : need.plan.strategy === 'BUDGET' ? -0.18 : 0)
+          : 0),
+    );
     let quota = 0;
     if (need.rosterShortage > 0) quota = MAX_CPU_OFFERS_PER_TEAM;
-    else if (rng.next() < need.eagerness) quota = 1 + rng.int(0, MAX_CPU_OFFERS_PER_TEAM - 1);
+    else if (rng.next() < eagerness) quota = 1 + rng.int(0, MAX_CPU_OFFERS_PER_TEAM - 1);
     else if (need.depthRoom > 0 && rng.next() < 0.5) quota = 1;
 
     for (const candidate of candidates) {
@@ -577,7 +619,12 @@ export function runCpuFAOffers(
       // ロスター不足でないなら、興味が薄い選手には手を出さない
       if (need.rosterShortage <= 0 && candidate.interest < 0.38) continue;
       const salary = cpuOfferSalary(candidate.listing, candidate.interest, rng);
-      const years = cpuOfferYears(candidate.player, candidate.listing, rng);
+      const years = cpuOfferYears(
+        candidate.player,
+        candidate.listing,
+        rng,
+        committedSalary(state, team.id) > need.budget * 0.95,
+      );
       const result = makeFAOffer(state, team.id, candidate.listing.playerId, salary, years, {
         maxOffers:
           team.id === state.playerTeamId ? MAX_USER_OFFERS : MAX_CPU_OFFERS_PER_TEAM,
@@ -627,6 +674,15 @@ export interface FAResolution {
 }
 
 function joinTeam(state: GameState, player: Player, teamId: string, salary: number, years: number): void {
+  // PHASE 3.6: 使った予算と埋まった枠を経営プランに反映する
+  const plan = state.teamPlans?.[teamId];
+  if (plan) {
+    plan.faSpent += salary;
+    plan.log.faSigned += 1;
+    const key = planKeyOf(player);
+    const drop = 14 + Math.max(0, overallRating(player) - 30) * 0.6;
+    plan.needs[key] = Math.max(0, Math.round((plan.needs[key] ?? 50) - drop));
+  }
   setUnsignedYears(player, 0);
   player.teamId = teamId;
   player.ext.contract = createContract(salary, years, state.year);

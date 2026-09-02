@@ -26,9 +26,7 @@ import {
   analyzeRoster,
   financeOf,
   knownPlayersOf,
-  positionKeyOf,
   staminaLookup,
-  type KnownPlayer,
   type PositionKey,
   type RosterAnalysis,
 } from './rosterAnalysis';
@@ -171,11 +169,16 @@ export function refreshTeamPlans(state: GameState): void {
   state.teamPlansYear = state.year;
 }
 
-/** プランを取り出す。まだ無ければその場で作る */
+/**
+ * プランを取り出す。まだ無ければその場で作る。
+ *
+ * プランは「そのオフシーズンに決めた、翌シーズンの方針」なので、
+ * 年が変わっても作り直さない（作り直しは refreshTeamPlans が行う）。
+ */
 export function planFor(state: GameState, teamId: string): TeamAiPlan {
   if (!state.teamPlans) state.teamPlans = {};
   const existing = state.teamPlans[teamId];
-  if (existing && existing.year === state.year) return existing;
+  if (existing) return existing;
   const plan = buildTeamPlan(state, teamId);
   state.teamPlans[teamId] = plan;
   return plan;
@@ -190,18 +193,6 @@ export function planFor(state: GameState, teamId: string): TeamAiPlan {
 export function markNeedFilled(plan: TeamAiPlan, key: PositionKey, strength: number): void {
   const drop = Math.max(6, Math.min(45, Math.round(strength)));
   plan.needs[key] = Math.max(0, plan.needs[key] - drop);
-}
-
-/** 選手を1人獲得したときに、その枠の必要度を下げる */
-export function markPlayerAcquired(
-  state: GameState,
-  plan: TeamAiPlan,
-  player: KnownPlayer,
-): void {
-  const stamina = staminaLookup(state)(player.id);
-  const key = positionKeyOf(player, stamina);
-  // 能力が高い選手ほど穴を埋める効果が大きい
-  markNeedFilled(plan, key, 12 + Math.max(0, player.overall - 30) * 0.7);
 }
 
 /** ドラフトの獲得を反映して補強ポイントを見直す */

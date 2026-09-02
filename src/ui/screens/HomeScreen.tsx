@@ -15,6 +15,12 @@ import {
   teamPayroll,
 } from '../../domain/contract';
 import { isTradeOpen, pendingOffersForPlayer } from '../../domain/trade';
+import {
+  faActivityLabel,
+  planSummary,
+  targetLabels,
+  tradeActivityLabel,
+} from '../../domain/teamAi';
 
 export function HomeScreen() {
   const { state, playNextGame, skipOneDay, setScreen, advanceSeason, pendingReport, dismissReport, showFA } =
@@ -37,6 +43,7 @@ export function HomeScreen() {
     [setup, byId],
   );
 
+  const plan = state.teamPlans?.[team.id];
   const tradeOffers = pendingOffersForPlayer(state);
   const tradeOpen = isTradeOpen(state);
   const finance = state.finances[team.id];
@@ -163,6 +170,30 @@ export function HomeScreen() {
           トレードを見る
         </button>
       </div>
+
+      {plan && (
+        <div className="card">
+          <h2>今季の方針</h2>
+          <div style={{ fontSize: 18, fontWeight: 800 }}>{planSummary(plan)}</div>
+          {plan.reasons.length > 0 && (
+            <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>
+              {plan.reasons[0]}
+            </div>
+          )}
+          <div className="spread" style={{ padding: '6px 0', marginTop: 6 }}>
+            <span className="muted">補強ポイント</span>
+            <span style={{ fontWeight: 700 }}>
+              {targetLabels(plan).join('・') || '特になし'}
+            </span>
+          </div>
+          <div className="spread" style={{ padding: '4px 0' }}>
+            <span className="muted">FA積極度 / トレード積極度</span>
+            <span style={{ fontWeight: 700 }}>
+              {faActivityLabel(plan)} / {tradeActivityLabel(plan)}
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <h2>球団経営</h2>

@@ -16,6 +16,12 @@ import {
   pendingOffersFromPlayer,
   valueLabel,
 } from '../../domain/trade';
+import {
+  faActivityLabel,
+  planSummary,
+  targetLabels,
+  tradeActivityLabel,
+} from '../../domain/teamAi';
 import { RankBadge, Sheet } from '../components/common';
 
 type Filter = 'all' | 'pitcher' | 'catcher' | 'infield' | 'outfield' | 'young' | 'veteran' | 'core';
@@ -644,9 +650,19 @@ function TeamProfile({ team }: { team: Team }) {
     }))
     .sort((a, b) => a.score - b.score)[0];
 
+  const plan = state.teamPlans?.[team.id];
+
   return (
     <div className="card">
       <h2>{team.name}</h2>
+      {plan && (
+        <>
+          <Row label="今季の方針" value={planSummary(plan)} />
+          <Row label="補強ポイント" value={targetLabels(plan).join('・') || '特になし'} />
+          <Row label="FA積極度" value={faActivityLabel(plan)} />
+          <Row label="トレード積極度" value={tradeActivityLabel(plan)} />
+        </>
+      )}
       <Row label="順位" value={`${rank}位（${record.wins}勝${record.losses}敗）`} />
       <div className="spread" style={{ padding: '4px 0' }}>
         <span className="muted">総合力</span>

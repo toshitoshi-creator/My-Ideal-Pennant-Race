@@ -16,6 +16,7 @@ import type { GameState, TradeTrait } from './types';
 import { Rng, seedFrom } from './rng';
 import type { RosterAnalysis } from './rosterAnalysis';
 import { winPct } from './standings';
+import { overallRating } from './rating';
 
 /** 戦略の種類（PHASE 3.5 の TradeTrait と同じ4種類を使う） */
 export type TeamStrategy = TradeTrait;
@@ -79,6 +80,17 @@ export interface StrategyResult {
   reasons: string[];
 }
 
+/**
+ * リーグ全体の主力平均能力。
+ * 戦力の高さを「相対」で見るために使う（絶対値だと全球団が同じ戦略になる）。
+ */
+export function leagueAverageOverall(state: GameState): number {
+  const values = state.players.map((p) => overallRating(p)).sort((a, b) => b - a);
+  // 各球団の主力18人ぶんに相当する上位層で見る
+  const top = values.slice(0, Math.max(1, state.teams.length * 18));
+  return top.reduce((a, b) => a + b, 0) / top.length;
+}
+
 /** 前年の勝率（記録がなければ 0.5） */
 export function lastWinPct(state: GameState, teamId: string): number {
   const record = state.records[teamId];
@@ -95,12 +107,13 @@ const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 export function strategyScores(
   analysis: RosterAnalysis,
   profile: TeamManagementProfile,
-  context: { winPct: number; noise: number },
+  context: { winPct: number; noise: number; leagueOverall: number },
 ): StrategyScores {
-  const { winPct: pct, noise } = context;
+  const { winPct: pct, noise, leagueOverall } = context;
 
-  // 戦力の高さ（総合40前後がリーグ平均）
-  const strength = clamp01((analysis.overall - 34) / 14);
+  // 戦力の高さは「リーグ平均と比べてどうか」で見る。
+  // 絶対値で見ると、リーグ全体の能力が上がった年に全球団が WIN_NOW になってしまう。
+  const strength = clamp01(0.5 + (analysis.overall - leagueOverall) / 8);
   // 財務の余裕
   const payrollRatio = analysis.payroll / Math.max(1, analysis.budget);
   const cashRoom = clamp01((analysis.cash + 500) / 3000);
@@ -109,33 +122,33 @@ export function strategyScores(
   const holeRatio = clamp01(holes / 4);
 
   const winNow =
-    strength * 34 +
-    clamp01((pct - 0.44) / 0.18) * 26 +
-    clamp01(1 - Math.abs(analysis.averageAge - 28.5) / 4) * 12 +
-    clamp01(1.05 - payrollRatio) * 10 +
-    (profile.aggression / 100) * 12 +
-    (profile.veteranPreference / 100) * 6;
+    strength * 30 +
+    clamp01((pct - 0.46) / 0.14) * 24 +
+    clamp01(1 - Math.abs(analysis.averageAge - 28.5) / 4) * 8 +
+    clamp01(1.02 - payrollRatio) * 6 +
+    (profile.aggression / 100) * 20 +
+    (profile.veteranPreference / 100) * 8;
 
   const youth =
-    (1 - strength) * 26 +
-    clamp01((0.5 - pct) / 0.18) * 18 +
-    clamp01((analysis.veteranRatio - 0.14) / 0.2) * 16 +
-    clamp01((analysis.youngRatio - 0.2) / 0.25) * 10 +
-    (profile.youthPreference / 100) * 18 +
+    (1 - strength) * 30 +
+    clamp01((0.5 - pct) / 0.14) * 22 +
+    clamp01((analysis.veteranRatio - 0.12) / 0.16) * 16 +
+    clamp01((analysis.youngRatio - 0.18) / 0.22) * 10 +
+    (profile.youthPreference / 100) * 26 +
     holeRatio * 6;
 
   const budget =
-    clamp01((payrollRatio - 0.88) / 0.3) * 34 +
-    (1 - cashRoom) * 24 +
-    (profile.budgetDiscipline / 100) * 22 +
-    clamp01((analysis.veteranRatio - 0.2) / 0.2) * 6;
+    clamp01((payrollRatio - 0.8) / 0.28) * 40 +
+    (1 - cashRoom) * 14 +
+    (profile.budgetDiscipline / 100) * 34 +
+    clamp01((analysis.veteranRatio - 0.18) / 0.18) * 6;
 
   // どれにも強く寄らないときの受け皿
   const balanced =
-    36 +
-    clamp01(1 - Math.abs(pct - 0.5) / 0.15) * 10 +
-    clamp01(1 - Math.abs(payrollRatio - 0.9) / 0.25) * 8 +
-    (100 - Math.abs(profile.aggression - 50) * 2) / 100 * 6;
+    26 +
+    clamp01(1 - Math.abs(pct - 0.5) / 0.12) * 14 +
+    clamp01(1 - Math.abs(payrollRatio - 0.9) / 0.22) * 10 +
+    ((100 - Math.abs(profile.aggression - 50) * 2) / 100) * 8;
 
   const jitter = (value: number, index: number) =>
     Math.round((value * (1 + noise * (index % 2 === 0 ? 1 : -1))) * 10) / 10;
@@ -194,7 +207,11 @@ export function decideStrategy(
   const rng = new Rng(seedFrom(`aiStrategy:${state.seed}:${state.year}:${analysis.teamId}`));
   const noise = 0.03 + rng.next() * 0.05;
   const pct = lastWinPct(state, analysis.teamId);
-  const scores = strategyScores(analysis, profile, { winPct: pct, noise });
+  const scores = strategyScores(analysis, profile, {
+    winPct: pct,
+    noise,
+    leagueOverall: leagueAverageOverall(state),
+  });
 
   let strategy: TeamStrategy = 'BALANCED';
   let best = -Infinity;

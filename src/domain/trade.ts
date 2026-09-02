@@ -87,10 +87,30 @@ export const TRADE_TRAIT_LABELS: Record<TradeTrait, string> = {
   BUDGET: '堅実経営',
 };
 
-/** 球団の補強方針。seed から決まるので、同じゲームでは常に同じ */
+/**
+ * 球団の補強方針。
+ * PHASE 3.6 からは、その年の経営プランで決めた戦略を使う。
+ * プランがまだ無い場合だけ、seed から決まる既定の方針を使う。
+ */
 export function teamTradeTrait(state: GameState, teamId: string): TradeTrait {
+  const plan = state.teamPlans?.[teamId];
+  if (plan && plan.strategy) return plan.strategy;
   const rng = new Rng(seedFrom(`trait:${state.seed}:${teamId}`));
   return rng.pick(TRAITS);
+}
+
+/** 経営プランで使う枠のキー（rosterAnalysis と同じ分け方） */
+function planKeyOf(player: Player): string {
+  if (player.isPitcher) return (player.pitching?.stamina ?? 0) >= 45 ? 'SP' : 'RP';
+  const pos = player.mainPosition;
+  if (pos === 'C') return 'C';
+  if (pos === 'LF' || pos === 'CF' || pos === 'RF') return 'OF';
+  return pos;
+}
+
+/** その枠の補強必要度（プランが無ければ中立の50） */
+function planNeed(state: GameState, teamId: string, player: Player): number {
+  return state.teamPlans?.[teamId]?.needs?.[planKeyOf(player)] ?? 50;
 }
 
 /* ---------------- トレード期間 ---------------- */
@@ -318,10 +338,14 @@ export interface TradeEvaluation {
 /** その球団にとって、選手を受け取る価値 */
 function incomingValue(state: GameState, teamId: string, player: Player): number {
   const trait = teamTradeTrait(state, teamId);
+  // PHASE 3.6: 経営プランの補強ポイントを上乗せする（0.88〜1.16倍）
+  const need = planNeed(state, teamId, player);
+  const planFactor = 1 + (need - 50) * 0.0032;
   return (
     calculateTradeValue(state, player, teamId) *
     positionNeedFactor(state, teamId, player) *
-    traitFactor(trait, player)
+    traitFactor(trait, player) *
+    planFactor
   );
 }
 
@@ -335,7 +359,11 @@ function outgoingValue(state: GameState, teamId: string, player: Player): number
   let surplus = 1;
   if (depth.count >= need && overall <= depth.second) surplus = 0.82;
   else if (depth.count < need) surplus = 1.12;
-  return calculateTradeValue(state, player, teamId) * surplus * traitFactor(trait, player);
+  // PHASE 3.6: 補強ポイントが高い枠の選手は手放したくない
+  const planFactor = 1 + (planNeed(state, teamId, player) - 50) * 0.0028;
+  return (
+    calculateTradeValue(state, player, teamId) * surplus * traitFactor(trait, player) * planFactor
+  );
 }
 
 /**
@@ -606,6 +634,21 @@ export function executeTrade(state: GameState, offer: TradeOffer): TradeResult {
   trade.countByTeam[offer.fromTeamId] = (trade.countByTeam[offer.fromTeamId] ?? 0) + 1;
   trade.countByTeam[offer.toTeamId] = (trade.countByTeam[offer.toTeamId] ?? 0) + 1;
 
+  // PHASE 3.6: 経営プランに結果を反映する（埋まった枠は必要度が下がる）
+  for (const [teamId, arrived] of [
+    [offer.toTeamId, fromPlayers],
+    [offer.fromTeamId, toPlayers],
+  ] as Array<[string, Player[]]>) {
+    const plan = state.teamPlans?.[teamId];
+    if (!plan) continue;
+    plan.log.tradesDone += 1;
+    for (const player of arrived) {
+      const key = planKeyOf(player);
+      const drop = 12 + Math.max(0, overallRating(player) - 30) * 0.6;
+      plan.needs[key] = Math.max(0, Math.round((plan.needs[key] ?? 50) - drop));
+    }
+  }
+
   refreshPayrolls(state);
   ensureFirstTeamViable(state, offer.fromTeamId);
   ensureFirstTeamViable(state, offer.toTeamId);
@@ -809,9 +852,16 @@ export function buildCpuOffer(
 ): TradeOffer | null {
   const need = analyzeTeam(state, fromTeamId);
 
-  // 欲しい選手：相手の中で、自分の手薄な枠を埋められる選手
+  // 欲しい選手：相手の中で、自分の手薄な枠を埋められる選手。
+  // PHASE 3.6: 経営プランの補強ポイントが高い枠も対象にする。
+  const planNeeds = state.teamPlans?.[fromTeamId]?.needs;
+  const wanted = (p: Player) => {
+    if ((p.isPitcher ? 'P' : positionGroup(p.mainPosition)) === need.weakest) return true;
+    return planNeeds ? (planNeeds[planKeyOf(p)] ?? 0) >= 65 : false;
+  };
+
   const targets = tradableRoster(state, toTeamId)
-    .filter((p) => (p.isPitcher ? 'P' : positionGroup(p.mainPosition)) === need.weakest)
+    .filter(wanted)
     .sort(
       (a, b) =>
         incomingValue(state, fromTeamId, b) - incomingValue(state, fromTeamId, a),
@@ -819,9 +869,10 @@ export function buildCpuOffer(
     .slice(0, 5);
   if (targets.length === 0) return null;
 
-  // 出せる選手：自分の中で余っている枠から
+  // 出せる選手：自分の中で余っている枠から（補強ポイントが高い枠は出さない）
   const assets = tradableRoster(state, fromTeamId)
     .filter((p) => (p.isPitcher ? 'P' : positionGroup(p.mainPosition)) !== need.weakest)
+    .filter((p) => !planNeeds || (planNeeds[planKeyOf(p)] ?? 0) < 70)
     .sort((a, b) => outgoingValue(state, fromTeamId, a) - outgoingValue(state, fromTeamId, b))
     .slice(0, 8);
   if (assets.length === 0) return null;
@@ -890,6 +941,9 @@ export function runCpuTrades(state: GameState): void {
     if (teams.length < 2) return;
     const from = teams[rng.int(0, teams.length - 1)];
     if ((state.trade.countByTeam[from.id] ?? 0) >= MAX_TRADES_PER_TEAM) continue;
+    // PHASE 3.6: トレードに消極的な球団は動きが少ない
+    const activity = state.teamPlans?.[from.id]?.profile.tradeActivity;
+    if (activity !== undefined && rng.next() > 0.62 + activity / 160) continue;
 
     // 相手はプレイヤー球団も含む
     const partners = state.teams.filter((t) => t.id !== from.id);

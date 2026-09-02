@@ -9,6 +9,7 @@ import { overallRating } from './rating';
 import { createScoutingState } from './scouting';
 import { createContract, createTeamFinance, marketValue, refreshPayrolls } from './contract';
 import { tradeDeadline } from './trade';
+import { refreshTeamPlans } from './teamAi';
 
 /**
  * 2: 弾道を 1〜4 から 1〜100 に変更
@@ -137,6 +138,9 @@ export function createNewGame(
     player.ext.contract = createContract(value, years, START_YEAR - (4 - years));
   }
   refreshPayrolls(state);
+
+  // ---- PHASE 3.6: 開幕時点の経営プラン（戦略・補強ポイント・FA予算） ----
+  refreshTeamPlans(state);
 
   return state;
 }

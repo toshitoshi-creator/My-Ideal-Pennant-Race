@@ -299,6 +299,7 @@ export function evaluateProspectScouted(
   teamRoster: Player[],
   report: ScoutReport | undefined,
   rng?: Rng,
+  plan?: { strategy: string; needs: Record<string, number> },
 ): number {
   const { ability, potential } = scoutedEvaluation(report, prospect);
   const group = positionGroupOf(prospect.player.mainPosition);
@@ -307,9 +308,27 @@ export function evaluateProspectScouted(
   const shortage = Math.max(0, Math.min(1, (quota - have) / quota));
   const positionFit = have < quota ? 1 : 0;
   const jitter = rng ? rng.normal(0, 3) : 0;
-  return (
-    ability * 0.5 + potential * 0.3 + shortage * 100 * 0.15 + positionFit * 100 * 0.05 + jitter
-  );
+  let score =
+    ability * 0.5 + potential * 0.3 + shortage * 100 * 0.15 + positionFit * 100 * 0.05 + jitter;
+
+  // PHASE 3.6: 球団の補強ポイントと戦略を反映する（真の潜在能力は使わない）
+  if (plan) {
+    const need = plan.needs[planKeyOf(prospect.player)] ?? 50;
+    score += (need - 50) * 0.16;
+    if (plan.strategy === 'WIN_NOW') score += (ability - potential) * 0.12;
+    else if (plan.strategy === 'YOUTH') score += (potential - ability) * 0.16;
+    else if (plan.strategy === 'BUDGET') score += prospect.player.age <= 20 ? 4 : -2;
+  }
+  return score;
+}
+
+/** 経営プランで使う枠のキー（rosterAnalysis と同じ分け方） */
+function planKeyOf(player: Player): string {
+  if (player.isPitcher) return (player.pitching?.stamina ?? 0) >= 45 ? 'SP' : 'RP';
+  const pos = player.mainPosition;
+  if (pos === 'C') return 'C';
+  if (pos === 'LF' || pos === 'CF' || pos === 'RF') return 'OF';
+  return pos;
 }
 
 /** いま指名権のある球団に自動で指名させる */
@@ -323,16 +342,23 @@ export function autoPick(state: GameState, draft: DraftState, rng: Rng): DraftPr
     return null;
   }
   const reports = state.scouting?.teams[slot.teamId]?.reports ?? {};
+  const plan = state.teamPlans?.[slot.teamId];
   let best = available[0];
   let bestScore = -Infinity;
   for (const prospect of available) {
-    const score = evaluateProspectScouted(prospect, roster, reports[prospect.id], rng);
+    const score = evaluateProspectScouted(prospect, roster, reports[prospect.id], rng, plan);
     if (score > bestScore) {
       bestScore = score;
       best = prospect;
     }
   }
   applyPick(draft, best, slot);
+  if (plan) {
+    plan.log.draftPicks += 1;
+    const key = planKeyOf(best.player);
+    // 獲得できた枠は、FA・トレードでの必要度を下げる
+    plan.needs[key] = Math.max(0, (plan.needs[key] ?? 50) - 18);
+  }
   return best;
 }
 
