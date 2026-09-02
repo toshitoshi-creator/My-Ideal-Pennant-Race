@@ -206,8 +206,37 @@ const homeFinanceText = await page.locator('.screen').innerText();
 if (!homeFinanceText.includes('球団経営')) fail('ホームに球団経営カードがない');
 else ok('ホーム画面に球団経営（資金・予算・総年俸）が表示されている');
 
-// PHASE 3.5: トレード
+// PHASE 3.6: 球団方針
 await page.locator('.nav').getByText('ホーム').click();
+const homePolicyText = await page.locator('.screen').innerText();
+if (!homePolicyText.includes('今季の方針')) fail('ホームに今季の方針がない');
+else ok('ホーム画面に今季の方針が表示されている');
+for (const label of ['補強ポイント', 'FA積極度']) {
+  if (!homePolicyText.includes(label)) fail(`ホームに「${label}」がない`);
+}
+ok('補強ポイントとFA・トレード積極度が表示されている');
+const policyState = await readState();
+const myPlan = policyState.teamPlans[policyState.playerTeamId];
+if (!myPlan) fail('経営プランが保存されていない');
+else {
+  if (!['WIN_NOW', 'BALANCED', 'YOUTH', 'BUDGET'].includes(myPlan.strategy)) {
+    fail('経営プランの戦略が不正');
+  } else {
+    ok(`自球団の方針は ${myPlan.strategy}（FA予算 ${myPlan.faBudget}）`);
+  }
+  const strategies = new Set(
+    policyState.teams.map((t) => policyState.teamPlans[t.id] && policyState.teamPlans[t.id].strategy),
+  );
+  if (strategies.size < 2) fail('全球団が同じ方針になっている');
+  else ok(`12球団で${strategies.size}種類の方針が立てられている`);
+  const needs = Object.values(myPlan.needs);
+  if (needs.some((n) => n < 0 || n > 100)) fail('補強必要度の値が不正');
+  else ok('補強必要度は0〜100に収まっている');
+}
+if (/potential|truePotential/.test(homePolicyText)) fail('ホームに内部情報が出ている');
+else ok('球団方針の表示に内部の隠し情報は出ない');
+
+// PHASE 3.5: トレード
 const homeTradeText = await page.locator('.screen').innerText();
 if (!homeTradeText.includes('トレード')) fail('ホームにトレードカードがない');
 else ok('ホーム画面にトレードが表示されている');
@@ -236,6 +265,10 @@ for (const label of ['順位', '総合力', '保有選手', '手薄なポジシ�
   if (!profileText.includes(label)) fail(`相手球団の情報に「${label}」がない`);
 }
 ok('相手球団の戦力・順位・弱点ポジションが表示される');
+for (const label of ['今季の方針', '補強ポイント', 'FA積極度', 'トレード積極度']) {
+  if (!profileText.includes(label)) fail(`相手球団の情報に「${label}」がない`);
+}
+ok('相手球団の方針・補強ポイント・積極度が表示される');
 await shot('21-trade');
 
 // 選手を選ぶ（自球団・相手球団）
