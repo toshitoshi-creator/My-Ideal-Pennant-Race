@@ -1,7 +1,7 @@
 import type { GameState, Player, SeasonLength, TeamRecord } from './types';
 import { LEAGUES, TEAM_SEEDS, TEAMS, PLAYER_TEAM_STRENGTH } from './teams';
 import { Rng } from './rng';
-import { generateTeamPlayers } from './playerGen';
+import { generateTeamPlayers, resetPlayerIdCounter } from './playerGen';
 import { buildAutoSetup } from './setup';
 import { generateSchedule, openingDate } from './schedule';
 import { emptySeasonStats } from './stats';
@@ -19,8 +19,9 @@ import { tradeDeadline } from './trade';
  * 7: PHASE 3.3（契約・年俸・球団資金）
  * 8: PHASE 3.4（FA市場・オファー・未所属選手）
  * 9: PHASE 3.5（トレード・提案・履歴・在籍履歴）
+ * 10: PHASE 3.6（球団経営AIのプラン）
  */
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 export const START_YEAR = 2026;
 
 /** 1軍スタート人数（残りは 2軍スタート） */
@@ -44,6 +45,8 @@ export function createNewGame(
   seed = Math.floor(Math.random() * 0xffffffff),
 ): GameState {
   const rng = new Rng(seed);
+  // 同じシードなら常に同じ選手ID になるよう、ゲームごとに採番をリセットする
+  resetPlayerIdCounter();
   const players: Player[] = [];
 
   for (const teamSeed of TEAM_SEEDS) {
@@ -104,6 +107,8 @@ export function createNewGame(
       tradedThisSeason: [],
       countByTeam: {},
     },
+    teamPlans: {},
+    teamPlansYear: null,
   };
   state.trade.deadline = tradeDeadline(state);
 

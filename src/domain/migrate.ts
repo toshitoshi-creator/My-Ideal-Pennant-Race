@@ -10,6 +10,7 @@
  * v7: PHASE 3.3（契約・年俸・球団資金）
  * v8: PHASE 3.4（FA市場・未所属選手）
  * v9: PHASE 3.5（トレード・在籍履歴）
+ * v10: PHASE 3.6（球団経営AIのプラン）
  *
  * 古いセーブは不足分を安全な初期値で補完し、既存のデータ（能力・成績・順位・日付・
  * 1軍/2軍・7日制限）は一切書き換えない。
@@ -201,6 +202,29 @@ export function migrateV8ToV9(state: GameState): void {
       state.teams.some((t) => t.id === offer.toTeamId),
   );
   state.version = 9;
+}
+
+/** v9 → v10：球団経営AIのプランを補う */
+export function migrateV9ToV10(state: GameState): void {
+  if (!state.teamPlans || typeof state.teamPlans !== 'object') state.teamPlans = {};
+  if (state.teamPlansYear === undefined) state.teamPlansYear = null;
+
+  // 実在しない球団のプランは落とす。壊れたプランも作り直させる
+  for (const teamId of Object.keys(state.teamPlans)) {
+    const plan = state.teamPlans[teamId];
+    const valid =
+      state.teams.some((t) => t.id === teamId) &&
+      plan &&
+      typeof plan.year === 'number' &&
+      plan.needs &&
+      typeof plan.needs === 'object' &&
+      plan.profile &&
+      typeof plan.faBudget === 'number';
+    if (!valid) delete state.teamPlans[teamId];
+  }
+  // 古いセーブは次のオフシーズンで作り直す
+  if (Object.keys(state.teamPlans).length === 0) state.teamPlansYear = null;
+  state.version = 10;
 }
 
 /**

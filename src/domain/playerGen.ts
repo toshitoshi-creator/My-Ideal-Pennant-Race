@@ -163,17 +163,22 @@ export interface GeneratePlayersOptions {
 
 let idCounter = 0;
 
-/** 同姓同名が出ても必ず別 ID になるようにする */
-function newPlayerId(teamId: string): string {
+/**
+ * 同姓同名が出ても必ず別 ID になるようにする。
+ *
+ * PHASE 3.6: 以前は Date.now() と Math.random() を使っていたため、
+ * 同じシードでも実行のたびに ID が変わり、ID から乱数を作る処理
+ * （スカウトの推定、FA・トレードの評価）が再現しなかった。
+ * ここでは乱数を消費せずに現在の乱数状態を読むだけにして、
+ * 「同じシードなら同じ ID」かつ「同じゲーム内では必ず一意」にしている。
+ */
+function newPlayerId(teamId: string, startYear: number, rng: Rng): string {
   idCounter += 1;
-  return `${teamId}-p${idCounter.toString(36)}-${Date.now().toString(36).slice(-4)}${Math.floor(
-    Math.random() * 1296,
-  )
-    .toString(36)
-    .padStart(2, '0')}`;
+  const salt = (rng.getState() >>> 0).toString(36).slice(-4);
+  return `${teamId}-${startYear.toString(36)}${idCounter.toString(36)}-${salt}`;
 }
 
-/** テスト用：ID カウンタをリセット（ID の一意性自体は乱数部分でも担保される） */
+/** テスト用：ID カウンタをリセット（ID の一意性自体はカウンタで担保される） */
 export function resetPlayerIdCounter(): void {
   idCounter = 0;
 }
@@ -354,7 +359,7 @@ export function createPlayer(rng: Rng, options: CreatePlayerOptions): Player {
     : clamp1to100(rng.normal(power * 0.55 + 24, 13));
 
   const player: Player = {
-    id: newPlayerId(teamId),
+    id: newPlayerId(teamId, startYear, rng),
     teamId,
     name: `${surname} ${given}`,
     kana: `${surnameKana} ${givenKana}`,

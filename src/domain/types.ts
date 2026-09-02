@@ -367,6 +367,10 @@ export interface GameState {
   lastFaYear: number | null;
   /** トレード（期限・提案・履歴）。PHASE 3.5 */
   trade: TradeState;
+  /** 球団ごとの今季の経営プラン。PHASE 3.6 */
+  teamPlans: Record<string, TeamAiPlan>;
+  /** 経営プランを作った年（作り直しの判定に使う）。PHASE 3.6 */
+  teamPlansYear: number | null;
 }
 
 /** シーズン終了時の成長レポート（表示用） */
@@ -461,6 +465,48 @@ export interface ContractPhase {
     years: number;
   }>;
   completed: boolean;
+}
+
+/* ---------------- 球団経営AI：PHASE 3.6 ---------------- */
+
+/** 球団ごとの経営の癖（0〜100） */
+export interface TeamManagementProfileData {
+  aggression: number;
+  youthPreference: number;
+  budgetDiscipline: number;
+  tradeActivity: number;
+  faActivity: number;
+  veteranPreference: number;
+}
+
+/** その年に実際に何をしたか（デバッグ・検証用） */
+export interface TeamAiPlanLog {
+  contractsKept: number;
+  contractsReleased: number;
+  draftPicks: number;
+  faSigned: number;
+  tradesDone: number;
+}
+
+/**
+ * 球団の今季の経営プラン（PHASE 3.6）。
+ * 契約更改・ドラフト・FA・トレードがこれを共有して動く。
+ */
+export interface TeamAiPlan {
+  teamId: string;
+  year: number;
+  /** WIN_NOW / BALANCED / YOUTH / BUDGET */
+  strategy: TradeTrait;
+  profile: TeamManagementProfileData;
+  /** 枠ごとの補強必要度 0〜100。補強できると下がる */
+  needs: Record<string, number>;
+  /** FAに使ってよい金額（100万円単位） */
+  faBudget: number;
+  /** すでにFAに使った金額 */
+  faSpent: number;
+  /** UI向けの説明 */
+  reasons: string[];
+  log: TeamAiPlanLog;
 }
 
 /* ---------------- トレード：PHASE 3.5 ---------------- */

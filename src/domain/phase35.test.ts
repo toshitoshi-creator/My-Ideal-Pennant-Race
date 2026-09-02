@@ -997,9 +997,10 @@ describe('PHASE3.5 セーブ', () => {
     (globalThis as unknown as { localStorage: MemoryStorage }).localStorage = new MemoryStorage();
   });
 
-  it('セーブバージョンが9になっている', () => {
-    expect(SAVE_VERSION).toBe(9);
-    expect(newGame().version).toBe(9);
+  it('セーブバージョンが最新になっている', () => {
+    // PHASE 3.6 で球団経営AIを追加したため v10
+    expect(SAVE_VERSION).toBe(10);
+    expect(newGame().version).toBe(SAVE_VERSION);
   });
 
   it('トレードの状態が保存・復元される', () => {

@@ -964,8 +964,8 @@ describe('PHASE3.4 セーブ', () => {
   });
 
   it('セーブバージョンが最新になっている', () => {
-    // PHASE 3.5 でトレードを追加したため v9
-    expect(SAVE_VERSION).toBe(9);
+    // PHASE 3.6 で球団経営AIを追加したため v10
+    expect(SAVE_VERSION).toBe(10);
     expect(newGame().version).toBe(SAVE_VERSION);
   });
 

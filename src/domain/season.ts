@@ -40,6 +40,7 @@ import {
   startFreeAgency,
 } from './freeAgency';
 import { resetTradeSeason } from './trade';
+import { refreshNeedsAfterDraft, refreshTeamPlans } from './teamAi';
 import { repairAllSetups } from './engine';
 import { ensureFirstTeamViable } from './daily';
 
@@ -113,6 +114,10 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
 
   // ---- PHASE 3.3: 今季分の人件費を精算する（1シーズンに1回だけ） ----
   applySeasonFinance(state);
+
+  // ---- PHASE 3.6: 各球団の戦力を分析し、今季の経営プランを決める ----
+  // （成長・引退の前の戦力で判断する。契約更改・ドラフト・FA・トレードで共有する）
+  refreshTeamPlans(state);
 
   for (const player of state.players) {
     const { first, second, performance } = experienceOf(state, player);
@@ -238,6 +243,9 @@ export function startContractPhase(state: GameState): Player[] {
     state.stats[rookie.id] = emptySeasonStats(rookie.id);
   }
   state.draft = null;
+
+  // PHASE 3.6: ドラフトの結果を補強ポイントに反映する
+  refreshNeedsAfterDraft(state);
 
   // 契約年数を1年進める（1シーズンに1回だけ）
   const renewalTargets = tickContracts(state).length;
