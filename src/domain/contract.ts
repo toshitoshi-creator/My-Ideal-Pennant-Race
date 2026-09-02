@@ -35,6 +35,14 @@ export const MIN_PITCHERS = 8;
  */
 export const BUDGET_RELEASE_FLOOR = MINIMUM_ROSTER - 4;
 
+/**
+ * 1人の選手に払える年俸の上限（年間予算に対する割合）。
+ * これを超える提示はしない。断られた選手はFA市場へ出る。
+ * 上限がないと、予算の半分を1人の複数年契約に縛られ、
+ * 契約更改では手が出せないまま総年俸が膨らみ続けてしまう。
+ */
+export const MAX_SALARY_SHARE = 0.3;
+
 /** 契約年数の上限（年齢で変わる） */
 export function maxContractYears(age: number): number {
   if (age <= 27) return 5;
@@ -286,11 +294,20 @@ export function leagueSalaryLevel(state: GameState): number {
 export function adjustBudgets(state: GameState): void {
   const level = leagueSalaryLevel(state);
   if (!Number.isFinite(level) || level <= 0) return;
+  const budgets = state.teams
+    .map((t) => state.finances[t.id])
+    .filter((f) => f && Number.isFinite(f.budget))
+    .map((f) => f.budget);
+  if (budgets.length === 0) return;
+  const averageBudget = budgets.reduce((a, b) => a + b, 0) / budgets.length;
   for (const team of state.teams) {
     const finance = state.finances[team.id];
     if (!finance || !Number.isFinite(finance.budget)) continue;
+    // 球団ごとの規模の差（予算の相対値）は保つ。全球団を同じ額に均してしまうと、
+    // もともと年俸の高い球団が必ず予算超過になってしまう。
+    const scale = averageBudget > 0 ? finance.budget / averageBudget : 1;
     // 収入は年俸水準をわずかに上回る程度。急に変わらないよう緩やかに追随させる
-    const target = level * 1.08;
+    const target = level * 1.08 * scale;
     finance.budget = Math.round(finance.budget * 0.6 + target * 0.4);
     finance.annualRevenue = finance.budget;
   }
@@ -544,7 +561,9 @@ export function renewTeamContracts(
   for (const entry of ranked) {
     const stats = state.stats[entry.player.id];
     const expected = expectedSalary(entry.player, stats, state.year);
-    const years = adjustYearsForStrategy(cpuContractYears(entry.player, rng), entry.player, strategy);
+    let years = adjustYearsForStrategy(cpuContractYears(entry.player, rng), entry.player, strategy);
+    // すでに確定している年俸が予算を圧迫しているなら、長期契約をこれ以上増やさない
+    if (committed > budget * 0.85) years = 1;
     const offer = Math.max(expected, Math.round(expected * yearsDiscount(years)));
     const remainingPlayers = roster.length - released;
     const isPitcher = entry.player.isPitcher;
@@ -626,12 +645,16 @@ export function releaseUnsignedPlayers(state: GameState): Player[] {
     let keep = MINIMUM_ROSTER - signed.length;
     let fielders = signed.filter((p) => !p.isPitcher).length;
     let pitchers = signed.filter((p) => p.isPitcher).length;
+    // 人数を保つための1年契約なので、球団が払える範囲に収める。
+    // ここで市場価格をそのまま払うと、契約更改で見送った高年俸の選手を
+    // そのまま拾い直してしまい、総年俸が下がらない。
+    const affordable = Math.max(
+      MIN_SALARY,
+      Math.round((state.finances[team.id]?.budget ?? 900) * MAX_SALARY_SHARE),
+    );
     const resign = (player: Player) => {
-      player.ext.contract = createContract(
-        expectedSalary(player, state.stats[player.id], state.year),
-        1,
-        state.year,
-      );
+      const asking = expectedSalary(player, state.stats[player.id], state.year);
+      player.ext.contract = createContract(Math.min(asking, affordable), 1, state.year);
       keep -= 1;
       if (player.isPitcher) pitchers += 1;
       else fielders += 1;

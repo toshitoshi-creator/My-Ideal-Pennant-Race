@@ -139,6 +139,15 @@ export function createNewGame(
   }
   refreshPayrolls(state);
 
+  // 開幕時点で総年俸が予算を圧迫している球団には、そのぶん大きな予算を与える。
+  // （戦力が厚い球団＝規模の大きい球団、という扱い）
+  // ここで揃えておかないと、抱えている契約だけで予算超過が続いてしまう。
+  for (const team of TEAMS) {
+    const finance = state.finances[team.id];
+    finance.budget = Math.max(finance.budget, Math.round(finance.payroll * 1.15));
+    finance.annualRevenue = finance.budget;
+  }
+
   // ---- PHASE 3.6: 開幕時点の経営プラン（戦略・補強ポイント・FA予算） ----
   refreshTeamPlans(state);
 
