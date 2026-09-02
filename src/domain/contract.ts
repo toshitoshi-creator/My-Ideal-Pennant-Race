@@ -284,6 +284,13 @@ export function leagueSalaryLevel(state: GameState): number {
   return total / state.teams.length;
 }
 
+/** その球団が抱えている戦力の市場価値（支払い額ではなく、選手の価値の合計） */
+export function teamMarketValue(state: GameState, teamId: string): number {
+  return state.players
+    .filter((p) => p.teamId === teamId)
+    .reduce((sum, p) => sum + marketValue(p, state.stats[p.id], state.year), 0);
+}
+
 /**
  * 年間予算をリーグの選手価値の水準に合わせて少しずつ動かす（PHASE 3.6）。
  *
@@ -294,18 +301,14 @@ export function leagueSalaryLevel(state: GameState): number {
 export function adjustBudgets(state: GameState): void {
   const level = leagueSalaryLevel(state);
   if (!Number.isFinite(level) || level <= 0) return;
-  const budgets = state.teams
-    .map((t) => state.finances[t.id])
-    .filter((f) => f && Number.isFinite(f.budget))
-    .map((f) => f.budget);
-  if (budgets.length === 0) return;
-  const averageBudget = budgets.reduce((a, b) => a + b, 0) / budgets.length;
   for (const team of state.teams) {
     const finance = state.finances[team.id];
     if (!finance || !Number.isFinite(finance.budget)) continue;
-    // 球団ごとの規模の差（予算の相対値）は保つ。全球団を同じ額に均してしまうと、
-    // もともと年俸の高い球団が必ず予算超過になってしまう。
-    const scale = averageBudget > 0 ? finance.budget / averageBudget : 1;
+    // 球団の規模は、抱えている戦力の価値に緩やかに追随させる。
+    // 全球団を同じ額に均してしまうと、厚い戦力を持つ球団は
+    // 抱えている契約だけで予算超過が続いてしまう。
+    // 際限なく膨らまないよう、リーグ平均の 0.85〜1.3 倍に収める。
+    const scale = Math.max(0.85, Math.min(1.3, teamMarketValue(state, team.id) / level));
     // 収入は年俸水準をわずかに上回る程度。急に変わらないよう緩やかに追随させる
     const target = level * 1.08 * scale;
     finance.budget = Math.round(finance.budget * 0.6 + target * 0.4);
