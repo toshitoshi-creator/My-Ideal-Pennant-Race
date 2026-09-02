@@ -7,6 +7,7 @@ import { PlayersScreen } from './screens/PlayersScreen';
 import { RosterScreen } from './screens/RosterScreen';
 import { StandingsScreen } from './screens/StandingsScreen';
 import { DraftScreen } from './screens/DraftScreen';
+import { ContractScreen } from './screens/ContractScreen';
 import { formatDateJa } from '../domain/dates';
 
 const NAV: Array<{ id: ScreenId; label: string; icon: string }> = [
@@ -37,11 +38,19 @@ function Root() {
     );
   }
 
-  // ドラフト中は専用画面に切り替える
+  // ドラフト中・契約更改中は専用画面に切り替える
   if (state.draft) {
     return (
       <>
         <DraftScreen />
+        {toast && <div className="toast">{toast}</div>}
+      </>
+    );
+  }
+  if (state.contractPhase) {
+    return (
+      <>
+        <ContractScreen />
         {toast && <div className="toast">{toast}</div>}
       </>
     );

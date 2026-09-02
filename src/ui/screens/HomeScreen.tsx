@@ -7,6 +7,13 @@ import { teamPower } from '../../domain/rating';
 import { rankOfTeam, formatWinPct, winPct } from '../../domain/standings';
 import { KeyValue, RankBadge } from '../components/common';
 import { GrowthReportSheet } from '../components/GrowthReport';
+import { FinanceRows } from './ContractScreen';
+import {
+  formatMoney,
+  isExpiring,
+  remainingBudget,
+  teamPayroll,
+} from '../../domain/contract';
 
 export function HomeScreen() {
   const { state, playNextGame, skipOneDay, setScreen, advanceSeason, pendingReport, dismissReport } =
@@ -28,6 +35,13 @@ export function HomeScreen() {
       ),
     [setup, byId],
   );
+
+  const finance = state.finances[team.id];
+  const payroll = teamPayroll(state, team.id);
+  const remaining = remainingBudget(state, team.id);
+  const expiringCount = state.players.filter(
+    (p) => p.teamId === team.id && isExpiring(p),
+  ).length;
 
   const next = nextGameForTeam(state.schedule, team.id, state.date);
   const opponentId = next
@@ -97,6 +111,30 @@ export function HomeScreen() {
             </span>
           }
         />
+      </div>
+
+      <div className="card">
+        <h2>球団経営</h2>
+        <FinanceRows
+          cash={finance.cash}
+          budget={finance.budget}
+          payroll={payroll}
+          lastResult={finance.lastResult}
+        />
+        <div className="spread" style={{ padding: '6px 0' }}>
+          <span className="muted">契約満了</span>
+          <span style={{ fontWeight: 700 }}>{expiringCount}人</span>
+        </div>
+        {remaining < 0 && (
+          <div style={{ color: 'var(--bad)', fontWeight: 700, marginTop: 6, fontSize: 13 }}>
+            ⚠ 総年俸が年間予算（{formatMoney(finance.budget)}）を超えています
+          </div>
+        )}
+        {finance.cash < 0 && (
+          <div style={{ color: 'var(--bad)', fontWeight: 700, marginTop: 6, fontSize: 13 }}>
+            ⚠ 球団資金が赤字です
+          </div>
+        )}
       </div>
 
       <div className="card">

@@ -10,7 +10,13 @@ import {
   validateState,
 } from '../domain/engine';
 import { clearSave, hasSave, loadGame, saveGame } from '../domain/save';
-import { completeOffseason, startOffseason } from '../domain/season';
+import {
+  autoCompleteContracts,
+  completeOffseason,
+  startContractPhase,
+  startOffseason,
+} from '../domain/season';
+import { offerContract as offerContractToPlayer } from '../domain/contract';
 import { makePick, recordPlayerPick, runCpuPicks, currentPick, beginDraftPicks } from '../domain/draft';
 import { investigate } from '../domain/scouting';
 import type { ScoutCategory } from '../domain/types';
@@ -43,7 +49,13 @@ interface StoreValue {
   startDraftPicks(): void;
   /** ドラフトでプレイヤー球団が指名する */
   draftPick(prospectId: string): void;
-  /** ドラフトを終えて翌シーズンを開幕する */
+  /** ドラフトを終えて契約更改に進む */
+  startContracts(): void;
+  /** 契約満了選手に条件を提示する */
+  offerContract(playerId: string, salary: number, years: number): boolean;
+  /** 残りの交渉を自動で決める */
+  autoContracts(): void;
+  /** 契約更改を終えて翌シーズンを開幕する */
   finishOffseason(): void;
   /** オフシーズン明けに成長レポートを開くかどうか */
   pendingReport: boolean;
@@ -229,16 +241,68 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [commit, showToast],
   );
 
-  /** ドラフト終了 → 新人加入 → 翌シーズン開幕 */
-  const finishOffseason = useCallback(() => {
+  /** ドラフト終了 → 新人加入・新人契約 → 契約更改へ */
+  const startContracts = useCallback(() => {
     const current = stateRef.current;
     if (!current?.draft) return;
     const next = cloneState(current);
-    const rookies = completeOffseason(next);
+    const rookies = startContractPhase(next);
+    commit(next);
+    showToast(`新人${rookies.length}人と契約しました`);
+  }, [commit, showToast]);
+
+  const offerContract = useCallback(
+    (playerId: string, salary: number, years: number): boolean => {
+      const current = stateRef.current;
+      if (!current?.contractPhase) return false;
+      const next = cloneState(current);
+      const player = next.players.find((p) => p.id === playerId);
+      const phase = next.contractPhase!;
+      if (!player || !phase.pending.includes(playerId)) return false;
+
+      const result = offerContractToPlayer(next, player, { salary, years });
+      phase.pending = phase.pending.filter((id) => id !== playerId);
+      phase.resolved.push({
+        playerId,
+        name: player.name,
+        accepted: result.accepted,
+        salary,
+        years,
+      });
+      phase.completed = phase.pending.length === 0;
+      commit(next);
+      showToast(
+        result.accepted
+          ? `${player.name} と${years}年契約で合意しました`
+          : `${player.name} は提示を受け入れませんでした`,
+      );
+      return result.accepted;
+    },
+    [commit, showToast],
+  );
+
+  const autoContracts = useCallback(() => {
+    const current = stateRef.current;
+    if (!current?.contractPhase) return;
+    const next = cloneState(current);
+    autoCompleteContracts(next);
+    commit(next);
+    showToast('残りの契約更改を自動で行いました');
+  }, [commit, showToast]);
+
+  /** 契約更改を終えて翌シーズンを開幕する */
+  const finishOffseason = useCallback(() => {
+    const current = stateRef.current;
+    if (!current?.contractPhase && !current?.draft) return;
+    const next = cloneState(current!);
+    completeOffseason(next);
     repairAllSetups(next);
     commit(next);
     setPendingReport(true);
-    showToast(`${next.year}年シーズン開幕（新人${rookies.length}人が加入）`);
+    const summary = next.lastOffseason;
+    showToast(
+      `${next.year}年シーズン開幕（新人${summary?.rookies ?? 0}人加入 / 退団${summary?.released ?? 0}人）`,
+    );
   }, [commit, showToast]);
 
   const value = useMemo<StoreValue>(
@@ -261,6 +325,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       scout,
       startDraftPicks,
       draftPick,
+      startContracts,
+      offerContract,
+      autoContracts,
       finishOffseason,
       pendingReport,
       dismissReport: () => setPendingReport(false),
@@ -284,6 +351,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       scout,
       startDraftPicks,
       draftPick,
+      startContracts,
+      offerContract,
+      autoContracts,
       finishOffseason,
       pendingReport,
     ],

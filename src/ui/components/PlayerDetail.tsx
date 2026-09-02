@@ -23,6 +23,7 @@ import {
 import { injuryText } from '../../domain/injury';
 import { specialAbilityDef } from '../../domain/specialAbilities';
 import { effectiveBreakdown } from '../../domain/effective';
+import { contractStatus, formatSalary, marketValue } from '../../domain/contract';
 
 export function PlayerDetail({ player, onClose }: { player: Player; onClose: () => void }) {
   const { state, mutate, showToast } = useGame();
@@ -81,6 +82,11 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
       <div className="card">
         <h2>コンディション</h2>
         <StatusPanel player={player} teamMorale={state.teamMorale[player.teamId] ?? 50} />
+      </div>
+
+      <div className="card">
+        <h2>契約</h2>
+        <ContractPanel player={player} />
       </div>
 
       <div className="card">
@@ -389,5 +395,44 @@ function SpecialAbilityPanel({ player }: { player: Player }) {
         );
       })}
     </div>
+  );
+}
+
+function ContractPanel({ player }: { player: Player }) {
+  const { state } = useGame();
+  const contract = player.ext.contract;
+  const status = contractStatus(player);
+  const market = marketValue(player, state.stats[player.id], state.year);
+
+  if (!contract) {
+    return (
+      <>
+        <KeyValue
+          label="契約状態"
+          value={<span style={{ color: 'var(--bad)' }}>無契約</span>}
+        />
+        <KeyValue label="市場価値" value={formatSalary(market)} />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <KeyValue label="年俸" value={formatSalary(contract.salary)} />
+      <KeyValue
+        label="契約"
+        value={
+          status === 'expiring' ? (
+            <span style={{ color: 'var(--accent)' }}>契約満了（更改が必要）</span>
+          ) : (
+            `${contract.totalYears}年契約 / 残り${contract.yearsRemaining}年`
+          )
+        }
+      />
+      <KeyValue label="市場価値" value={formatSalary(market)} />
+      <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>
+        市場価値は能力・年齢・実績から算出した年俸の目安です。
+      </div>
+    </>
   );
 }

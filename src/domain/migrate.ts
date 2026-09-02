@@ -7,11 +7,12 @@
  * v4: PHASE 2.5（調子のカテゴリ別補正・調子の履歴）
  * v5: PHASE 3.1（引退記録・ドラフト）
  * v6: PHASE 3.2（スカウト能力・調査ポイント・ScoutReport）
+ * v7: PHASE 3.3（契約・年俸・球団資金）
  *
  * 古いセーブは不足分を安全な初期値で補完し、既存のデータ（能力・成績・順位・日付・
  * 1軍/2軍・7日制限）は一切書き換えない。
  */
-import type { GameState, Player } from './types';
+import type { Contract, GameState, Player } from './types';
 import { Rng, seedFrom } from './rng';
 import { LEGACY_TRAJECTORY_MAX, migrateLegacyTrajectory } from './trajectory';
 import { defaultExtensions } from './playerGen';
@@ -19,6 +20,7 @@ import { PERSONALITY_IDS } from './personality';
 import { GROWTH_TENDENCY_IDS, GROWTH_TYPE_IDS } from './growth';
 import { overallRating } from './rating';
 import { createScoutAbilities, createScoutingState, SCOUT_POINTS_PER_YEAR } from './scouting';
+import { createContract, createTeamFinance, marketValue, refreshPayrolls } from './contract';
 import { clamp1to100 } from './rank';
 
 /** v1 → v2：弾道を 1〜4 から 1〜100 へ */
@@ -93,6 +95,55 @@ export function migrateV5ToV6(state: GameState): void {
   // 進行中の古いドラフトは指名段階として扱う
   if (state.draft && !state.draft.phase) state.draft.phase = 'picking';
   state.version = 6;
+}
+
+/** v6 → v7：契約・球団資金を補う */
+export function migrateV6ToV7(state: GameState): void {
+  if (!state.finances || typeof state.finances !== 'object') state.finances = {};
+  for (const team of state.teams) {
+    const finance = state.finances[team.id];
+    if (!finance || !Number.isFinite(finance.cash) || !Number.isFinite(finance.budget)) {
+      state.finances[team.id] = createTeamFinance(new Rng(seedFrom(`finance${state.seed}${team.id}`)));
+      continue;
+    }
+    // 壊れた値は安全な既定値へ戻す
+    if (!Number.isFinite(finance.annualRevenue)) finance.annualRevenue = finance.budget;
+    if (!Number.isFinite(finance.payroll)) finance.payroll = 0;
+    if (!Number.isFinite(finance.lastResult)) finance.lastResult = 0;
+  }
+
+  for (const player of state.players) {
+    const ext = player.ext as Partial<Player['ext']>;
+    const contract = ext.contract as Partial<Contract> | null | undefined;
+    const valid =
+      contract &&
+      Number.isFinite(contract.salary) &&
+      Number.isFinite(contract.yearsRemaining) &&
+      (contract.salary ?? -1) >= 0 &&
+      (contract.yearsRemaining ?? -1) >= 0;
+    if (!valid) {
+      const years = 1 + (seedFrom(player.id) % 4);
+      ext.contract = createContract(
+        marketValue(player, state.stats?.[player.id], state.year),
+        years,
+        state.year - (4 - years),
+      );
+    } else {
+      // 型が古い（{salary, years}）場合の補完
+      ext.contract = createContract(
+        contract!.salary!,
+        contract!.yearsRemaining ?? contract!.totalYears ?? 1,
+        contract!.signedYear ?? state.year,
+      );
+    }
+  }
+
+  if (state.contractPhase === undefined) state.contractPhase = null;
+  if (state.lastPayrollYear === undefined) state.lastPayrollYear = null;
+  if (state.lastContractYear === undefined) state.lastContractYear = null;
+  if (state.lastOffseason === undefined) state.lastOffseason = null;
+  refreshPayrolls(state);
+  state.version = 7;
 }
 
 /**

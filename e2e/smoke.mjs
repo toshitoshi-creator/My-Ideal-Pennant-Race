@@ -58,6 +58,9 @@ const listText = await page.locator('.screen').innerText();
 if (!/(絶好調|好調|普通|不調|絶不調)/.test(listText)) fail('選手一覧に調子が表示されていない');
 else ok('選手一覧に各選手の調子が表示されている');
 await shot('04-players');
+// 野手を1人選ぶ（打撃系カテゴリの表示を確認するため）
+await page.locator('.tabs button', { hasText: '野手' }).click();
+await page.locator('.player-card').first().waitFor();
 await page.locator('.player-card').first().click();
 await page.locator('.sheet').waitFor();
 if (!(await page.locator('.sheet').getByText('能力', { exact: true }).first().isVisible())) fail('能力が表示されない');
@@ -179,8 +182,24 @@ if (!/\d/.test(statsText)) fail('選手成績が更新されていない');
 else ok('選手成績が更新された');
 await shot('13-stats');
 
-// 日付進行
+// PHASE 3.3: 契約タブ
+await page.locator('.tabs button', { hasText: '契約' }).click();
+await page.waitForTimeout(200);
+const contractTabText = await page.locator('.screen').innerText();
+for (const label of ['球団資金', '年間予算', '総年俸']) {
+  if (!contractTabText.includes(label)) fail(`契約タブに「${label}」がない`);
+}
+if (!/万円|億円/.test(contractTabText)) fail('契約タブに年俸が表示されていない');
+else ok('選手一覧の契約タブに年俸・球団資金が表示されている');
+await shot('13b-contract-tab');
+
+// PHASE 3.3: ホームの球団経営カード
 await page.locator('.nav').getByText('ホーム').click();
+const homeFinanceText = await page.locator('.screen').innerText();
+if (!homeFinanceText.includes('球団経営')) fail('ホームに球団経営カードがない');
+else ok('ホーム画面に球団経営（資金・予算・総年俸）が表示されている');
+
+// 日付進行
 const dateBefore = (await readState()).date;
 await page.getByRole('button', { name: '1日進める' }).click();
 await page.waitForTimeout(400);
@@ -334,7 +353,8 @@ else ok(`CPU球団も独自に調査している（関東ブルーウェーブ $
 
 // ドラフト会議を開始する
 await page.getByRole('button', { name: 'ドラフト会議を始める' }).click();
-await page.waitForTimeout(400);
+// CPU球団の指名が終わり、自球団の指名待ちになるまで待つ
+await page.getByRole('button', { name: 'この選手を指名' }).first().waitFor({ timeout: 15000 });
 const picking = await readState();
 if (picking.draft.phase !== 'picking') fail('指名段階に移行していない');
 else ok('ドラフト会議が始まった');
@@ -372,6 +392,90 @@ if (new Set(pickedIds).size !== pickedIds.length) fail('同じ候補が重複し
 else ok('重複指名は発生していない');
 await shot('16c-draft-done');
 
+// PHASE 3.3: 契約更改（新人契約 → 交渉 → 保存 → 再起動 → 新シーズン）
+const salariesBefore = new Map(
+  afterPicks.players.map((p) => [p.id, p.ext.contract ? p.ext.contract.yearsRemaining : 0]),
+);
+await page.getByRole('button', { name: '契約更改へ' }).click();
+await page.getByRole('heading', { name: /年 契約更改/ }).waitFor();
+const contractStart = await readState();
+if (!contractStart.contractPhase) fail('契約更改フェーズが始まっていない');
+else ok(`契約更改が始まった（交渉対象${contractStart.contractPhase.pending.length}人）`);
+
+const newRookies = contractStart.players.filter((p) => !agesBefore.has(p.id));
+const rookieNoContract = newRookies.filter((p) => !p.ext.contract || p.ext.contract.salary <= 0);
+if (newRookies.length === 0) fail('新人が加入していない');
+else if (rookieNoContract.length > 0) fail('新人に契約・年俸がない');
+else {
+  const rookieSalaries = newRookies.map((p) => p.ext.contract.salary);
+  ok(
+    `新人${newRookies.length}人に契約が付与された（年俸 ${Math.min(...rookieSalaries)}〜${Math.max(...rookieSalaries)} / 100万円）`,
+  );
+}
+
+const financeText = await page.locator('.screen').innerText();
+for (const label of ['球団資金', '年間予算', '総年俸', '予算残り']) {
+  if (!financeText.includes(label)) fail(`契約更改画面に「${label}」がない`);
+}
+ok('契約更改画面に球団の資金状況が表示されている');
+
+const financeBefore = contractStart.finances['phoenix'];
+if (!financeBefore || !Number.isFinite(financeBefore.cash)) fail('球団資金が保存されていない');
+else ok(`球団資金 ${financeBefore.cash} / 予算 ${financeBefore.budget} / 前年度収支 ${financeBefore.lastResult}`);
+
+// 1人と実際に交渉する
+if (contractStart.contractPhase.pending.length > 0) {
+  await page.locator('button.player-card').first().click();
+  await page.locator('.sheet').waitFor();
+  const sheet = page.locator('.sheet');
+  if (!(await sheet.innerText()).includes('◎')) fail('希望額どおりの提示が受け入れられない');
+  else ok('希望どおりの条件は「受け入れられそう」と表示される');
+  await sheet.getByRole('button', { name: '－' }).click();
+  await page.waitForTimeout(120);
+  if (!(await sheet.innerText()).includes('×')) fail('提示額を下げても拒否予想にならない');
+  else ok('提示額を下げると「拒否されそう」に変わる');
+  await sheet.getByRole('button', { name: '＋' }).click();
+  await page.waitForTimeout(120);
+  await sheet.getByRole('button', { name: 'この条件で契約する' }).click();
+  await page.waitForTimeout(300);
+  const afterOffer = await readState();
+  const resolved = afterOffer.contractPhase ? afterOffer.contractPhase.resolved : [];
+  if (resolved.length !== 1 || !resolved[0].accepted) fail('契約交渉が成立していない');
+  else {
+    const signed = afterOffer.players.find((p) => p.id === resolved[0].playerId);
+    if (!signed || signed.ext.contract.salary !== resolved[0].salary) fail('合意した年俸が反映されていない');
+    else ok(`${resolved[0].name} と ${resolved[0].salary}（100万円） / ${resolved[0].years}年で合意した`);
+  }
+  await shot('16d-contract');
+}
+
+// 契約更改の途中で再起動しても続きから交渉できる
+const midContract = await readState();
+await page.reload();
+await page.getByRole('button', { name: '続きから' }).click();
+await page.getByRole('heading', { name: /年 契約更改/ }).waitFor();
+const restoredContract = await readState();
+if (!restoredContract.contractPhase || restoredContract.contractPhase.pending.length !== midContract.contractPhase.pending.length) {
+  fail('再起動で契約更改の途中経過が失われた');
+} else {
+  ok(`再起動しても契約更改の途中から再開できる（残り${restoredContract.contractPhase.pending.length}人）`);
+}
+if (restoredContract.finances['phoenix'].cash !== midContract.finances['phoenix'].cash) fail('再起動で球団資金が変わった');
+else ok('再起動後も球団資金が保持されている');
+
+// 残りはおまかせで交渉
+const autoButton = page.getByRole('button', { name: /おまかせで交渉する/ });
+if ((await autoButton.count()) > 0) {
+  await autoButton.click();
+  await page.waitForTimeout(400);
+}
+const contractDone = await readState();
+if (!contractDone.contractPhase || contractDone.contractPhase.pending.length !== 0) {
+  fail('おまかせ交渉で契約更改が終わらない');
+} else {
+  const accepted = contractDone.contractPhase.resolved.filter((r) => r.accepted).length;
+  ok(`契約更改が完了した（合意${accepted}人 / 決裂${contractDone.contractPhase.resolved.length - accepted}人）`);
+}
 await page.getByRole('button', { name: '新シーズンへ' }).click();
 await page.locator('.sheet').waitFor();
 const reportText = await page.locator('.sheet').innerText();
@@ -410,6 +514,29 @@ const agedCorrectly = nextSeason.players
   .every((p) => p.age === agesBefore.get(p.id) + 1);
 if (!agedCorrectly) fail('年齢が1歳加算されていない');
 else ok('全選手の年齢が1歳加算された');
+
+// PHASE 3.3: 新シーズンで契約年数が1年ずつ減る
+const carried = nextSeason.players.filter((p) => salariesBefore.has(p.id) && salariesBefore.get(p.id) >= 2);
+const decremented = carried.filter(
+  (p) => p.ext.contract && p.ext.contract.yearsRemaining === salariesBefore.get(p.id) - 1,
+);
+if (carried.length === 0 || decremented.length !== carried.length) {
+  fail('新シーズンで契約年数が1年ずつ減っていない');
+} else {
+  ok(`新シーズン開始で契約年数が1年減った（対象${carried.length}人）`);
+}
+const noContract = nextSeason.players.filter((p) => !p.ext.contract);
+if (noContract.length > 0) fail(`契約のない選手が${noContract.length}人いる`);
+else ok('全選手が契約を持っている');
+const payrollNow = nextSeason.finances['phoenix'].payroll;
+const sumSalary = nextSeason.players
+  .filter((p) => p.teamId === 'phoenix')
+  .reduce((a, p) => a + p.ext.contract.salary, 0);
+if (payrollNow !== sumSalary) fail('総年俸が選手の年俸合計と一致しない');
+else ok(`総年俸が正しく再計算されている（${payrollNow} / 100万円）`);
+const releasedCount = nextSeason.lastOffseason ? nextSeason.lastOffseason.released : -1;
+if (releasedCount < 0) fail('オフシーズンの結果が記録されていない');
+else ok(`契約が成立しなかった選手 ${releasedCount}人が退団した`);
 const changed = nextSeason.players.filter(
   (p) => abilitiesBefore.has(p.id) && p.batting.contact + p.batting.power !== abilitiesBefore.get(p.id),
 );
@@ -436,9 +563,18 @@ if (reloaded.date !== snapshot.date || reloaded.records.phoenix.games !== snapsh
 } else {
   ok(`再起動しても続きからプレイできる（${reloaded.date} / ${reloaded.records.phoenix.games}試合）`);
 }
-const stillDemoted = reloaded.players.find((p) => p.id === demoteTarget.id);
-if (stillDemoted.roster !== 'second') fail('再起動で登録情報が失われた');
-else ok('再起動後も1軍/2軍の登録が保持されている');
+// 1軍/2軍の登録が再起動をまたいで保持されているか
+// （降格させた選手が引退している場合があるので、球団全体の登録内容で比較する）
+const rosterKey = (st) =>
+  st.players
+    .filter((p) => p.teamId === 'phoenix')
+    .map((p) => `${p.id}:${p.roster}`)
+    .sort()
+    .join(',');
+const secondCount = reloaded.players.filter((p) => p.teamId === 'phoenix' && p.roster === 'second').length;
+if (rosterKey(reloaded) !== rosterKey(snapshot)) fail('再起動で登録情報が失われた');
+else if (secondCount === 0) fail('2軍登録の選手がいない');
+else ok(`再起動後も1軍/2軍の登録が保持されている（2軍 ${secondCount}人）`);
 const samplePlayer = reloaded.players.find((p) => p.teamId === 'phoenix');
 if (!samplePlayer.ext.personality || typeof samplePlayer.ext.potential !== 'number') {
   fail('再起動でPHASE2のデータが失われた');

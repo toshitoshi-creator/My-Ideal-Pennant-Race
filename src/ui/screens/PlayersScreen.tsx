@@ -6,8 +6,9 @@ import { PlayerDetail } from '../components/PlayerDetail';
 import { Tabs } from '../components/common';
 import { overallRating } from '../../domain/rating';
 import { average, formatAverage, formatEra, formatInnings } from '../../domain/stats';
+import { formatMoney, formatSalary, isExpiring, teamPayroll } from '../../domain/contract';
 
-type Filter = 'all' | 'pitcher' | 'fielder' | 'first' | 'second' | 'stats';
+type Filter = 'all' | 'pitcher' | 'fielder' | 'first' | 'second' | 'stats' | 'contract';
 
 const TABS: Array<{ id: Filter; label: string }> = [
   { id: 'all', label: '全選手' },
@@ -16,6 +17,7 @@ const TABS: Array<{ id: Filter; label: string }> = [
   { id: 'first', label: '1軍' },
   { id: 'second', label: '2軍' },
   { id: 'stats', label: '成績' },
+  { id: 'contract', label: '契約' },
 ];
 
 export function PlayersScreen() {
@@ -52,7 +54,9 @@ export function PlayersScreen() {
     <>
       <Tabs tabs={TABS} value={filter} onChange={setFilter} />
       <div className="screen">
-        {filter === 'stats' ? (
+        {filter === 'contract' ? (
+          <ContractTable onSelect={setSelected} />
+        ) : filter === 'stats' ? (
           <StatsTables />
         ) : (
           <>
@@ -71,6 +75,73 @@ export function PlayersScreen() {
         )}
       </div>
       {selectedLive && <PlayerDetail player={selectedLive} onClose={() => setSelected(null)} />}
+    </>
+  );
+}
+
+function ContractTable({ onSelect }: { onSelect: (player: Player) => void }) {
+  const { state } = useGame();
+  const team = state.teams.find((t) => t.id === state.playerTeamId)!;
+  const finance = state.finances[team.id];
+  const payroll = teamPayroll(state, team.id);
+  const roster = state.players
+    .filter((p) => p.teamId === state.playerTeamId)
+    .sort((a, b) => (b.ext.contract?.salary ?? 0) - (a.ext.contract?.salary ?? 0));
+
+  return (
+    <>
+      <div className="card">
+        <h2>球団の資金</h2>
+        <div className="spread" style={{ padding: '5px 0' }}>
+          <span className="muted">球団資金</span>
+          <span style={{ fontWeight: 700, color: finance.cash < 0 ? 'var(--bad)' : undefined }}>
+            {formatMoney(finance.cash)}
+          </span>
+        </div>
+        <div className="spread" style={{ padding: '5px 0' }}>
+          <span className="muted">年間予算 / 総年俸</span>
+          <span style={{ fontWeight: 700 }}>
+            {formatMoney(finance.budget)} / {formatMoney(payroll)}
+          </span>
+        </div>
+      </div>
+      <div className="card">
+        <h2>契約一覧</h2>
+        <div className="scroll-x">
+          <table className="data">
+            <thead>
+              <tr>
+                <th className="l">選手</th>
+                <th>年齢</th>
+                <th>総合</th>
+                <th>年俸</th>
+                <th>残り</th>
+              </tr>
+            </thead>
+            <tbody>
+              {roster.map((player) => {
+                const contract = player.ext.contract;
+                const expiring = isExpiring(player);
+                return (
+                  <tr
+                    key={player.id}
+                    onClick={() => onSelect(player)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <td className="l">{player.name}</td>
+                    <td>{player.age}</td>
+                    <td>{overallRating(player)}</td>
+                    <td>{contract ? formatSalary(contract.salary) : '－'}</td>
+                    <td style={{ color: expiring ? 'var(--accent)' : undefined }}>
+                      {expiring ? '満了' : `${contract?.yearsRemaining}年`}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </>
   );
 }

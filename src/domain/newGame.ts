@@ -7,6 +7,7 @@ import { generateSchedule, openingDate } from './schedule';
 import { emptySeasonStats } from './stats';
 import { overallRating } from './rating';
 import { createScoutingState } from './scouting';
+import { createContract, createTeamFinance, marketValue, refreshPayrolls } from './contract';
 
 /**
  * 2: 弾道を 1〜4 から 1〜100 に変更
@@ -14,8 +15,9 @@ import { createScoutingState } from './scouting';
  * 4: PHASE 2.5（調子のカテゴリ別補正・調子の履歴）
  * 5: PHASE 3.1（引退・ドラフト・新人加入）
  * 6: PHASE 3.2（スカウト・調査ポイント・ScoutReport）
+ * 7: PHASE 3.3（契約・年俸・球団資金）
  */
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 export const START_YEAR = 2026;
 
 /** 1軍スタート人数（残りは 2軍スタート） */
@@ -83,6 +85,11 @@ export function createNewGame(
     draft: null,
     lastDraftYear: null,
     scouting: createScoutingState(TEAMS, rng, START_YEAR),
+    finances: {},
+    contractPhase: null,
+    lastPayrollYear: null,
+    lastContractYear: null,
+    lastOffseason: null,
   };
 
   for (const team of TEAMS) {
@@ -91,10 +98,20 @@ export function createNewGame(
     state.setups[team.id] = buildAutoSetup(team.id, firstTeam, league.useDH);
     state.records[team.id] = emptyRecord(team.id);
     state.teamMorale[team.id] = 50;
+    state.finances[team.id] = createTeamFinance(rng);
   }
   for (const player of players) {
     state.stats[player.id] = emptySeasonStats(player.id);
   }
+
+  // ---- PHASE 3.3: 初期契約 ----
+  // 開幕時点で全選手が契約済みの状態にする（残り年数はばらけさせる）
+  for (const player of players) {
+    const value = marketValue(player, undefined, START_YEAR);
+    const years = rng.int(1, 4);
+    player.ext.contract = createContract(value, years, START_YEAR - (4 - years));
+  }
+  refreshPayrolls(state);
 
   return state;
 }

@@ -125,7 +125,8 @@ export interface PlayerExtensions {
   hiddenAttributes: Record<string, number>;
   /** 以下は PHASE 3 以降で使用 */
   popularity: number | null;
-  contract: null | { salary: number; years: number };
+  /** 契約（PHASE 3.3）。null は無契約 */
+  contract: Contract | null;
   faStatus: null | { serviceDays: number; eligible: boolean };
 }
 
@@ -321,6 +322,23 @@ export interface GameState {
   lastDraftYear: number | null;
   /** 球団ごとのスカウト能力・調査ポイント・調査結果。PHASE 3.2 */
   scouting: ScoutingState;
+  /** 球団ごとの資金。PHASE 3.3 */
+  finances: Record<string, TeamFinance>;
+  /** 進行中の契約更改（null なら更改中ではない）。PHASE 3.3 */
+  contractPhase: ContractPhase | null;
+  /** 人件費を支払った年（二重支払いの防止）。PHASE 3.3 */
+  lastPayrollYear: number | null;
+  /** 契約年数を減算した年（二重減算の防止）。PHASE 3.3 */
+  lastContractYear: number | null;
+  /** 直近のオフシーズンの増減（表示・検証用）。PHASE 3.3 */
+  lastOffseason: {
+    year: number;
+    retired: number;
+    rookies: number;
+    released: number;
+    /** 契約更改の対象になった選手数 */
+    renewalTargets: number;
+  } | null;
 }
 
 /** シーズン終了時の成長レポート（表示用） */
@@ -371,6 +389,50 @@ export interface DraftPick {
   teamId: string;
   /** null は指名なし（パス） */
   prospectId: string | null;
+}
+
+/** 契約（PHASE 3.3）。年俸の単位は 1 = 100万円 */
+export interface Contract {
+  salary: number;
+  yearsRemaining: number;
+  totalYears: number;
+  signedYear: number;
+}
+
+/** 契約の状態 */
+export type ContractStatus = 'contracted' | 'expiring' | 'unsigned';
+
+/** 球団の資金（PHASE 3.3） */
+export interface TeamFinance {
+  /** 球団資金の残高 */
+  cash: number;
+  /** 年間予算（人件費の目安） */
+  budget: number;
+  /**
+   * 年間収入。PHASE 3.3 では内訳（チケット・グッズ・スポンサーなど）を持たず、
+   * 1つの抽象値として扱う。
+   */
+  annualRevenue: number;
+  /** 現在の総年俸 */
+  payroll: number;
+  /** 直近シーズンの収支 */
+  lastResult: number;
+}
+
+/** オフシーズンの契約更改フェーズ（PHASE 3.3） */
+export interface ContractPhase {
+  year: number;
+  /** プレイヤー球団の契約満了選手 */
+  pending: string[];
+  /** 交渉が済んだ選手 */
+  resolved: Array<{
+    playerId: string;
+    name: string;
+    accepted: boolean;
+    salary: number;
+    years: number;
+  }>;
+  completed: boolean;
 }
 
 /** スカウトの調査項目（PHASE 3.2） */
@@ -467,6 +529,7 @@ export interface GrowthReportEntry {
 }
 
 export type NoticeKind =
+  | 'contract'
   | 'injury'
   | 'return'
   | 'condition'

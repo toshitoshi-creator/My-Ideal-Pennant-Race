@@ -388,7 +388,9 @@ describe('PHASE3.1 シーズンとの接続', () => {
 
     expect(s.seasonFinished).toBe(false);
     expect(s.draft).toBeNull();
-    expect(s.players.length).toBe(beforePlayers - retirements.length + rookies.length);
+    // PHASE 3.3 で契約が成立しなかった選手も球団を離れるようになった
+    const released = s.lastOffseason?.released ?? 0;
+    expect(s.players.length).toBe(beforePlayers - retirements.length + rookies.length - released);
     expect(validateState(s)).toEqual([]);
 
     // 新シーズンが普通に進む

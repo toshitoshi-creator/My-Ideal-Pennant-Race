@@ -23,6 +23,16 @@ import { playingTimeOf, rollRetirement } from './retirement';
 import { overallRating } from './rating';
 import { createDraft, finishDraft, autoPick, currentPick, beginDraftPicks } from './draft';
 import { resetScoutingForDraft, runCpuScouting } from './scouting';
+import {
+  applySeasonFinance,
+  isExpiring,
+  refreshPayrolls,
+  releaseUnsignedPlayers,
+  renewTeamContracts,
+  rookieContract,
+  runCpuRenewals,
+  tickContracts,
+} from './contract';
 import { repairAllSetups } from './engine';
 import { ensureFirstTeamViable } from './daily';
 
@@ -94,6 +104,9 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
   const rng = new Rng(state.rngState);
   const results: PlayerGrowthResult[] = [];
 
+  // ---- PHASE 3.3: 今季分の人件費を精算する（1シーズンに1回だけ） ----
+  applySeasonFinance(state);
+
   for (const player of state.players) {
     const { first, second, performance } = experienceOf(state, player);
     results.push(
@@ -132,9 +145,12 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
       mainPosition: player.mainPosition,
       retiredAt: state.year,
     });
+    // 引退した選手には以後の年俸が発生しない
+    player.ext.contract = null;
     delete state.stats[player.id];
   }
   state.players = remaining;
+  refreshPayrolls(state);
   state.retiredPlayers.push(...retirements);
   if (state.retiredPlayers.length > RETIRED_RECORD_LIMIT) {
     state.retiredPlayers.splice(0, state.retiredPlayers.length - RETIRED_RECORD_LIMIT);
@@ -193,15 +209,94 @@ export function autoCompleteDraft(state: GameState): void {
  * オフシーズンを終えて翌シーズンを開幕する。
  * 指名された新人を加入させ、成績・日程をリセットする。
  */
-export function completeOffseason(state: GameState): Player[] {
+/**
+ * ドラフトを締めて新人を加入させ、契約更改フェーズに入る（PHASE 3.3）。
+ * ここではまだシーズンを開幕しない。
+ */
+export function startContractPhase(state: GameState): Player[] {
   autoCompleteDraft(state);
+  const draft = state.draft;
+  const rng = new Rng(state.rngState);
 
-  const rookies = state.draft ? finishDraft(state, state.teams) : [];
+  const rookies = draft ? finishDraft(state, state.teams) : [];
   for (const rookie of rookies) {
+    // 新人は自動的に新人契約を結ぶ（無契約でシーズンに入らない）
+    const pick = draft?.picks.find((p) => {
+      const prospect = draft.prospects.find((x) => x.id === p.prospectId);
+      return prospect?.player.id === rookie.id;
+    });
+    rookie.ext.contract = rookieContract(rookie, pick?.round ?? 4, state.year, rng);
     state.players.push(rookie);
     state.stats[rookie.id] = emptySeasonStats(rookie.id);
   }
   state.draft = null;
+
+  // 契約年数を1年進める（1シーズンに1回だけ）
+  const renewalTargets = tickContracts(state).length;
+  state.lastOffseason = {
+    year: state.year,
+    retired: state.retiredPlayers.filter((r) => r.retiredAt === state.year).length,
+    rookies: rookies.length,
+    released: 0,
+    renewalTargets,
+  };
+
+  // CPU球団の契約更改
+  runCpuRenewals(state, rng);
+
+  // プレイヤー球団の契約満了選手を交渉待ちにする
+  const pending = state.players
+    .filter((p) => p.teamId === state.playerTeamId && isExpiring(p))
+    .sort((a, b) => (b.ext.contract?.salary ?? 0) - (a.ext.contract?.salary ?? 0))
+    .map((p) => p.id);
+
+  state.contractPhase = {
+    year: state.year,
+    pending,
+    resolved: [],
+    completed: pending.length === 0,
+  };
+  state.rngState = rng.getState();
+  refreshPayrolls(state);
+  return rookies;
+}
+
+/** 未交渉の選手をCPUと同じ基準で自動更改する */
+export function autoCompleteContracts(state: GameState): void {
+  const phase = state.contractPhase;
+  if (!phase || phase.completed) return;
+  const rng = new Rng(state.rngState);
+  renewTeamContracts(state, state.playerTeamId, rng);
+  state.rngState = rng.getState();
+  phase.pending = [];
+  phase.completed = true;
+}
+
+export function completeOffseason(state: GameState): Player[] {
+  const rookies = state.contractPhase ? [] : startContractPhase(state);
+  const rookieCount = state.contractPhase
+    ? state.players.filter((p) => p.ext.debutYear === state.year + 1).length
+    : rookies.length;
+  autoCompleteContracts(state);
+
+  // 契約が成立しなかった選手は球団を離れる（PHASE 3.4 の FA へ接続予定）
+  const released = releaseUnsignedPlayers(state);
+  for (const player of released) {
+    if (player.teamId !== state.playerTeamId) continue;
+    state.notices.push({
+      date: state.date,
+      kind: 'contract',
+      message: `${player.name} と契約が成立せず、球団を去りました`,
+    });
+  }
+  state.contractPhase = null;
+  state.lastOffseason = {
+    year: state.year,
+    retired: state.retiredPlayers.filter((r) => r.retiredAt === state.year).length,
+    rookies: rookieCount,
+    released: released.length,
+    renewalTargets: state.lastOffseason?.renewalTargets ?? 0,
+  };
 
   const rng = new Rng(state.rngState);
 
@@ -254,6 +349,7 @@ export function completeOffseason(state: GameState): Player[] {
     ensureFirstTeamViable(state, team.id);
   }
   repairAllSetups(state);
+  refreshPayrolls(state);
 
   return rookies;
 }

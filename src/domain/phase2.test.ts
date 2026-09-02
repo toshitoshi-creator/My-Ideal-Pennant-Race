@@ -566,8 +566,11 @@ describe('PHASE2 シーズン終了時の成長', () => {
   it('成長レポートが作られ、能力が変化する', () => {
     const before = new Map(state.players.map((p) => [p.id, p.batting.contact]));
     const next = cloneState(state);
+    // PHASE 3.1/3.3 で引退・契約満了により選手が入れ替わるため、
+    // 成長処理の対象は「ロールオーバー前に在籍していた全選手」で確認する
+    const beforeCount = next.players.length;
     const { report, all } = startNextSeason(next);
-    expect(all).toHaveLength(next.players.length);
+    expect(all).toHaveLength(beforeCount);
     expect(report.teamId).toBe(PLAYER_TEAM);
     const changedPlayers = all.filter((r) => r.changes.length > 0);
     expect(changedPlayers.length).toBeGreaterThan(next.players.length * 0.4);

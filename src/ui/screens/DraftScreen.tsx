@@ -25,7 +25,7 @@ type Filter = 'all' | 'pitcher' | 'fielder' | 'scouted';
  * 選手の真の能力値・潜在能力・性格・特殊能力は一切表示しない。
  */
 export function DraftScreen() {
-  const { state, draftPick, finishOffseason, startDraftPicks } = useGame();
+  const { state, draftPick, startContracts, startDraftPicks } = useGame();
   const draft = state.draft!;
   const [filter, setFilter] = useState<Filter>('all');
   const [detail, setDetail] = useState<string | null>(null);
@@ -128,10 +128,10 @@ export function DraftScreen() {
               <>
                 <div style={{ fontSize: 18, fontWeight: 800 }}>ドラフト終了</div>
                 <div className="muted" style={{ marginTop: 4, marginBottom: 10 }}>
-                  指名した選手は2軍からのスタートです。
+                  指名した選手は新人契約を結び、2軍からのスタートになります。
                 </div>
-                <button className="btn primary" onClick={() => finishOffseason()}>
-                  新シーズンへ
+                <button className="btn primary" onClick={() => startContracts()}>
+                  契約更改へ
                 </button>
               </>
             )}
