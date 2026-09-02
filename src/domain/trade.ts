@@ -58,9 +58,12 @@ export const PAYROLL_CEILING_RATIO = 1.12;
  */
 export const MIN_ROSTER_AFTER_TRADE = MINIMUM_ROSTER + 1;
 
-/** ロスターに必要な最低人数（トレード後も守る） */
-export const MIN_FIELDERS = 10;
-export const MIN_PITCHERS = 6;
+/**
+ * トレード後に必要な野手・投手の人数。
+ * 1軍は野手9人・投手5人が必要なので、怪我が重なっても組めるだけの余裕を残す。
+ */
+export const MIN_FIELDERS = 11;
+export const MIN_PITCHERS = 8;
 
 /* ---------------- 乱数 ---------------- */
 
