@@ -45,7 +45,7 @@ await shot('03-home');
 const readState = () => page.evaluate(() => JSON.parse(localStorage.getItem('mipr:save:v1')));
 let state = await readState();
 if (!state) fail('セーブデータが作られていない');
-else ok(`セーブ作成 (${state.players.length}選手 / 開始日 ${state.date})`);
+else ok(`セーブ作成 (seed ${state.seed} / ${state.players.length}選手 / 開始日 ${state.date})`);
 if (state.players.filter((p) => p.teamId === 'phoenix').length !== 25) fail('選手が25人ではない');
 else ok('プレイヤー球団に25人の選手がいる');
 

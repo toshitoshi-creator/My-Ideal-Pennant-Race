@@ -279,8 +279,8 @@ export function adjustBudgets(state: GameState): void {
     const finance = state.finances[team.id];
     if (!finance || !Number.isFinite(finance.budget)) continue;
     // 収入は年俸水準をわずかに上回る程度。急に変わらないよう緩やかに追随させる
-    const target = level * 1.06;
-    finance.budget = Math.round(finance.budget * 0.72 + target * 0.28);
+    const target = level * 1.08;
+    finance.budget = Math.round(finance.budget * 0.6 + target * 0.4);
     finance.annualRevenue = finance.budget;
   }
 }
