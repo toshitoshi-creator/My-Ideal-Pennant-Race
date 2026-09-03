@@ -27,6 +27,7 @@ import { overallRating } from './rating';
 import { potentialLabel } from './growth';
 import { standingsForLeague } from './standings';
 import { scoutedEvaluation } from './scouting';
+import { generateDraftNews } from './news';
 
 /** 1球団あたりの候補数（12球団なら 108人） */
 export const PROSPECTS_PER_TEAM = 9;
@@ -425,8 +426,23 @@ export function finishDraft(state: GameState, teams: Team[]): Player[] {
     player.roster = 'second';
     player.lastRosterChangeDate = null;
     rookies.push(player);
+
+    // PHASE 3.9: 指名をニュースにする。
+    // 真の潜在能力は使わず、その球団のスカウト評価だけで表現する。
+    const report = state.scouting?.teams?.[pick.teamId]?.reports?.[prospect.id];
+    const evaluation = scoutedEvaluation(report, prospect);
+    generateDraftNews(state, player, pick.teamId, pick.round, evaluationText(evaluation));
   }
   void teams;
   state.lastDraftYear = draft.year;
   return rookies;
+}
+
+/** 球団のスカウト評価をことばにする（内部の数値は出さない） */
+function evaluationText(evaluation: { ability: number; potential: number }): string {
+  const total = evaluation.ability * 0.6 + evaluation.potential * 0.4;
+  if (total >= 70) return '球界を代表する存在になりうる';
+  if (total >= 58) return '将来の主力候補';
+  if (total >= 46) return '育てば戦力になる';
+  return '素材型';
 }

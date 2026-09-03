@@ -379,6 +379,8 @@ export interface GameState {
   history: HistoryState;
   /** 進行中のポストシーズン（null ならまだ始まっていない）。PHASE 3.8 */
   postseason: PostseasonState | null;
+  /** ゲーム内ニュースと年度別の物語。PHASE 3.9 */
+  news: NewsState;
   /** 球団ごとの今季の経営プラン。PHASE 3.6 */
   teamPlans: Record<string, TeamAiPlan>;
   /** 経営プランを作った年（作り直しの判定に使う）。PHASE 3.6 */
@@ -1062,4 +1064,90 @@ export interface PostseasonState {
   /** クライマックスシリーズMVP。リーグID → 選手ID */
   csMvp: Record<string, string>;
   japanSeriesMvpPlayerId: string | null;
+}
+
+/* ---------------- ニュース・シーズンストーリー：PHASE 3.9 ---------------- */
+
+export type NewsCategory =
+  | 'GAME'
+  | 'PLAYER'
+  | 'TEAM'
+  | 'TRANSFER'
+  | 'CONTRACT'
+  | 'FA'
+  | 'TRADE'
+  | 'DRAFT'
+  | 'INJURY'
+  | 'RECORD'
+  | 'AWARD'
+  | 'POSTSEASON'
+  | 'CHAMPIONSHIP'
+  | 'RETIREMENT'
+  | 'RIVALRY'
+  | 'SYSTEM';
+
+export type NewsPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'BREAKING';
+
+/**
+ * ゲーム内ニュース（PHASE 3.9）。
+ *
+ * ニュースは「起きたことの二次表現」で、独自の事実を持たない。
+ * 必ず既存の GameState から作り、ゲームの結果には一切影響しない。
+ */
+export interface NewsItem {
+  /** 決定的に決まるID（同じ出来事からは同じIDになる） */
+  id: string;
+  year: number;
+  date: string;
+  category: NewsCategory;
+  priority: NewsPriority;
+  title: string;
+  body: string;
+  teamId: string | null;
+  playerId: string | null;
+  relatedTeamIds?: string[];
+  relatedPlayerIds?: string[];
+  /** 元になった出来事の識別子 */
+  source: string;
+  /** 既読なら true */
+  read?: boolean;
+}
+
+/** 下剋上の度合い */
+export type UpsetLevel = 'NONE' | 'UPSET' | 'MAJOR_UPSET';
+
+/**
+ * その年を1本の物語としてまとめたもの（PHASE 3.9）。
+ * ニュース本体は古いものから消えるが、これは全年度残す。
+ */
+export interface SeasonStory {
+  year: number;
+  /** その年を象徴する1文 */
+  headline: string;
+  /** 日本一 */
+  championTeamId: string | null;
+  /** リーグ優勝（リーグID → 球団ID） */
+  leagueChampions: Record<string, string>;
+  /** レギュラーシーズン1位（リーグID → 球団ID） */
+  pennantWinners: Record<string, string>;
+  upset: UpsetLevel;
+  /** その年に目立った選手 */
+  notablePlayerIds: string[];
+  /** 引退した主な選手 */
+  retirementPlayerIds: string[];
+  /** 新人で活躍した選手 */
+  rookiePlayerIds: string[];
+  /** 更新された記録の件数 */
+  recordCount: number;
+  /** 主な移籍の件数（FA・トレード） */
+  transferCount: number;
+  /** その年の主要な見出し（保存量を抑えるため見出しだけ残す） */
+  highlights: Array<{ category: NewsCategory; title: string }>;
+}
+
+export interface NewsState {
+  /** 新しいものが後ろ。古いものから消える */
+  items: NewsItem[];
+  /** 年度別の物語。消さない */
+  stories: SeasonStory[];
 }

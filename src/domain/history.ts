@@ -50,6 +50,7 @@ import {
 } from './stats';
 import { standingsForLeague } from './standings';
 import { judgeHallOfFame } from './hallOfFame';
+import { generateAwardNews, generateRecordNews } from './news';
 
 /* ---------------- 初期状態 ---------------- */
 
@@ -768,8 +769,34 @@ export function finalizeSeason(state: GameState): SeasonHistory | null {
   for (const event of events) {
     const entry = history.players[event.playerId];
     if (entry) entry.records += 1;
+    // PHASE 3.9: 記録更新をニュースにする（判定はやり直さない）
+    const label =
+      LEADER_LABELS[event.key as LeaderKey] ??
+      CAREER_RECORD_LABELS[event.key as import('./types').CareerRecordKey] ??
+      event.key;
+    generateRecordNews(state, event, label.replace(/^通算/, ''));
   }
   history.events.push(...events);
+
+  // PHASE 3.9: 表彰をニュースにする
+  for (const row of leagueRows) {
+    const leagueName = state.leagues.find((l) => l.id === row.leagueId)?.name ?? '';
+    if (row.mvpPlayerId) {
+      generateAwardNews(state, row.mvpPlayerId, 'MVP', leagueName, 'HIGH');
+    }
+    if (row.bestPitcherPlayerId) {
+      generateAwardNews(state, row.bestPitcherPlayerId, '最優秀投手', leagueName);
+    }
+    if (row.rookiePlayerId) {
+      generateAwardNews(state, row.rookiePlayerId, '新人王', leagueName, 'HIGH');
+    }
+    if (row.csMvpPlayerId) {
+      generateAwardNews(state, row.csMvpPlayerId, 'クライマックスシリーズMVP', leagueName);
+    }
+  }
+  if (postseason?.japanSeriesMvpPlayerId) {
+    generateAwardNews(state, postseason.japanSeriesMvpPlayerId, '日本シリーズMVP', '', 'HIGH');
+  }
 
   const season: SeasonHistory = {
     year,

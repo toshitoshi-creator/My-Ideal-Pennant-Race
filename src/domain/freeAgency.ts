@@ -34,10 +34,12 @@ import {
   MINIMUM_ROSTER,
   createContract,
   lastKnownSalary,
+  leagueSalaryLevel,
   marketValue,
   maxContractYears,
   refreshPayrolls,
 } from './contract';
+import { generateFaNews } from './news';
 
 /** ユーザーが同時に出せるオファーの上限 */
 export const MAX_USER_OFFERS = 8;
@@ -697,6 +699,13 @@ export interface FAResolution {
 }
 
 function joinTeam(state: GameState, player: Player, teamId: string, salary: number, years: number): void {
+  // PHASE 3.9: 移籍・残留をニュースにする（前の球団は在籍履歴から分かる）
+  const previousTeamId =
+    player.ext.careerTeams?.[player.ext.careerTeams.length - 1]?.teamId ?? null;
+  // リーグの年俸水準から見て高額かどうか（球団の内部評価は使わない）
+  const level = leagueSalaryLevel(state) / Math.max(1, MINIMUM_ROSTER);
+  generateFaNews(state, player, previousTeamId, teamId, salary, years, salary >= level * 4);
+
   // PHASE 3.6: 使った予算と埋まった枠を経営プランに反映する
   const plan = state.teamPlans?.[teamId];
   if (plan) {

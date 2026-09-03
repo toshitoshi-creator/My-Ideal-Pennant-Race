@@ -14,6 +14,7 @@ import {
   migrateV9ToV10,
   migrateV10ToV11,
   migrateV11ToV12,
+  migrateV12ToV13,
 } from './migrate';
 
 export const SAVE_KEY = 'mipr:save:v1';
@@ -111,6 +112,8 @@ export function migrate(state: GameState): GameState | null {
   if (state.version === 10) migrateV10ToV11(state);
   // v11 → v12: PHASE 3.8 のポストシーズンの入れ物を用意する
   if (state.version === 11) migrateV11ToV12(state);
+  // v12 → v13: PHASE 3.9 のニュースの入れ物を用意する
+  if (state.version === 12) migrateV12ToV13(state);
 
   if (state.version !== SAVE_VERSION) return null;
   return state;

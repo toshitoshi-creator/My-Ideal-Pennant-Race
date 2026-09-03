@@ -16,6 +16,9 @@ import { TIER_LABELS, playerTier } from '../../domain/hallOfFame';
 import { formatAverage } from '../../domain/stats';
 import { formatWinPct } from '../../domain/standings';
 import { PlayerHistoryView } from '../components/PlayerHistoryView';
+import { NewsCard } from '../components/NewsCard';
+import { newsForTeam } from '../../domain/news';
+import { storyOf } from '../../domain/story';
 import type { PlayerHistory } from '../../domain/types';
 
 type Tab = 'timeline' | 'teams' | 'hof';
@@ -79,6 +82,7 @@ function Timeline() {
                 </span>
               )}
             </div>
+            <SeasonHeadline year={season.year} />
             {season.postseason?.japanSeriesChampionTeamId && (
               <div
                 style={{
@@ -192,6 +196,7 @@ function TeamWalk() {
           <span className="chip">日本シリーズ出場 {jsAppearances}回</span>
         </div>
       </div>
+      <TeamNews teamId={teamId} />
       <div className="card">
         <h2>年度別</h2>
         <div className="scroll-x">
@@ -306,6 +311,40 @@ function RetiredList({ onSelect }: { onSelect: (h: PlayerHistory) => void }) {
               : `通算 ${history.career.batting.hits}安打 ${history.career.batting.homeRuns}本塁打`}
           </div>
         </button>
+      ))}
+    </div>
+  );
+}
+
+/** その年の物語の見出し（PHASE 3.9） */
+function SeasonHeadline({ year }: { year: number }) {
+  const { state } = useGame();
+  const story = storyOf(state, year);
+  if (!story) return null;
+  return (
+    <div
+      style={{
+        borderLeft: '3px solid var(--accent)',
+        paddingLeft: 8,
+        marginBottom: 8,
+        fontWeight: 700,
+      }}
+    >
+      {story.headline}
+    </div>
+  );
+}
+
+/** その球団に関係するニュース（PHASE 3.9） */
+function TeamNews({ teamId }: { teamId: string }) {
+  const { state } = useGame();
+  const items = newsForTeam(state, teamId, 12);
+  if (items.length === 0) return null;
+  return (
+    <div className="card">
+      <h2>球団ニュース</h2>
+      {items.map((item) => (
+        <NewsCard key={item.id} item={item} />
       ))}
     </div>
   );

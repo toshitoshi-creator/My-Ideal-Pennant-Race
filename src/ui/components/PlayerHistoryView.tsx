@@ -14,6 +14,8 @@ import {
   formatInnings,
 } from '../../domain/stats';
 import { POSITION_LABELS } from '../../domain/positions';
+import { newsForPlayer } from '../../domain/news';
+import { NewsCard } from './NewsCard';
 import type { PlayerHistory } from '../../domain/types';
 
 /**
@@ -194,6 +196,8 @@ export function PlayerHistoryView({ history }: { history: PlayerHistory }) {
         </>
       )}
 
+      <PlayerNews playerId={history.playerId} />
+
       <h3 className="sec">年度別成績</h3>
       <div className="scroll-x">
         <table className="data">
@@ -286,6 +290,23 @@ export function PlayerHistoryView({ history }: { history: PlayerHistory }) {
             })}
           </tbody>
         </table>
+      </div>
+    </>
+  );
+}
+
+/** その選手に関係するニュース（PHASE 3.9） */
+function PlayerNews({ playerId }: { playerId: string }) {
+  const { state } = useGame();
+  const items = newsForPlayer(state, playerId, 8);
+  if (items.length === 0) return null;
+  return (
+    <>
+      <h3 className="sec">ニュース</h3>
+      <div style={{ marginBottom: 12 }}>
+        {items.map((item) => (
+          <NewsCard key={item.id} item={item} />
+        ))}
       </div>
     </>
   );

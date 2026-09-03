@@ -43,6 +43,8 @@ import { resetTradeSeason } from './trade';
 import { refreshNeedsAfterDraft, refreshTeamPlans } from './teamAi';
 import { finalizeSeason, recordRetirements } from './history';
 import { autoCompletePostseason } from './postseason';
+import { generateRetirementNews } from './news';
+import { buildSeasonStory } from './story';
 import { repairAllSetups } from './engine';
 import { ensureFirstTeamViable } from './daily';
 
@@ -192,6 +194,20 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
   if (state.retiredPlayers.length > RETIRED_RECORD_LIMIT) {
     state.retiredPlayers.splice(0, state.retiredPlayers.length - RETIRED_RECORD_LIMIT);
   }
+  // PHASE 3.9: 引退をニュースにする（通算成績は歴史から取る。理由は作らない）
+  for (const record of retirements) {
+    const history = state.history?.players?.[record.playerId];
+    let career = '';
+    if (history) {
+      const b = history.career.batting;
+      const p = history.career.pitching;
+      career = p.games > b.games
+        ? `通算${p.wins}勝${p.losses}敗、${p.strikeouts}奪三振。`
+        : `通算${b.hits}安打、${b.homeRuns}本塁打。`;
+    }
+    generateRetirementNews(state, record, career);
+  }
+
   for (const record of retirements) {
     if (record.teamId !== state.playerTeamId) continue;
     state.notices.push({
@@ -200,6 +216,10 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
       message: `${record.name}（${record.age}歳・在籍${record.years}年）が現役を引退しました`,
     });
   }
+
+  // ---- PHASE 3.9: 今季の物語をまとめる ----
+  // 歴史の確定と引退のニュースが出そろってから作る。二度呼んでも作り直さない。
+  buildSeasonStory(state, state.year);
 
   // 引退で穴が空いたオーダーを整える
   repairAllSetups(state);

@@ -14,6 +14,8 @@ import {
   updateTeamMorale,
 } from './condition';
 import { resolveInjury, rollInjury, tickInjuryGrace, INJURY_LABELS } from './injury';
+import { generateInjuryNews } from './news';
+import { diffDays } from './dates';
 import { overallRating } from './rating';
 
 /** 保持する通知の最大数 */
@@ -166,6 +168,8 @@ export function applyDailyUpdates(state: GameState, rng: Rng, results: GameResul
       if (injury) {
         ext.injury = injury;
         demoteForInjury(player);
+        // PHASE 3.9: 長期離脱だけニュースにする
+        generateInjuryNews(state, player, diffDays(injury.returnDate, state.date));
         if (isPlayerTeam) {
           pushNotice(state, {
             date: state.date,

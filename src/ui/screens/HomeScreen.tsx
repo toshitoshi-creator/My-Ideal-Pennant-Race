@@ -15,6 +15,8 @@ import {
   teamPayroll,
 } from '../../domain/contract';
 import { championshipCount } from '../../domain/history';
+import { recentNews, unreadCount } from '../../domain/news';
+import { NewsCard } from '../components/NewsCard';
 import { isTradeOpen, pendingOffersForPlayer } from '../../domain/trade';
 import {
   faActivityLabel,
@@ -171,6 +173,8 @@ export function HomeScreen() {
           トレードを見る
         </button>
       </div>
+
+      <LatestNews />
 
       <div className="card">
         <h2>歴史・記録</h2>
@@ -386,6 +390,28 @@ function PostseasonNotice() {
       </div>
       <button className="btn secondary" onClick={() => setScreen('postseason')}>
         ポストシーズンを見る
+      </button>
+    </div>
+  );
+}
+
+/** ホームに出す最新ニュース（PHASE 3.9） */
+function LatestNews() {
+  const { state, setScreen } = useGame();
+  const items = recentNews(state, 5);
+  const unread = unreadCount(state);
+  if (items.length === 0) return null;
+  return (
+    <div className="card">
+      <div className="spread" style={{ marginBottom: 8 }}>
+        <h2 style={{ margin: 0 }}>最新ニュース</h2>
+        {unread > 0 && <span className="chip on">未読 {unread}</span>}
+      </div>
+      {items.map((item) => (
+        <NewsCard key={item.id} item={item} />
+      ))}
+      <button className="btn secondary" style={{ marginTop: 10 }} onClick={() => setScreen('news')}>
+        すべて見る
       </button>
     </div>
   );

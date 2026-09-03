@@ -8,6 +8,7 @@ import { applyDailyUpdates } from './daily';
 import { isAvailable } from './injury';
 import { runCpuTrades } from './trade';
 import { ensurePostseason } from './postseason';
+import { generateGameNews } from './news';
 
 /** 実況を保持しておくプレイヤー球団の試合数 */
 const COMMENTARY_KEEP = 20;
@@ -123,6 +124,10 @@ export function applyGameResult(state: GameState, result: GameResult): void {
     commentary: involvesPlayerTeam ? result.commentary : [],
   };
   state.results.push(stored);
+
+  // PHASE 3.9: 試合からニュースを作る（結果は変えない。乱数も使わない）
+  // 連勝・連敗を数えるので、この試合を results に入れたあとで呼ぶ
+  generateGameNews(state, result);
 
   if (involvesPlayerTeam) {
     let kept = 0;

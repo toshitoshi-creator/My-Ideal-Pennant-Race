@@ -13,6 +13,7 @@ import { TradeScreen } from './screens/TradeScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
 import { RecordsScreen } from './screens/RecordsScreen';
 import { PostseasonScreen } from './screens/PostseasonScreen';
+import { NewsScreen } from './screens/NewsScreen';
 import { formatDateJa } from '../domain/dates';
 
 const NAV: Array<{ id: ScreenId; label: string; icon: string }> = [
@@ -95,6 +96,7 @@ function Root() {
       {screen === 'history' && <HistoryScreen />}
       {screen === 'records' && <RecordsScreen />}
       {screen === 'postseason' && <PostseasonScreen />}
+      {screen === 'news' && <NewsScreen />}
 
       <nav className="nav">
         {NAV.map((item) => (

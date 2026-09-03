@@ -36,6 +36,7 @@ import {
 } from './contract';
 import { repairAllSetups } from './engine';
 import { ensureFirstTeamViable } from './daily';
+import { generateTradeNews } from './news';
 
 /**
  * トレード後に必要な野手・投手の人数（contract.ts と共有）。
@@ -679,6 +680,18 @@ export function executeTrade(state: GameState, offer: TradeOffer): TradeResult {
       message: `トレード成立：${lost.join('・')} ⇄ ${gained.join('・')}`,
     });
   }
+
+  // PHASE 3.9: トレード成立をニュースにする
+  generateTradeNews(
+    state,
+    offer.fromTeamId,
+    offer.toTeamId,
+    record.playerNamesFrom,
+    record.playerNamesTo,
+    record.playerIdsFrom,
+    record.playerIdsTo,
+    record.id,
+  );
 
   return { ok: true, record };
 }

@@ -26,6 +26,7 @@ import { createScoutAbilities, createScoutingState, SCOUT_POINTS_PER_YEAR } from
 import { createContract, createTeamFinance, marketValue, refreshPayrolls } from './contract';
 import { repairFreeAgents } from './freeAgency';
 import { createHistoryState, ensureHistory } from './history';
+import { createNewsState, ensureNews } from './news';
 import { createTradeState, tradeDeadline } from './trade';
 import { clamp1to100 } from './rank';
 
@@ -266,6 +267,21 @@ export function migrateV11ToV12(state: GameState): void {
   // 別の年のポストシーズンが残っていたら捨てる
   if (state.postseason && state.postseason.year !== state.year) state.postseason = null;
   state.version = 12;
+}
+
+/**
+ * v12 → v13：PHASE 3.9 のニュースを用意する。
+ *
+ * 過去のニュースはさかのぼって作らない（§40）。
+ * 空の状態から始め、次に起きた出来事からニュースが積まれていく。
+ * 既存の歴史には一切手を入れない。
+ */
+export function migrateV12ToV13(state: GameState): void {
+  if (!state.news || typeof state.news !== 'object') {
+    state.news = createNewsState();
+  }
+  ensureNews(state);
+  state.version = 13;
 }
 
 /**

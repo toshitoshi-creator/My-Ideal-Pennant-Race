@@ -47,7 +47,8 @@ export type ScreenId =
   | 'trade'
   | 'history'
   | 'records'
-  | 'postseason';
+  | 'postseason'
+  | 'news';
 
 interface StoreValue {
   state: GameState | null;

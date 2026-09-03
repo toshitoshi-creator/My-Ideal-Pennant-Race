@@ -32,6 +32,7 @@ import { applyDailyUpdates } from './daily';
 import { addBatting, addPitching, emptySeasonStats } from './stats';
 import { standingsForLeague } from './standings';
 import { addDays } from './dates';
+import { generatePostseasonGameNews, generateSeriesNews } from './news';
 
 /** ポストシーズンに進出する球団数（リーグごと） */
 export const POSTSEASON_TEAMS = 3;
@@ -346,6 +347,9 @@ export function playNextPostseasonGame(state: GameState): PostseasonGame | null 
   state.date = addDays(state.date, 1);
 
   settleSeries(series);
+  // PHASE 3.9: 王手・シリーズ決着をニュースにする
+  generatePostseasonGameNews(state, series, game);
+  if (isSeriesComplete(series)) generateSeriesNews(state, series);
   advancePhase(state);
   return game;
 }
