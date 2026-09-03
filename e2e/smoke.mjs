@@ -489,11 +489,64 @@ if (!finished.seasonFinished) fail('シーズンが終了しなかった');
 else ok(`シーズン終了（${finished.records.phoenix.wins}勝${finished.records.phoenix.losses}敗${finished.records.phoenix.draws}分）`);
 await shot('16-season-end');
 
+// ---- PHASE 3.8: ポストシーズン ----
+{
+  const ps = finished.postseason;
+  if (!ps) fail('シーズン終了後にポストシーズンが用意されていない');
+  else {
+    ok(`ポストシーズンが用意された（${ps.phase}）`);
+    const participants = Object.values(ps.participants).flat();
+    if (participants.length !== 6) fail(`進出球団が6球団ではない（${participants.length}）`);
+    else ok('各リーグ上位3球団が進出している');
+    if (new Set(participants).size !== 6) fail('進出球団が重複している');
+    else ok('進出球団に重複がない');
+  }
+
+  // ホーム画面にポストシーズンの案内が出る
+  const homeText = await page.locator('.screen').innerText();
+  if (!homeText.includes('ポストシーズン') && !homeText.includes('クライマックス')) {
+    fail('ホームにポストシーズンの案内がない');
+  } else ok('ホームにポストシーズンの案内が出ている');
+
+  await page.getByRole('button', { name: 'ポストシーズンを見る' }).click();
+  await page.waitForTimeout(200);
+  const psText = await page.locator('.screen').innerText();
+  for (const label of ['ポストシーズン', '進出球団', 'ファーストステージ']) {
+    if (!psText.includes(label)) fail(`ポストシーズン画面に「${label}」がない`);
+  }
+  ok('ポストシーズン画面に進出球団とシリーズが表示されている');
+  await shot('40-postseason');
+
+  // 1試合ずつ進めて、途中で保存・再開できることを確かめる
+  const playButton = page.getByRole('button', { name: /戦を進める/ });
+  if (!(await playButton.count())) fail('ポストシーズンの試合を進めるボタンがない');
+  else {
+    await playButton.click();
+    await page.waitForTimeout(300);
+    const afterOne = await readState();
+    const played = afterOne.postseason.series.reduce((n, x) => n + x.games.length, 0);
+    if (played < 1) fail('ポストシーズンの試合が進んでいない');
+    else ok(`ポストシーズンの試合を1つ進めた（通算${played}試合）`);
+
+    // 途中でリロードして再開できる
+    await page.reload();
+    await page.getByRole('button', { name: '続きから' }).click();
+    await page.locator('.appbar h1').waitFor();
+    const resumed = await readState();
+    const resumedPlayed = resumed.postseason.series.reduce((n, x) => n + x.games.length, 0);
+    if (resumedPlayed !== played) fail('ポストシーズン途中で再開できない');
+    else ok(`ポストシーズン途中で保存・再開できた（${resumedPlayed}試合）`);
+  }
+
+  // 残りは自動で進める（オフシーズンに入ると最後まで消化される）
+}
+
 const agesBefore = new Map(finished.players.map((p) => [p.id, p.age]));
 const abilitiesBefore = new Map(finished.players.map((p) => [p.id, p.batting.contact + p.batting.power]));
 const playersBefore = finished.players.length;
 
 // PHASE 3.1: オフシーズン（引退 → ドラフト → 新人加入）
+await page.locator('.nav').getByText('ホーム').click();
 await page.getByRole('button', { name: /オフシーズンへ/ }).click();
 await page.getByRole('heading', { name: /ドラフト会議/ }).waitFor();
 const offseason = await readState();
@@ -1017,6 +1070,28 @@ else ok('新シーズンでも試合を進められる');
   if (duplicated > 0) fail(`年度別成績が重複している（${duplicated}件）`);
   else ok('年度別成績に重複がない');
 
+  // PHASE 3.8: ポストシーズンの結果が歴史に残っている
+  const ps = season.postseason;
+  if (!ps) fail('歴史にポストシーズンの記録がない');
+  else {
+    if (!ps.japanSeriesChampionTeamId) fail('日本一が記録されていない');
+    else ok(`日本一が記録されている（${ps.japanSeriesChampionTeamId}）`);
+    if (!ps.japanSeriesMvpPlayerId) fail('日本シリーズMVPが記録されていない');
+    else ok('日本シリーズMVPが記録されている');
+    if (ps.series.length !== 5) fail(`シリーズ数が5ではない（${ps.series.length}）`);
+    else ok('5つのシリーズ（CS 4 + 日本シリーズ 1）が記録されている');
+    if (ps.series.some((x) => !x.winnerTeamId)) fail('勝者のいないシリーズがある');
+    else ok('すべてのシリーズに勝者がいる');
+    if (ps.series.some((x) => x.teamAId === x.teamBId)) fail('同一球団同士のシリーズがある');
+    else ok('同じ球団が両側にいるシリーズはない');
+    const jsChamps = season.teams.filter((t) => t.japanChampion);
+    if (jsChamps.length !== 1) fail(`日本一が${jsChamps.length}球団いる`);
+    else ok('日本一は1球団だけ');
+    const leagueChamps = season.teams.filter((t) => t.leagueChampion);
+    if (leagueChamps.length !== 2) fail(`リーグ優勝が${leagueChamps.length}球団いる`);
+    else ok('リーグ優勝は各リーグ1球団');
+  }
+
   // 引退した選手の成績が残っている
   const retired = Object.values(h.players).filter((p) => p.retiredAt !== null);
   if (retired.length === 0) fail('引退した選手の歴史が残っていない');
@@ -1036,6 +1111,8 @@ if (!/\d{4}年/.test(timelineText)) fail('年表に年が表示されていな�
 else ok('年表に過去シーズンが表示されている');
 if (!timelineText.includes('MVP')) fail('年表にMVPが表示されていない');
 else ok('年表にMVP・タイトルが表示されている');
+if (!timelineText.includes('日本一')) fail('年表に日本一が表示されていない');
+else ok('年表に日本一が表示されている');
 await shot('30-history');
 
 await page.locator('.tabs button', { hasText: '球団の歩み' }).click();
@@ -1043,6 +1120,8 @@ await page.waitForTimeout(200);
 const walkText = await page.locator('.screen').innerText();
 if (!walkText.includes('優勝')) fail('球団の歩みに優勝回数がない');
 else ok('球団の歩みに年度別成績と優勝回数が出る');
+if (!walkText.includes('日本一')) fail('球団の歩みに日本一回数がない');
+else ok('球団の歩みに日本一・CS進出の回数が出る');
 
 await page.locator('.tabs button', { hasText: '殿堂' }).click();
 await page.waitForTimeout(200);
