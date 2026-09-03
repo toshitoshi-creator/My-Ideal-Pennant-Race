@@ -256,6 +256,8 @@ export const AWARD_LABELS: Record<AwardKind, string> = {
   ERA_TITLE: '最優秀防御率',
   STRIKEOUT_TITLE: '最多奪三振',
   SAVES_TITLE: '最多セーブ',
+  CS_MVP: 'CS MVP',
+  JAPAN_SERIES_MVP: '日本シリーズMVP',
 };
 
 export const TITLE_OF_LEADER: Record<LeaderKey, AwardKind> = {
@@ -612,6 +614,49 @@ export function finalizeSeason(state: GameState): SeasonHistory | null {
 
   const championTeams = new Set([...championByLeague.values()]);
 
+  // ---- PHASE 3.8: ポストシーズンの結果 ----
+  const postseason = state.postseason?.year === year ? state.postseason : null;
+  const participantIds = new Set(
+    postseason ? Object.values(postseason.participants).flat() : [],
+  );
+  const leagueChampionIds = new Set(
+    postseason ? Object.values(postseason.leagueChampions) : [],
+  );
+  const japanChampionId = postseason?.championTeamId ?? null;
+  if (postseason) {
+    for (const row of teamRows) {
+      row.postseason = participantIds.has(row.teamId);
+      row.leagueChampion = leagueChampionIds.has(row.teamId);
+      row.japanChampion = row.teamId === japanChampionId;
+    }
+    for (const row of leagueRows) {
+      const champion = postseason.leagueChampions[row.leagueId];
+      if (champion) row.leagueChampionTeamId = champion;
+      const mvp = postseason.csMvp[row.leagueId];
+      if (mvp) {
+        row.csMvpPlayerId = mvp;
+        const list = awardsByPlayer.get(mvp) ?? [];
+        if (!list.some((a) => a.kind === 'CS_MVP')) {
+          list.push({ year, kind: 'CS_MVP', leagueId: row.leagueId });
+        }
+        awardsByPlayer.set(mvp, list);
+      }
+    }
+    const jsMvp = postseason.japanSeriesMvpPlayerId;
+    if (jsMvp) {
+      const player = state.players.find((p) => p.id === jsMvp);
+      const list = awardsByPlayer.get(jsMvp) ?? [];
+      if (!list.some((a) => a.kind === 'JAPAN_SERIES_MVP')) {
+        list.push({
+          year,
+          kind: 'JAPAN_SERIES_MVP',
+          leagueId: state.teams.find((t) => t.id === player?.teamId)?.leagueId ?? '',
+        });
+      }
+      awardsByPlayer.set(jsMvp, list);
+    }
+  }
+
   for (const player of state.players) {
     let entry = history.players[player.id];
     if (!entry) {
@@ -635,6 +680,26 @@ export function finalizeSeason(state: GameState): SeasonHistory | null {
       addPitching(entry.career.pitching, unpackPitching(row.p));
     }
     if (championTeams.has(player.teamId)) entry.championships += 1;
+
+    // PHASE 3.8: ポストシーズンの進出・優勝・成績
+    if (postseason) {
+      if (participantIds.has(player.teamId)) {
+        entry.postseasonAppearances = (entry.postseasonAppearances ?? 0) + 1;
+      }
+      if (leagueChampionIds.has(player.teamId)) {
+        entry.leagueChampionships = (entry.leagueChampionships ?? 0) + 1;
+      }
+      if (player.teamId === japanChampionId) {
+        entry.japanChampionships = (entry.japanChampionships ?? 0) + 1;
+      }
+      const line = postseason.stats[player.id];
+      if (line) {
+        if (!entry.postseasonCareer) entry.postseasonCareer = emptyCareer();
+        addBatting(entry.postseasonCareer.batting, line.batting);
+        addPitching(entry.postseasonCareer.pitching, line.pitching);
+      }
+    }
+
     const awards = awardsByPlayer.get(player.id);
     if (awards) entry.awards.push(...awards);
   }
@@ -712,6 +777,24 @@ export function finalizeSeason(state: GameState): SeasonHistory | null {
     teams: teamRows,
     leagues: leagueRows,
   };
+  if (postseason) {
+    season.postseason = {
+      participants: structuredClone(postseason.participants),
+      series: postseason.series.map((s) => ({
+        stage: s.stage,
+        leagueId: s.leagueId,
+        teamAId: s.teamAId,
+        teamBId: s.teamBId,
+        teamAWins: s.teamAWins,
+        teamBWins: s.teamBWins,
+        advantageA: s.advantageA,
+        winnerTeamId: s.winnerTeamId,
+        games: s.games.length,
+      })),
+      japanSeriesChampionTeamId: postseason.championTeamId,
+      japanSeriesMvpPlayerId: postseason.japanSeriesMvpPlayerId,
+    };
+  }
   history.seasons.push(season);
   history.seasons.sort((a, b) => a.year - b.year);
   return season;
@@ -786,4 +869,41 @@ export function teamSeasonStats(row: TeamSeasonHistory): {
   pitching: PitchingStats;
 } {
   return { batting: unpackBatting(row.b), pitching: unpackPitching(row.p) };
+}
+
+/* ---------------- ポストシーズンの集計（PHASE 3.8） ---------------- */
+
+/** リーグ優勝（ファイナルステージ勝者）の回数 */
+export function leagueChampionshipCount(history: HistoryState, teamId: string): number {
+  return history.seasons.filter((s) =>
+    s.teams.some((t) => t.teamId === teamId && t.leagueChampion),
+  ).length;
+}
+
+/** 日本一の回数 */
+export function japanChampionshipCount(history: HistoryState, teamId: string): number {
+  return history.seasons.filter((s) => s.postseason?.japanSeriesChampionTeamId === teamId)
+    .length;
+}
+
+/** クライマックスシリーズ進出の回数 */
+export function postseasonAppearanceCount(history: HistoryState, teamId: string): number {
+  return history.seasons.filter((s) =>
+    s.teams.some((t) => t.teamId === teamId && t.postseason),
+  ).length;
+}
+
+/** 日本シリーズ出場の回数 */
+export function japanSeriesAppearanceCount(history: HistoryState, teamId: string): number {
+  return history.seasons.filter((s) =>
+    s.postseason?.series.some(
+      (x) => x.stage === 'JAPAN_SERIES' && (x.teamAId === teamId || x.teamBId === teamId),
+    ),
+  ).length;
+}
+
+/** その年の日本一（ポストシーズンが無い年度は null） */
+export function japanChampionOf(history: HistoryState, year: number): string | null {
+  const season = history.seasons.find((s) => s.year === year);
+  return season?.postseason?.japanSeriesChampionTeamId ?? null;
 }

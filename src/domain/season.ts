@@ -42,6 +42,7 @@ import {
 import { resetTradeSeason } from './trade';
 import { refreshNeedsAfterDraft, refreshTeamPlans } from './teamAi';
 import { finalizeSeason, recordRetirements } from './history';
+import { autoCompletePostseason } from './postseason';
 import { repairAllSetups } from './engine';
 import { ensureFirstTeamViable } from './daily';
 
@@ -112,6 +113,10 @@ const RETIRED_RECORD_LIMIT = 500;
 export function startOffseason(state: GameState): SeasonRolloverResult {
   const rng = new Rng(state.rngState);
   const results: PlayerGrowthResult[] = [];
+
+  // ---- PHASE 3.8: ポストシーズンを最後まで進める ----
+  // 日本一が決まってから歴史を確定する。すでに終わっていれば何もしない。
+  autoCompletePostseason(state);
 
   // ---- PHASE 3.7: 今季を歴史に確定する ----
   // 成長・引退でデータが変わる前に、いま残っている成績をそのまま記録する。
@@ -436,6 +441,8 @@ export function completeOffseason(state: GameState): Player[] {
   state.stats = {};
   // 球団別の成績も作り直す（歴史には確定済み）。PHASE 3.7
   state.teamStats = {};
+  // ポストシーズンは翌シーズンぶんを改めて作る（結果は歴史に残っている）。PHASE 3.8
+  state.postseason = null;
   for (const player of state.players) {
     state.stats[player.id] = emptySeasonStats(player.id);
   }

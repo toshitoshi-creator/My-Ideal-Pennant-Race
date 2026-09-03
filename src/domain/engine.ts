@@ -7,6 +7,7 @@ import { addBatting, addPitching, emptySeasonStats } from './stats';
 import { applyDailyUpdates } from './daily';
 import { isAvailable } from './injury';
 import { runCpuTrades } from './trade';
+import { ensurePostseason } from './postseason';
 
 /** 実況を保持しておくプレイヤー球団の試合数 */
 const COMMENTARY_KEEP = 20;
@@ -206,6 +207,8 @@ export function advanceDay(state: GameState): AdvanceResult {
   next.rngState = rng.getState();
   next.date = addDays(next.date, 1);
   next.seasonFinished = next.schedule.every((g) => g.played);
+  // PHASE 3.8: レギュラーシーズンが終わったらポストシーズンを用意する
+  if (next.seasonFinished) ensurePostseason(next);
 
   const playerResult =
     results.find(

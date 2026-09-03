@@ -23,8 +23,9 @@ import { createHistoryState } from './history';
  * 9: PHASE 3.5（トレード・提案・履歴・在籍履歴）
  * 10: PHASE 3.6（球団経営AIのプラン）
  * 11: PHASE 3.7（歴史・記録・殿堂）
+ * 12: PHASE 3.8（ポストシーズン・日本シリーズ）
  */
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 12;
 export const START_YEAR = 2026;
 
 /** 1軍スタート人数（残りは 2軍スタート） */
@@ -112,6 +113,7 @@ export function createNewGame(
       countByTeam: {},
     },
     history: createHistoryState(),
+    postseason: null,
     teamPlans: {},
     teamPlansYear: null,
   };

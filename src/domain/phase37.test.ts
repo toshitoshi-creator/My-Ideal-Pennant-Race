@@ -1223,8 +1223,9 @@ describe('PHASE3.7 セーブ', () => {
     clearSave();
   });
 
-  it('セーブバージョンが11になっている', () => {
-    expect(SAVE_VERSION).toBe(11);
+  it('セーブバージョンが最新になっている', () => {
+    // PHASE 3.8 でポストシーズンを追加したため v12
+    expect(SAVE_VERSION).toBe(12);
     expect(newGame().version).toBe(SAVE_VERSION);
   });
 
@@ -1256,7 +1257,7 @@ describe('PHASE3.7 セーブ', () => {
     delete old.teamStats;
     const migrated = migrate(old as unknown as GameState);
     expect(migrated).not.toBeNull();
-    expect(migrated!.version).toBe(11);
+    expect(migrated!.version).toBe(SAVE_VERSION);
     expect(migrated!.history.seasons).toHaveLength(0);
     expect(migrated!.history.players).toEqual({});
   });
@@ -1278,7 +1279,7 @@ describe('PHASE3.7 セーブ', () => {
     }
   });
 
-  it('v1のセーブもv11まで移行できる', () => {
+  it('v1のセーブも最新バージョンまで移行できる', () => {
     const s = newGame(10, 2205);
     const old = structuredClone(s) as unknown as Record<string, unknown>;
     old.version = 1;
@@ -1286,7 +1287,7 @@ describe('PHASE3.7 セーブ', () => {
     delete old.teamStats;
     const migrated = migrate(old as unknown as GameState);
     expect(migrated).not.toBeNull();
-    expect(migrated!.version).toBe(11);
+    expect(migrated!.version).toBe(SAVE_VERSION);
     expect(migrated!.history).toBeDefined();
     expect(Array.isArray(migrated!.history.seasons)).toBe(true);
   });

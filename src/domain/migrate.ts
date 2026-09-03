@@ -256,6 +256,19 @@ export function migrateV10ToV11(state: GameState): void {
 }
 
 /**
+ * v11 → v12：PHASE 3.8 のポストシーズンを用意する。
+ *
+ * 過去の年度の順位・優勝は作り直さない（§25）。
+ * ポストシーズンは、このセーブで次にレギュラーシーズンを終えた年から始まる。
+ */
+export function migrateV11ToV12(state: GameState): void {
+  if (state.postseason === undefined) state.postseason = null;
+  // 別の年のポストシーズンが残っていたら捨てる
+  if (state.postseason && state.postseason.year !== state.year) state.postseason = null;
+  state.version = 12;
+}
+
+/**
  * PHASE 2 のフィールドが欠けている選手に、選手ごとに安定した初期値を入れる。
  * 既存の能力・年齢・成績には触れない。
  */

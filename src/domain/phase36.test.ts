@@ -875,8 +875,8 @@ describe('PHASE3.6 セーブ', () => {
   });
 
   it('セーブバージョンが最新になっている', () => {
-    // PHASE 3.7 で歴史・記録を追加したため v11
-    expect(SAVE_VERSION).toBe(11);
+    // PHASE 3.8 でポストシーズンを追加したため v12
+    expect(SAVE_VERSION).toBe(12);
     expect(newGame().version).toBe(SAVE_VERSION);
   });
 

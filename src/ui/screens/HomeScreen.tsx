@@ -305,11 +305,13 @@ export function HomeScreen() {
             {state.year}年シーズンが終了しました。最終成績は {record.wins}勝{record.losses}敗
             {record.draws}分（{rank}位）です。
           </div>
+          <PostseasonNotice />
           <button className="btn primary" onClick={() => advanceSeason()}>
             オフシーズンへ（引退・ドラフト）
           </button>
           <div className="muted" style={{ marginTop: 8 }}>
-            選手が1歳年をとって成長・衰退し、引退者が出たあとドラフト会議を行います。
+            ポストシーズンが残っていれば最後まで進めたあと、選手が1歳年をとって
+            成長・衰退し、引退者が出たあとドラフト会議を行います。
           </div>
         </div>
       )}
@@ -344,6 +346,47 @@ export function HomeScreen() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+/** シーズン終了カードの中に出す、ポストシーズンの状況（PHASE 3.8） */
+function PostseasonNotice() {
+  const { state, setScreen } = useGame();
+  const postseason = state.postseason;
+  if (!postseason) return null;
+  const myTeam = state.playerTeamId;
+  const entered = Object.values(postseason.participants).some((ids) => ids.includes(myTeam));
+  const champion = postseason.championTeamId;
+  const teamName = (id: string | null) =>
+    state.teams.find((t) => t.id === id)?.shortName ?? '―';
+
+  return (
+    <div
+      style={{
+        border: '1px solid var(--line)',
+        borderRadius: 10,
+        padding: 10,
+        marginBottom: 10,
+      }}
+    >
+      <div style={{ fontWeight: 800, marginBottom: 4 }}>
+        {champion
+          ? `🏆 ${state.year}年 日本一　${teamName(champion)}`
+          : entered
+            ? 'クライマックスシリーズ進出'
+            : 'ポストシーズン進出はなりませんでした'}
+      </div>
+      <div className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
+        {champion
+          ? champion === myTeam
+            ? 'おめでとうございます。日本一です。'
+            : '今年の日本一が決まりました。'
+          : '各リーグの上位3球団でクライマックスシリーズを行い、勝者が日本シリーズに進みます。'}
+      </div>
+      <button className="btn secondary" onClick={() => setScreen('postseason')}>
+        ポストシーズンを見る
+      </button>
     </div>
   );
 }

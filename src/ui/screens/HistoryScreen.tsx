@@ -5,6 +5,10 @@ import {
   AWARD_LABELS,
   LEADER_LABELS,
   championshipCount,
+  japanChampionshipCount,
+  japanSeriesAppearanceCount,
+  leagueChampionshipCount,
+  postseasonAppearanceCount,
   retiredHistories,
   teamSeasons,
 } from '../../domain/history';
@@ -75,10 +79,36 @@ function Timeline() {
                 </span>
               )}
             </div>
+            {season.postseason?.japanSeriesChampionTeamId && (
+              <div
+                style={{
+                  fontSize: 17,
+                  fontWeight: 800,
+                  color: 'var(--accent)',
+                  marginBottom: 8,
+                }}
+              >
+                🏆 日本一　{nameOf(season.postseason.japanSeriesChampionTeamId)}
+                {season.postseason.japanSeriesMvpPlayerId && (
+                  <span className="muted" style={{ fontSize: 13, fontWeight: 400, marginLeft: 8 }}>
+                    MVP {playerName(season.postseason.japanSeriesMvpPlayerId)}
+                  </span>
+                )}
+              </div>
+            )}
             {season.leagues.map((league) => (
               <div key={league.leagueId} style={{ marginBottom: 8 }}>
                 <div style={{ fontWeight: 700 }}>
-                  🏆 {nameOf(league.championTeamId)}
+                  {league.leagueChampionTeamId ? (
+                    <>
+                      リーグ優勝 {nameOf(league.leagueChampionTeamId)}
+                      <span className="muted" style={{ fontWeight: 400, marginLeft: 8 }}>
+                        1位 {nameOf(league.championTeamId)}
+                      </span>
+                    </>
+                  ) : (
+                    <>🏆 {nameOf(league.championTeamId)}</>
+                  )}
                   <span className="muted" style={{ fontWeight: 400, marginLeft: 8 }}>
                     {state.leagues.find((l) => l.id === league.leagueId)?.name}
                   </span>
@@ -131,6 +161,10 @@ function TeamWalk() {
   const [teamId, setTeamId] = useState(state.playerTeamId);
   const rows = teamSeasons(state.history, teamId);
   const titles = championshipCount(state.history, teamId);
+  const leagueTitles = leagueChampionshipCount(state.history, teamId);
+  const japanTitles = japanChampionshipCount(state.history, teamId);
+  const csAppearances = postseasonAppearanceCount(state.history, teamId);
+  const jsAppearances = japanSeriesAppearanceCount(state.history, teamId);
 
   return (
     <>
@@ -150,7 +184,13 @@ function TeamWalk() {
             ))}
           </div>
         </div>
-        <div style={{ marginTop: 10, fontWeight: 700 }}>優勝 {titles}回</div>
+        <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <span className="chip">1位 {titles}回</span>
+          <span className="chip">リーグ優勝 {leagueTitles}回</span>
+          <span className="chip on">日本一 {japanTitles}回</span>
+          <span className="chip">CS進出 {csAppearances}回</span>
+          <span className="chip">日本シリーズ出場 {jsAppearances}回</span>
+        </div>
       </div>
       <div className="card">
         <h2>年度別</h2>
@@ -160,6 +200,7 @@ function TeamWalk() {
               <tr>
                 <th>年</th>
                 <th>順位</th>
+                <th>PS</th>
                 <th>勝</th>
                 <th>敗</th>
                 <th>分</th>
@@ -172,8 +213,9 @@ function TeamWalk() {
               {rows.map(({ year, row }) => (
                 <tr key={year}>
                   <td>{year}</td>
-                  <td style={{ fontWeight: row.champion ? 800 : undefined }}>
-                    {row.champion ? '🏆1' : row.rank}
+                  <td style={{ fontWeight: row.champion ? 800 : undefined }}>{row.rank}</td>
+                  <td>
+                    {row.japanChampion ? '🏆' : row.leagueChampion ? '優勝' : row.postseason ? 'CS' : ''}
                   </td>
                   <td>{row.wins}</td>
                   <td>{row.losses}</td>

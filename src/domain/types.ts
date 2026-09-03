@@ -377,6 +377,8 @@ export interface GameState {
   trade: TradeState;
   /** 歴史・記録。PHASE 3.7 */
   history: HistoryState;
+  /** 進行中のポストシーズン（null ならまだ始まっていない）。PHASE 3.8 */
+  postseason: PostseasonState | null;
   /** 球団ごとの今季の経営プラン。PHASE 3.6 */
   teamPlans: Record<string, TeamAiPlan>;
   /** 経営プランを作った年（作り直しの判定に使う）。PHASE 3.6 */
@@ -795,7 +797,9 @@ export type AwardKind =
   | 'WINS_TITLE'
   | 'ERA_TITLE'
   | 'STRIKEOUT_TITLE'
-  | 'SAVES_TITLE';
+  | 'SAVES_TITLE'
+  | 'CS_MVP'
+  | 'JAPAN_SERIES_MVP';
 
 export interface PlayerAward {
   year: number;
@@ -826,8 +830,16 @@ export interface PlayerHistory {
   awards: PlayerAward[];
   /** 更新した記録の件数 */
   records: number;
-  /** 優勝したシーズン数 */
+  /** レギュラーシーズン1位のシーズン数 */
   championships: number;
+  /** リーグ優勝（ファイナルステージ勝者）の回数。PHASE 3.8 */
+  leagueChampionships?: number;
+  /** 日本一の回数。PHASE 3.8 */
+  japanChampionships?: number;
+  /** ポストシーズン進出の回数。PHASE 3.8 */
+  postseasonAppearances?: number;
+  /** ポストシーズンの通算成績。PHASE 3.8 */
+  postseasonCareer?: { batting: BattingStats; pitching: PitchingStats };
   /** 引退時の総合力（引退後の表示用。現役中は null） */
   finalOverall: number | null;
 }
@@ -843,8 +855,14 @@ export interface TeamSeasonHistory {
   winPct: number;
   runsScored: number;
   runsAllowed: number;
-  /** リーグ1位なら true */
+  /** レギュラーシーズン1位なら true（PHASE 3.7 からの意味は変えない） */
   champion: boolean;
+  /** リーグ優勝（ファイナルステージ勝者）なら true。PHASE 3.8 */
+  leagueChampion?: boolean;
+  /** 日本一なら true。PHASE 3.8 */
+  japanChampion?: boolean;
+  /** ポストシーズンに進出したなら true。PHASE 3.8 */
+  postseason?: boolean;
   /** チーム打撃成績（stats.ts の BATTING_FIELDS の順） */
   b: number[];
   /** チーム投手成績（stats.ts の PITCHING_FIELDS の順） */
@@ -872,7 +890,12 @@ export interface SeasonLeader {
 
 export interface LeagueSeasonHistory {
   leagueId: string;
+  /** レギュラーシーズン1位（ペナント）。PHASE 3.7 からの意味は変えない */
   championTeamId: string;
+  /** リーグ優勝＝ファイナルステージの勝者。PHASE 3.8 以降のみ入る */
+  leagueChampionTeamId?: string;
+  /** クライマックスシリーズMVP。PHASE 3.8 */
+  csMvpPlayerId?: string;
   /** タイトル獲得者（該当者なしなら null） */
   leaders: Partial<Record<LeaderKey, SeasonLeader>>;
   mvpPlayerId: string | null;
@@ -880,11 +903,34 @@ export interface LeagueSeasonHistory {
   rookiePlayerId: string | null;
 }
 
+/** その年のポストシーズンの結果（PHASE 3.8） */
+export interface PostseasonHistory {
+  /** リーグごとの進出球団（1位→3位） */
+  participants: Record<string, string[]>;
+  /** シリーズの結果 */
+  series: Array<{
+    stage: SeriesStage;
+    leagueId: string | null;
+    teamAId: string;
+    teamBId: string;
+    teamAWins: number;
+    teamBWins: number;
+    /** ファイナルステージのアドバンテージぶん */
+    advantageA: number;
+    winnerTeamId: string | null;
+    games: number;
+  }>;
+  japanSeriesChampionTeamId: string | null;
+  japanSeriesMvpPlayerId: string | null;
+}
+
 export interface SeasonHistory {
   year: number;
   seasonLength: SeasonLength;
   teams: TeamSeasonHistory[];
   leagues: LeagueSeasonHistory[];
+  /** ポストシーズン。PHASE 3.8 より前の年度には無い */
+  postseason?: PostseasonHistory;
 }
 
 /** 通算記録のキー（率の記録は通算では扱わない） */
@@ -952,4 +998,68 @@ export interface HistoryState {
   /** 記録更新の出来事（古い順） */
   events: RecordEvent[];
   hallOfFame: HallOfFameEntry[];
+}
+
+/* ---------------- ポストシーズン：PHASE 3.8 ---------------- */
+
+/** シリーズの段階 */
+export type SeriesStage = 'FIRST' | 'FINAL' | 'JAPAN_SERIES';
+
+/** ポストシーズンの1試合（記録用の要約） */
+export interface PostseasonGame {
+  /** シリーズの中で何戦目か（1始まり） */
+  gameNumber: number;
+  date: string;
+  homeTeamId: string;
+  awayTeamId: string;
+  homeRuns: number;
+  awayRuns: number;
+  /** 引き分けなら null */
+  winnerTeamId: string | null;
+}
+
+/**
+ * 1シリーズの状態。
+ * teamA は上位（ファイナルステージではリーグ1位）で、ホーム開催が多いほう。
+ */
+export interface SeriesState {
+  id: string;
+  stage: SeriesStage;
+  /** 日本シリーズは null */
+  leagueId: string | null;
+  /** 最大試合数 */
+  bestOf: number;
+  /** 勝ち抜けに必要な勝利数 */
+  winsRequired: number;
+  teamAId: string;
+  teamBId: string;
+  /** アドバンテージぶんの初期勝利数（ファイナルステージの1位に1勝） */
+  advantageA: number;
+  teamAWins: number;
+  teamBWins: number;
+  games: PostseasonGame[];
+  winnerTeamId: string | null;
+  loserTeamId: string | null;
+}
+
+export type PostseasonPhase = 'FIRST_STAGE' | 'FINAL_STAGE' | 'JAPAN_SERIES' | 'COMPLETE';
+
+/** ポストシーズン全体の状態（PHASE 3.8） */
+export interface PostseasonState {
+  year: number;
+  phase: PostseasonPhase;
+  /** リーグごとの進出球団（1位→3位の順） */
+  participants: Record<string, string[]>;
+  series: SeriesState[];
+  /** リーグ優勝（ファイナルステージの勝者）。リーグID → 球団ID */
+  leagueChampions: Record<string, string>;
+  /** 日本一。決まるまで null */
+  championTeamId: string | null;
+  /** ポストシーズン全体の個人成績 */
+  stats: Record<string, PlayerSeasonStats>;
+  /** 日本シリーズだけの個人成績（MVPの選考に使う） */
+  japanSeriesStats: Record<string, PlayerSeasonStats>;
+  /** クライマックスシリーズMVP。リーグID → 選手ID */
+  csMvp: Record<string, string>;
+  japanSeriesMvpPlayerId: string | null;
 }

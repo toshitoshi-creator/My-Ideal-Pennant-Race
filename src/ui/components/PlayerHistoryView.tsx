@@ -28,6 +28,8 @@ export function PlayerHistoryView({ history }: { history: PlayerHistory }) {
   const tier = playerTier(history, state.seasonLength);
   const career = history.career;
   const pitcher = history.isPitcher;
+  // PHASE 3.8: ポストシーズンの通算成績（レギュラーシーズンとは分けて見せる）
+  const postseasonCareer = history.postseasonCareer;
 
   return (
     <>
@@ -54,7 +56,7 @@ export function PlayerHistoryView({ history }: { history: PlayerHistory }) {
         )}
       </div>
 
-      <h3 className="sec">通算成績</h3>
+      <h3 className="sec">通算成績（レギュラーシーズン）</h3>
       <div className="scroll-x" style={{ marginBottom: 12 }}>
         {pitcher ? (
           <table className="data">
@@ -110,6 +112,74 @@ export function PlayerHistoryView({ history }: { history: PlayerHistory }) {
           </table>
         )}
       </div>
+
+      {(history.japanChampionships || history.leagueChampionships ||
+        history.postseasonAppearances) && (
+        <>
+          <h3 className="sec">ポストシーズン</h3>
+          <div style={{ marginBottom: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {history.japanChampionships ? (
+              <span className="chip on">日本一 {history.japanChampionships}回</span>
+            ) : null}
+            {history.leagueChampionships ? (
+              <span className="chip">リーグ優勝 {history.leagueChampionships}回</span>
+            ) : null}
+            {history.postseasonAppearances ? (
+              <span className="chip">CS進出 {history.postseasonAppearances}回</span>
+            ) : null}
+          </div>
+          {postseasonCareer && (
+            <div className="scroll-x" style={{ marginBottom: 12 }}>
+              <table className="data">
+                <thead>
+                  {pitcher ? (
+                    <tr>
+                      <th>登板</th>
+                      <th>勝</th>
+                      <th>敗</th>
+                      <th>S</th>
+                      <th>投球回</th>
+                      <th>奪三振</th>
+                      <th>防御率</th>
+                    </tr>
+                  ) : (
+                    <tr>
+                      <th>試合</th>
+                      <th>打数</th>
+                      <th>安打</th>
+                      <th>本塁打</th>
+                      <th>打点</th>
+                      <th>打率</th>
+                    </tr>
+                  )}
+                </thead>
+                <tbody>
+                  {pitcher ? (
+                    <tr>
+                      <td>{postseasonCareer.pitching.games}</td>
+                      <td>{postseasonCareer.pitching.wins}</td>
+                      <td>{postseasonCareer.pitching.losses}</td>
+                      <td>{postseasonCareer.pitching.saves}</td>
+                      <td>{formatInnings(postseasonCareer.pitching.outs)}</td>
+                      <td>{postseasonCareer.pitching.strikeouts}</td>
+                      <td>{formatEra(postseasonCareer.pitching)}</td>
+                    </tr>
+                  ) : (
+                    <tr>
+                      <td>{postseasonCareer.batting.games}</td>
+                      <td>{postseasonCareer.batting.atBats}</td>
+                      <td>{postseasonCareer.batting.hits}</td>
+                      <td>{postseasonCareer.batting.homeRuns}</td>
+                      <td>{postseasonCareer.batting.rbi}</td>
+                      <td>{formatAverage(average(postseasonCareer.batting))}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
 
       {history.awards.length > 0 && (
         <>
