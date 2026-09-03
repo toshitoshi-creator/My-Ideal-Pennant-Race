@@ -141,6 +141,13 @@ export function isTradeOpen(state: GameState): boolean {
 /** シーズン開幕時にトレードの状態を作り直す（履歴は残す） */
 export function resetTradeSeason(state: GameState): void {
   const history = state.trade?.history ?? [];
+  // 過去シーズンの statsAtTrade はもう使わない（球団別の成績は歴史に確定済み）。
+  // 何十年も持ち続けるとセーブデータが膨らむので、シーズンが変わったら空にする。
+  // フィールド自体は残すので、古いセーブや既存の処理はそのまま動く。
+  for (const record of history) {
+    if (record.year >= state.year) continue;
+    if (Object.keys(record.statsAtTrade ?? {}).length > 0) record.statsAtTrade = {};
+  }
   state.trade = {
     year: state.year,
     deadline: tradeDeadline(state),

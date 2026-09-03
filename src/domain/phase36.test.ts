@@ -874,9 +874,10 @@ describe('PHASE3.6 セーブ', () => {
     (globalThis as unknown as { localStorage: MemoryStorage }).localStorage = new MemoryStorage();
   });
 
-  it('セーブバージョンが10になっている', () => {
-    expect(SAVE_VERSION).toBe(10);
-    expect(newGame().version).toBe(10);
+  it('セーブバージョンが最新になっている', () => {
+    // PHASE 3.7 で歴史・記録を追加したため v11
+    expect(SAVE_VERSION).toBe(11);
+    expect(newGame().version).toBe(SAVE_VERSION);
   });
 
   it('経営プランが保存・復元される', () => {

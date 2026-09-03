@@ -25,6 +25,7 @@ import { overallRating } from './rating';
 import { createScoutAbilities, createScoutingState, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { createContract, createTeamFinance, marketValue, refreshPayrolls } from './contract';
 import { repairFreeAgents } from './freeAgency';
+import { createHistoryState, ensureHistory } from './history';
 import { createTradeState, tradeDeadline } from './trade';
 import { clamp1to100 } from './rank';
 
@@ -228,6 +229,30 @@ export function migrateV9ToV10(state: GameState): void {
   // 古いセーブは次のオフシーズンで作り直す
   if (Object.keys(state.teamPlans).length === 0) state.teamPlansYear = null;
   state.version = 10;
+}
+
+/**
+ * v10 → v11：PHASE 3.7 の歴史・記録を用意する。
+ *
+ * 古いセーブには過去の詳細成績が残っていないので、
+ * 推測して作らず「まだ歴史が無い」状態から始める。
+ * 今季ぶんの球団別成績も、どの球団で挙げたかを復元できないため、
+ * 現在の所属球団の成績としてだけ引き継ぐ（合算値は変わらない）。
+ */
+export function migrateV10ToV11(state: GameState): void {
+  if (!state.history || typeof state.history !== 'object') {
+    state.history = createHistoryState();
+  }
+  ensureHistory(state);
+
+  if (!state.teamStats || typeof state.teamStats !== 'object') state.teamStats = {};
+  for (const player of state.players) {
+    if (state.teamStats[player.id]) continue;
+    const stats = state.stats?.[player.id];
+    if (!stats) continue;
+    state.teamStats[player.id] = { [player.teamId]: structuredClone(stats) };
+  }
+  state.version = 11;
 }
 
 /**

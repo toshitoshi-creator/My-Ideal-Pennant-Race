@@ -41,6 +41,7 @@ import {
 } from './freeAgency';
 import { resetTradeSeason } from './trade';
 import { refreshNeedsAfterDraft, refreshTeamPlans } from './teamAi';
+import { finalizeSeason, recordRetirements } from './history';
 import { repairAllSetups } from './engine';
 import { ensureFirstTeamViable } from './daily';
 
@@ -112,6 +113,11 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
   const rng = new Rng(state.rngState);
   const results: PlayerGrowthResult[] = [];
 
+  // ---- PHASE 3.7: 今季を歴史に確定する ----
+  // 成長・引退でデータが変わる前に、いま残っている成績をそのまま記録する。
+  // 同じ年に二度呼ばれても二重には記録されない。
+  finalizeSeason(state);
+
   // ---- PHASE 3.3: 今季分の人件費を精算する（1シーズンに1回だけ） ----
   applySeasonFinance(state);
 
@@ -163,6 +169,20 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
   }
   state.players = remaining;
   refreshPayrolls(state);
+
+  // ---- PHASE 3.7: 引退した選手の歴史を確定し、殿堂入りを判定する ----
+  const inducted = recordRetirements(
+    state,
+    retirements.map((r) => ({ playerId: r.playerId, finalOverall: r.finalOverall })),
+  );
+  for (const entry of inducted) {
+    state.notices.push({
+      date: state.date,
+      kind: 'retire',
+      message: `${entry.name}が殿堂入りしました`,
+    });
+  }
+
   state.retiredPlayers.push(...retirements);
   if (state.retiredPlayers.length > RETIRED_RECORD_LIMIT) {
     state.retiredPlayers.splice(0, state.retiredPlayers.length - RETIRED_RECORD_LIMIT);
@@ -414,6 +434,8 @@ export function completeOffseason(state: GameState): Player[] {
   }
   // 成績は全選手ぶん作り直す（新人も含めて 0 から始まる）
   state.stats = {};
+  // 球団別の成績も作り直す（歴史には確定済み）。PHASE 3.7
+  state.teamStats = {};
   for (const player of state.players) {
     state.stats[player.id] = emptySeasonStats(player.id);
   }

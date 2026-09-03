@@ -311,6 +311,14 @@ export interface GameState {
   results: GameResult[];
   records: Record<string, TeamRecord>;
   stats: Record<string, PlayerSeasonStats>;
+  /**
+   * 今季の球団別成績（選手ID → 球団ID → 成績）。PHASE 3.7
+   *
+   * 試合結果には出場時の球団が入っているので、そこから直接積み上げる。
+   * こうしておくと、シーズン途中のトレードやFA移籍があっても
+   * 「どの球団で挙げた成績か」を後から復元する必要がない。
+   */
+  teamStats: Record<string, Record<string, PlayerSeasonStats>>;
   /** シーズン終了フラグ */
   seasonFinished: boolean;
   /** 球団ごとのチーム士気 0〜100（PHASE 2） */
@@ -367,6 +375,8 @@ export interface GameState {
   lastFaYear: number | null;
   /** トレード（期限・提案・履歴）。PHASE 3.5 */
   trade: TradeState;
+  /** 歴史・記録。PHASE 3.7 */
+  history: HistoryState;
   /** 球団ごとの今季の経営プラン。PHASE 3.6 */
   teamPlans: Record<string, TeamAiPlan>;
   /** 経営プランを作った年（作り直しの判定に使う）。PHASE 3.6 */
@@ -755,3 +765,191 @@ export const ROSTER_LIMIT = 70;
 export const ROSTER_CHANGE_LOCK_DAYS = 7;
 /** 延長は 12 回まで（それ以降は引き分け） */
 export const MAX_INNINGS = 12;
+
+/* ---------------- 歴史・記録：PHASE 3.7 ---------------- */
+
+/**
+ * 1シーズン・1球団ぶんの選手成績。
+ *
+ * シーズン途中のトレードでは同じ年に複数のエントリができる。
+ * 成績がすべて 0 の側（投手の打撃など）は保存量を抑えるため省略する。
+ */
+export interface PlayerSeasonHistoryEntry {
+  year: number;
+  teamId: string;
+  /** 打撃成績（stats.ts の BATTING_FIELDS の順。すべて0なら省略） */
+  b?: number[];
+  /** 投手成績（stats.ts の PITCHING_FIELDS の順。すべて0なら省略） */
+  p?: number[];
+}
+
+/** 表彰の種類 */
+export type AwardKind =
+  | 'MVP'
+  | 'BEST_PITCHER'
+  | 'ROOKIE'
+  | 'BATTING_TITLE'
+  | 'HOME_RUN_KING'
+  | 'RBI_KING'
+  | 'STEAL_KING'
+  | 'WINS_TITLE'
+  | 'ERA_TITLE'
+  | 'STRIKEOUT_TITLE'
+  | 'SAVES_TITLE';
+
+export interface PlayerAward {
+  year: number;
+  kind: AwardKind;
+  leagueId: string;
+}
+
+/** 選手の歴史的な位置づけ（能力値ではなく積み上げた成績で決まる） */
+export type PlayerTier = 'ROOKIE' | 'REGULAR' | 'STAR' | 'SUPERSTAR' | 'LEGEND';
+
+/**
+ * 選手1人の歴史。引退してもロスターから消えるだけで、これは残る。
+ * PHASE 3.7 の「歴史専用スナップショット」にあたる。
+ */
+export interface PlayerHistory {
+  playerId: string;
+  name: string;
+  mainPosition: PositionId;
+  isPitcher: boolean;
+  birthYear: number;
+  debutYear: number;
+  /** 引退した年。現役なら null */
+  retiredAt: number | null;
+  /** 年度別・球団別の成績（古い順） */
+  seasons: PlayerSeasonHistoryEntry[];
+  /** 通算成績 */
+  career: { batting: BattingStats; pitching: PitchingStats };
+  awards: PlayerAward[];
+  /** 更新した記録の件数 */
+  records: number;
+  /** 優勝したシーズン数 */
+  championships: number;
+  /** 引退時の総合力（引退後の表示用。現役中は null） */
+  finalOverall: number | null;
+}
+
+export interface TeamSeasonHistory {
+  teamId: string;
+  leagueId: string;
+  rank: number;
+  games: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  winPct: number;
+  runsScored: number;
+  runsAllowed: number;
+  /** リーグ1位なら true */
+  champion: boolean;
+  /** チーム打撃成績（stats.ts の BATTING_FIELDS の順） */
+  b: number[];
+  /** チーム投手成績（stats.ts の PITCHING_FIELDS の順） */
+  p: number[];
+}
+
+/** タイトルの種類（シーズン記録と共通のキー） */
+export type LeaderKey =
+  | 'average'
+  | 'homeRuns'
+  | 'hits'
+  | 'rbi'
+  | 'steals'
+  | 'wins'
+  | 'strikeouts'
+  | 'era'
+  | 'saves';
+
+export interface SeasonLeader {
+  playerId: string;
+  name: string;
+  teamId: string;
+  value: number;
+}
+
+export interface LeagueSeasonHistory {
+  leagueId: string;
+  championTeamId: string;
+  /** タイトル獲得者（該当者なしなら null） */
+  leaders: Partial<Record<LeaderKey, SeasonLeader>>;
+  mvpPlayerId: string | null;
+  bestPitcherPlayerId: string | null;
+  rookiePlayerId: string | null;
+}
+
+export interface SeasonHistory {
+  year: number;
+  seasonLength: SeasonLength;
+  teams: TeamSeasonHistory[];
+  leagues: LeagueSeasonHistory[];
+}
+
+/** 通算記録のキー（率の記録は通算では扱わない） */
+export type CareerRecordKey =
+  | 'hits'
+  | 'homeRuns'
+  | 'rbi'
+  | 'steals'
+  | 'wins'
+  | 'strikeouts'
+  | 'saves';
+
+export interface RecordHolder {
+  playerId: string;
+  name: string;
+  teamId: string;
+  /** シーズン記録なら達成年、通算記録なら最後に更新した年 */
+  year: number;
+  value: number;
+}
+
+export interface RecordBook {
+  season: Partial<Record<LeaderKey, RecordHolder>>;
+  career: Partial<Record<CareerRecordKey, RecordHolder>>;
+}
+
+/** 記録が更新された出来事 */
+export interface RecordEvent {
+  year: number;
+  scope: 'league' | 'team';
+  /** scope が 'team' のときの球団、'league' のときはリーグID */
+  ownerId: string;
+  kind: 'season' | 'career';
+  key: string;
+  playerId: string;
+  name: string;
+  value: number;
+  /** 更新前の記録。初めての記録なら null */
+  previous: number | null;
+}
+
+export interface HallOfFameEntry {
+  playerId: string;
+  name: string;
+  mainPosition: PositionId;
+  debutYear: number;
+  retiredAt: number;
+  inductedYear: number;
+  score: number;
+}
+
+/**
+ * 歴史・記録のまとめ（PHASE 3.7）。
+ * ゲームの意思決定には使わない「結果の記録」だけを持つ。
+ */
+export interface HistoryState {
+  /** 確定したシーズン（古い順。年で重複しない） */
+  seasons: SeasonHistory[];
+  /** 選手の歴史（現役・引退とも） */
+  players: Record<string, PlayerHistory>;
+  /** 球団ごとの記録 */
+  teamRecords: Record<string, RecordBook>;
+  /** リーグごとの記録 */
+  leagueRecords: Record<string, RecordBook>;
+  /** 記録更新の出来事（古い順） */
+  events: RecordEvent[];
+  hallOfFame: HallOfFameEntry[];
+}

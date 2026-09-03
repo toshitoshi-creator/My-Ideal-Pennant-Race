@@ -53,6 +53,26 @@ function ensureStats(state: GameState, playerId: string) {
   return s;
 }
 
+/**
+ * 球団別の今季成績を取り出す（PHASE 3.7）。
+ * 出場した試合の球団ごとに分けて積むので、
+ * トレードやFAで移籍しても前の球団の成績が混ざらない。
+ */
+function ensureTeamStats(state: GameState, playerId: string, teamId: string) {
+  if (!state.teamStats) state.teamStats = {};
+  let byTeam = state.teamStats[playerId];
+  if (!byTeam) {
+    byTeam = {};
+    state.teamStats[playerId] = byTeam;
+  }
+  let s = byTeam[teamId];
+  if (!s) {
+    s = emptySeasonStats(playerId);
+    byTeam[teamId] = s;
+  }
+  return s;
+}
+
 /** 試合結果を state に反映する（state は複製済みのものを渡すこと） */
 export function applyGameResult(state: GameState, result: GameResult): void {
   const scheduled = state.schedule.find((g) => g.id === result.id);
@@ -79,8 +99,16 @@ export function applyGameResult(state: GameState, result: GameResult): void {
 
   for (const line of result.playerLines) {
     const stats = ensureStats(state, line.playerId);
-    if (line.batting) addBatting(stats.batting, line.batting);
-    if (line.pitching) addPitching(stats.pitching, line.pitching);
+    // 出場したときに在籍していた球団の成績としても積む（PHASE 3.7）
+    const teamStats = ensureTeamStats(state, line.playerId, line.teamId);
+    if (line.batting) {
+      addBatting(stats.batting, line.batting);
+      addBatting(teamStats.batting, line.batting);
+    }
+    if (line.pitching) {
+      addPitching(stats.pitching, line.pitching);
+      addPitching(teamStats.pitching, line.pitching);
+    }
   }
 
   const involvesPlayerTeam =

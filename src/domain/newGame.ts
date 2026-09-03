@@ -10,6 +10,7 @@ import { createScoutingState } from './scouting';
 import { createContract, createTeamFinance, marketValue, refreshPayrolls } from './contract';
 import { tradeDeadline } from './trade';
 import { refreshTeamPlans } from './teamAi';
+import { createHistoryState } from './history';
 
 /**
  * 2: 弾道を 1〜4 から 1〜100 に変更
@@ -21,8 +22,9 @@ import { refreshTeamPlans } from './teamAi';
  * 8: PHASE 3.4（FA市場・オファー・未所属選手）
  * 9: PHASE 3.5（トレード・提案・履歴・在籍履歴）
  * 10: PHASE 3.6（球団経営AIのプラン）
+ * 11: PHASE 3.7（歴史・記録・殿堂）
  */
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 11;
 export const START_YEAR = 2026;
 
 /** 1軍スタート人数（残りは 2軍スタート） */
@@ -84,6 +86,7 @@ export function createNewGame(
     results: [],
     records: {},
     stats: {},
+    teamStats: {},
     seasonFinished: false,
     teamMorale: {},
     lastGrowthReport: null,
@@ -108,6 +111,7 @@ export function createNewGame(
       tradedThisSeason: [],
       countByTeam: {},
     },
+    history: createHistoryState(),
     teamPlans: {},
     teamPlansYear: null,
   };

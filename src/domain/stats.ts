@@ -77,3 +77,69 @@ export function formatEra(stats: PitchingStats): string {
 export function formatInnings(outs: number): string {
   return `${Math.floor(outs / 3)}.${outs % 3}`;
 }
+
+/* ---------------- 履歴用の圧縮形式（PHASE 3.7） ---------------- */
+
+/**
+ * 履歴に残す成績は「決まった順番の数値配列」で持つ。
+ *
+ * 50年ぶんの年度別成績をオブジェクトのまま保存すると、
+ * キー名だけでセーブデータが数MBに膨らんでしまうため。
+ * 順番は下の *_FIELDS が唯一の定義で、読み書きは pack/unpack を通す。
+ */
+export const BATTING_FIELDS = [
+  'games',
+  'plateAppearances',
+  'atBats',
+  'hits',
+  'doubles',
+  'triples',
+  'homeRuns',
+  'rbi',
+  'runs',
+  'steals',
+  'strikeouts',
+  'walks',
+] as const;
+
+export const PITCHING_FIELDS = [
+  'games',
+  'starts',
+  'outs',
+  'wins',
+  'losses',
+  'holds',
+  'saves',
+  'strikeouts',
+  'walks',
+  'hitsAllowed',
+  'homeRunsAllowed',
+  'runsAllowed',
+  'earnedRuns',
+] as const;
+
+export function packBatting(stats: BattingStats): number[] {
+  return BATTING_FIELDS.map((key) => stats[key]);
+}
+
+export function packPitching(stats: PitchingStats): number[] {
+  return PITCHING_FIELDS.map((key) => stats[key]);
+}
+
+export function unpackBatting(line: number[] | undefined): BattingStats {
+  const stats = emptyBatting();
+  if (!line) return stats;
+  BATTING_FIELDS.forEach((key, i) => {
+    stats[key] = line[i] ?? 0;
+  });
+  return stats;
+}
+
+export function unpackPitching(line: number[] | undefined): PitchingStats {
+  const stats = emptyPitching();
+  if (!line) return stats;
+  PITCHING_FIELDS.forEach((key, i) => {
+    stats[key] = line[i] ?? 0;
+  });
+  return stats;
+}
