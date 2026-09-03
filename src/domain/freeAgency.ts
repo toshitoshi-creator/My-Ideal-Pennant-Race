@@ -483,7 +483,10 @@ function analyzeNeed(state: GameState, team: Team): TeamNeed {
   return {
     teamId: team.id,
     plan: state.teamPlans?.[team.id],
-    rosterShortage: Math.max(0, MINIMUM_ROSTER + 1 - roster.length),
+    // 人数不足は「最低人数を割っている」ときだけ。
+    // 1人ぶんの余裕まで不足に数えると、契約更改後に24人ちょうどになる
+    // 全球団が毎年「不足」となり、市場のFAが必ず全員決まってしまう。
+    rosterShortage: Math.max(0, MINIMUM_ROSTER - roster.length),
     depthRoom: Math.max(0, 28 - roster.length),
     fielderShortage: Math.max(0, 13 - fielders),
     pitcherShortage: Math.max(0, 9 - pitchers),
@@ -639,8 +642,28 @@ export function runCpuFAOffers(
     if (depthQuota <= 0) continue;
     // 全球団が同じ最安値の選手に殺到しないよう、球団ごとに順番を散らす。
     // 値段だけでなく、不足しているポジション・出場機会も見る。
+    // 控えを拾うのは「いま持っている最下位クラスより良い」ときだけにする。
+    // 誰でも拾っていると、市場に出た選手がほぼ全員決まってしまう。
+    const worstOwn = (isPitcher: boolean) => {
+      const own = state.players.filter(
+        (p) => p.teamId === team.id && p.isPitcher === isPitcher,
+      );
+      if (own.length === 0) return 0;
+      return Math.min(...own.map((p) => overallRating(p)));
+    };
+    const worstFielder = worstOwn(false);
+    const worstPitcher = worstOwn(true);
+
     const cheap = candidates
       .filter((c) => c.listing.askingSalary <= need.budget * 0.08)
+      .filter((c) => {
+        // 人数が足りない球団は、良し悪しにかかわらず補充する
+        if (need.rosterShortage > 0) return true;
+        const shortage = c.player.isPitcher ? need.pitcherShortage : need.fielderShortage;
+        if (shortage > 0) return true;
+        const floor = c.player.isPitcher ? worstPitcher : worstFielder;
+        return estimatedAbility(state, team.id, c.player) >= floor;
+      })
       .map((c) => {
         const shortage = c.player.isPitcher ? need.pitcherShortage : need.fielderShortage;
         const jitter = faRng(state, 'depth', team.id, c.listing.playerId).next();
