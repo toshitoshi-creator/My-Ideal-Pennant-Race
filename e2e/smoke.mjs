@@ -489,6 +489,57 @@ if (!finished.seasonFinished) fail('シーズンが終了しなかった');
 else ok(`シーズン終了（${finished.records.phoenix.wins}勝${finished.records.phoenix.losses}敗${finished.records.phoenix.draws}分）`);
 await shot('16-season-end');
 
+// ---- PHASE 3.9: ニュース ----
+{
+  const news = finished.news;
+  if (!news || !Array.isArray(news.items)) fail('ニュースが作られていない');
+  else if (news.items.length === 0) fail('シーズンを終えてもニュースが1件もない');
+  else ok(`ニュースが作られている（${news.items.length}件）`);
+
+  // IDが重複しない
+  const ids = news.items.map((n) => n.id);
+  if (new Set(ids).size !== ids.length) fail('ニュースIDが重複している');
+  else ok('ニュースIDに重複がない');
+
+  // 年と日付が食い違わない
+  if (news.items.some((n) => !n.date.startsWith(String(n.year)))) {
+    fail('ニュースの年と日付が食い違っている');
+  } else ok('ニュースの年と日付が一致している');
+
+  // 球団が実在する
+  const teamIds = new Set(finished.teams.map((t) => t.id));
+  if (news.items.some((n) => n.teamId && !teamIds.has(n.teamId))) {
+    fail('存在しない球団のニュースがある');
+  } else ok('ニュースの球団がすべて実在する');
+
+  // ホームに最新ニュースが出る
+  const homeNews = await page.locator('.screen').innerText();
+  if (!homeNews.includes('最新ニュース')) fail('ホームに最新ニュースがない');
+  else ok('ホームに最新ニュースが表示されている');
+
+  await page.getByRole('button', { name: 'すべて見る' }).click();
+  await page.waitForTimeout(250);
+  const newsText = await page.locator('.screen').innerText();
+  if (!newsText.includes('すべて')) fail('ニュース画面にフィルターがない');
+  else ok('ニュース画面が開ける');
+  await shot('50-news');
+
+  // カテゴリで絞り込める
+  await page.locator('.chip', { hasText: '試合' }).first().click();
+  await page.waitForTimeout(200);
+  ok('ニュースをカテゴリで絞り込める');
+
+  // 年度の物語（この時点ではまだシーズンを終えていないので案内が出る）
+  await page.locator('.tabs button', { hasText: '年度の物語' }).click();
+  await page.waitForTimeout(200);
+  const storyText = await page.locator('.screen').innerText();
+  if (!storyText.includes('年度の物語')) fail('年度の物語タブが開けない');
+  else ok('年度の物語タブが開ける');
+
+  await page.locator('.nav').getByText('ホーム').click();
+  await page.waitForTimeout(200);
+}
+
 // ---- PHASE 3.8: ポストシーズン ----
 {
   const ps = finished.postseason;
@@ -1091,6 +1142,23 @@ else ok('新シーズンでも試合を進められる');
     if (leagueChamps.length !== 2) fail(`リーグ優勝が${leagueChamps.length}球団いる`);
     else ok('リーグ優勝は各リーグ1球団');
   }
+
+  // PHASE 3.9: 年度の物語ができている
+  const stories = afterNew.news.stories;
+  if (!stories || stories.length !== 1) fail(`年度の物語が1件ではない（${stories?.length}）`);
+  else ok(`年度の物語ができている（${stories[0].year}年：${stories[0].headline}）`);
+  if (stories?.[0] && !stories[0].headline) fail('物語に見出しがない');
+  if (stories?.[0] && ps && stories[0].championTeamId !== ps.japanSeriesChampionTeamId) {
+    fail('物語の日本一が歴史と食い違う');
+  } else ok('物語の日本一が歴史と一致する');
+  // 引退ニュースの選手は実際に引退している
+  const retireNews = afterNew.news.items.filter((n) => n.category === 'RETIREMENT');
+  const badRetire = retireNews.filter((n) => {
+    const rec = afterNew.history.players[n.playerId];
+    return !rec || rec.retiredAt === null;
+  });
+  if (badRetire.length > 0) fail(`引退していない選手の引退ニュースがある（${badRetire.length}件）`);
+  else ok(`引退ニュースが実際の引退と一致する（${retireNews.length}件）`);
 
   // 引退した選手の成績が残っている
   const retired = Object.values(h.players).filter((p) => p.retiredAt !== null);
