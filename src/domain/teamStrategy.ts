@@ -137,10 +137,12 @@ export function strategyScores(
     (profile.youthPreference / 100) * 26 +
     holeRatio * 6;
 
+  // 堅実経営は「いま苦しいかどうか」より球団の性格で決まる。
+  // 財政状況だけで決めると、予算に余裕がある年は誰も選ばなくなってしまう。
   const budget =
-    clamp01((payrollRatio - 0.8) / 0.28) * 40 +
+    clamp01((payrollRatio - 0.72) / 0.3) * 34 +
     (1 - cashRoom) * 14 +
-    (profile.budgetDiscipline / 100) * 34 +
+    (profile.budgetDiscipline / 100) * 52 +
     clamp01((analysis.veteranRatio - 0.18) / 0.18) * 6;
 
   // どれにも強く寄らないときの受け皿

@@ -427,11 +427,16 @@ describe('PHASE3.1 シーズンとの接続', () => {
       expect(rookie.ext.conditionHistory.length).toBeGreaterThan(0);
     }
     // 新人も成長処理の対象になる
-    const before = new Map(rookies.map((p) => [p.id, p.batting.contact + p.batting.power]));
+    // 投手は打撃をほとんど伸ばさないので、その選手に関係する能力で見る
+    const abilitySum = (p: Player) =>
+      p.isPitcher
+        ? (p.pitching?.velocity ?? 0) + (p.pitching?.control ?? 0) + (p.pitching?.stamina ?? 0)
+        : p.batting.contact + p.batting.power;
+    const before = new Map(rookies.map((p) => [p.id, abilitySum(p)]));
     const next = cloneState(playSeason(s));
     startNextSeason(next);
     const grown = next.players.filter(
-      (p) => before.has(p.id) && p.batting.contact + p.batting.power !== before.get(p.id),
+      (p) => before.has(p.id) && abilitySum(p) !== before.get(p.id),
     );
     expect(grown.length).toBeGreaterThan(0);
   }, 60000);
