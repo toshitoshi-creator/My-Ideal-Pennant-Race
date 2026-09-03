@@ -602,3 +602,38 @@ table.data th.l {
   text-align: center;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
+
+/* ---- PHASE 3.7: 歴史・記録 ---- */
+.chip.on {
+  background: var(--accent);
+  color: #241a00;
+}
+/* 一覧の1行をボタンにする（選手・記録の詳細を開く） */
+.row-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.row-btn:last-child {
+  border-bottom: none;
+}
+.row-btn:active {
+  opacity: 0.7;
+}
+/* 表の中から詳細を開くリンク風のボタン */
+.linky {
+  color: var(--accent-2);
+  font-size: inherit;
+  text-align: left;
+  padding: 0;
+}
+/* シートの中の小見出し */
+h3.sec {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--text-dim);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}

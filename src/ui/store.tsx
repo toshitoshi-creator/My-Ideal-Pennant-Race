@@ -38,7 +38,15 @@ import type { ScoutCategory } from '../domain/types';
 import { Rng } from '../domain/rng';
 import { addDays } from '../domain/dates';
 
-export type ScreenId = 'home' | 'game' | 'players' | 'roster' | 'standings' | 'trade';
+export type ScreenId =
+  | 'home'
+  | 'game'
+  | 'players'
+  | 'roster'
+  | 'standings'
+  | 'trade'
+  | 'history'
+  | 'records';
 
 interface StoreValue {
   state: GameState | null;

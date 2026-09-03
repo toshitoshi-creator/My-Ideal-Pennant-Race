@@ -10,6 +10,8 @@ import { DraftScreen } from './screens/DraftScreen';
 import { ContractScreen } from './screens/ContractScreen';
 import { FAScreen } from './screens/FAScreen';
 import { TradeScreen } from './screens/TradeScreen';
+import { HistoryScreen } from './screens/HistoryScreen';
+import { RecordsScreen } from './screens/RecordsScreen';
 import { formatDateJa } from '../domain/dates';
 
 const NAV: Array<{ id: ScreenId; label: string; icon: string }> = [
@@ -89,6 +91,8 @@ function Root() {
       {screen === 'roster' && <RosterScreen />}
       {screen === 'standings' && <StandingsScreen />}
       {screen === 'trade' && <TradeScreen />}
+      {screen === 'history' && <HistoryScreen />}
+      {screen === 'records' && <RecordsScreen />}
 
       <nav className="nav">
         {NAV.map((item) => (

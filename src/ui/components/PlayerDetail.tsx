@@ -1,6 +1,7 @@
 import type { Player } from '../../domain/types';
 import { useGame } from '../store';
 import { AbilityBar, KeyValue, RankBadge, Sheet } from './common';
+import { PlayerHistoryView } from './PlayerHistoryView';
 import { POSITION_LABELS, aptitudeLabel, FIELD_POSITIONS } from '../../domain/positions';
 import { overallRating } from '../../domain/rating';
 import { velocityToScale } from '../../domain/rank';
@@ -29,6 +30,8 @@ import { contractStatus, formatSalary, marketValue } from '../../domain/contract
 export function PlayerDetail({ player, onClose }: { player: Player; onClose: () => void }) {
   const { state, mutate, showToast } = useGame();
   const stats = state.stats[player.id];
+  // PHASE 3.7: 年度別成績・通算成績・所属球団の歩み
+  const history = state.history.players[player.id];
   const team = state.teams.find((t) => t.id === player.teamId)!;
   const isPlayerTeam = player.teamId === state.playerTeamId;
   const lockDays = daysUntilChangeable(player, state.date);
@@ -175,6 +178,13 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
         <KeyValue label="得点 / 盗塁" value={`${stats.batting.runs} / ${stats.batting.steals}`} />
         <KeyValue label="三振 / 四球" value={`${stats.batting.strikeouts} / ${stats.batting.walks}`} />
       </div>
+
+      {history && history.seasons.length > 0 && (
+        <div className="card">
+          <h2>これまでの歩み</h2>
+          <PlayerHistoryView history={history} />
+        </div>
+      )}
 
       {isPlayerTeam && (
         <button

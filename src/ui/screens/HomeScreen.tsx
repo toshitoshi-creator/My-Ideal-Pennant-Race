@@ -14,6 +14,7 @@ import {
   remainingBudget,
   teamPayroll,
 } from '../../domain/contract';
+import { championshipCount } from '../../domain/history';
 import { isTradeOpen, pendingOffersForPlayer } from '../../domain/trade';
 import {
   faActivityLabel,
@@ -169,6 +170,32 @@ export function HomeScreen() {
         <button className="btn secondary" style={{ marginTop: 10 }} onClick={() => setScreen('trade')}>
           トレードを見る
         </button>
+      </div>
+
+      <div className="card">
+        <h2>歴史・記録</h2>
+        <div className="spread" style={{ padding: '4px 0' }}>
+          <span className="muted">記録しているシーズン</span>
+          <span style={{ fontWeight: 700 }}>{state.history.seasons.length}年</span>
+        </div>
+        <div className="spread" style={{ padding: '4px 0' }}>
+          <span className="muted">優勝回数</span>
+          <span style={{ fontWeight: 700 }}>
+            {championshipCount(state.history, state.playerTeamId)}回
+          </span>
+        </div>
+        <div className="spread" style={{ padding: '4px 0' }}>
+          <span className="muted">殿堂入り</span>
+          <span style={{ fontWeight: 700 }}>{state.history.hallOfFame.length}人</span>
+        </div>
+        <div className="btn-row" style={{ marginTop: 10 }}>
+          <button className="btn secondary" onClick={() => setScreen('history')}>
+            歴史
+          </button>
+          <button className="btn secondary" onClick={() => setScreen('records')}>
+            記録
+          </button>
+        </div>
       </div>
 
       {plan && (

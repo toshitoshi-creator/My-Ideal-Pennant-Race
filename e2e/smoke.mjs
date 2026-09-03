@@ -972,6 +972,122 @@ const afterNew = await readState();
 if (afterNew.records.phoenix.games !== 1) fail('新シーズンで試合ができない');
 else ok('新シーズンでも試合を進められる');
 
+// ---- PHASE 3.7: 歴史・記録 ----
+{
+  const h = afterNew.history;
+  if (!h || !Array.isArray(h.seasons)) fail('歴史データが作られていない');
+  else if (h.seasons.length !== 1) fail(`確定シーズンが1年ではない（${h.seasons?.length}）`);
+  else ok(`前年が歴史に確定した（${h.seasons[0].year}年）`);
+
+  const season = h.seasons[0];
+  if (!season.teams || season.teams.length !== 12) fail('球団の年度成績が12球団ぶんない');
+  else ok('12球団の順位・成績が記録されている');
+  const champions = season.leagues.map((l) => l.championTeamId).filter(Boolean);
+  if (champions.length !== 2) fail('優勝球団が2リーグぶん記録されていない');
+  else ok(`優勝球団が記録されている（${champions.join(' / ')}）`);
+  if (!season.leagues.every((l) => l.mvpPlayerId)) fail('MVPが決まっていない');
+  else ok('MVP・タイトルが記録されている');
+
+  // 通算成績は年度別の合計と一致する
+  const BAT = 12;
+  let mismatched = 0;
+  let withStats = 0;
+  for (const player of Object.values(h.players)) {
+    const total = new Array(BAT).fill(0);
+    for (const entry of player.seasons) {
+      if (!entry.b) continue;
+      for (let i = 0; i < BAT; i++) total[i] += entry.b[i] ?? 0;
+    }
+    if (total[3] > 0) withStats += 1;
+    if (total[3] !== player.career.batting.hits) mismatched += 1;
+  }
+  if (mismatched > 0) fail(`通算成績が年度別の合計と一致しない（${mismatched}人）`);
+  else ok(`通算成績が年度別の合計と一致する（${withStats}人に成績あり）`);
+
+  // 同じ年・同じ球団の行が重複しない
+  let duplicated = 0;
+  for (const player of Object.values(h.players)) {
+    const seen = new Set();
+    for (const entry of player.seasons) {
+      const key = `${entry.year}:${entry.teamId}`;
+      if (seen.has(key)) duplicated += 1;
+      seen.add(key);
+    }
+  }
+  if (duplicated > 0) fail(`年度別成績が重複している（${duplicated}件）`);
+  else ok('年度別成績に重複がない');
+
+  // 引退した選手の成績が残っている
+  const retired = Object.values(h.players).filter((p) => p.retiredAt !== null);
+  if (retired.length === 0) fail('引退した選手の歴史が残っていない');
+  else ok(`引退した選手の歴史が残っている（${retired.length}人）`);
+}
+
+// 歴史画面・記録画面
+await page.getByRole('button', { name: /ホーム/ }).last().click();
+const homeHistory = await page.locator('.screen').innerText();
+if (!homeHistory.includes('歴史・記録')) fail('ホームに歴史・記録がない');
+else ok('ホームから歴史・記録に入れる');
+
+await page.getByRole('button', { name: '歴史', exact: true }).click();
+await page.waitForTimeout(200);
+const timelineText = await page.locator('.screen').innerText();
+if (!/\d{4}年/.test(timelineText)) fail('年表に年が表示されていない');
+else ok('年表に過去シーズンが表示されている');
+if (!timelineText.includes('MVP')) fail('年表にMVPが表示されていない');
+else ok('年表にMVP・タイトルが表示されている');
+await shot('30-history');
+
+await page.locator('.tabs button', { hasText: '球団の歩み' }).click();
+await page.waitForTimeout(200);
+const walkText = await page.locator('.screen').innerText();
+if (!walkText.includes('優勝')) fail('球団の歩みに優勝回数がない');
+else ok('球団の歩みに年度別成績と優勝回数が出る');
+
+await page.locator('.tabs button', { hasText: '殿堂' }).click();
+await page.waitForTimeout(200);
+const hofText = await page.locator('.screen').innerText();
+if (!hofText.includes('殿堂')) fail('殿堂の見出しがない');
+else ok('殿堂の画面が開ける');
+if (!/引退/.test(hofText)) fail('引退した選手の一覧がない');
+else ok('引退した選手を一覧から選べる');
+// 引退選手の詳細（当時の成績。現在の能力は出さない）
+const retiredRow = page.locator('.row-btn').first();
+if (await retiredRow.count()) {
+  await retiredRow.click();
+  await page.locator('.sheet').waitFor();
+  const sheet = await page.locator('.sheet').innerText();
+  for (const label of ['所属', '通算成績', '年度別成績']) {
+    if (!sheet.includes(label)) fail(`引退選手の詳細に「${label}」がない`);
+  }
+  ok('引退選手の詳細に所属・通算・年度別成績が出る');
+  if (/今日の実効能力|潜在能力|成長タイプ/.test(sheet)) fail('歴史画面に現在の能力値が出ている');
+  else ok('歴史画面では能力値ではなく成績を見せている');
+  await shot('31-history-player');
+  await page.locator('.sheet').getByRole('button', { name: '閉じる' }).click();
+}
+
+await page.getByRole('button', { name: /ホーム/ }).last().click();
+await page.getByRole('button', { name: '記録', exact: true }).click();
+await page.waitForTimeout(200);
+const recordsText = await page.locator('.screen').innerText();
+for (const label of ['本塁打', '打率', '勝利']) {
+  if (!recordsText.includes(label)) fail(`記録画面に「${label}」がない`);
+}
+ok('リーグ記録が表示されている');
+await page.locator('.tabs button', { hasText: '球団' }).click();
+await page.waitForTimeout(200);
+if (!(await page.locator('.screen').innerText()).includes('シーズン記録')) {
+  fail('球団記録が表示されていない');
+} else ok('球団記録が表示されている');
+await page.locator('.tabs button', { hasText: '通算' }).click();
+await page.waitForTimeout(200);
+if (!(await page.locator('.screen').innerText()).includes('通算')) {
+  fail('通算記録が表示されていない');
+} else ok('通算記録が表示されている');
+await shot('32-records');
+await page.getByRole('button', { name: /ホーム/ }).last().click();
+
 // リロード（アプリ再起動）
 const snapshot = await readState();
 await page.reload();
