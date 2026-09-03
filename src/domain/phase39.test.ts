@@ -324,7 +324,18 @@ describe('PHASE3.9 試合の判定', () => {
   });
 
   it('リードし続けた試合は逆転差0', () => {
-    expect(comebackMargin(makeResult(), 'phoenix')).toBe(0);
+    // 1回に先制してそのまま押し切った試合
+    const result = makeResult({
+      home: { teamId: 'phoenix', runs: 3, hits: 8, errors: 0, inningRuns: [3, 0, 0, 0, 0, 0, 0, 0, 0] },
+      away: { teamId: 'bluewave', runs: 1, hits: 5, errors: 0, inningRuns: [0, 0, 1, 0, 0, 0, 0, 0, 0] },
+      winnerTeamId: 'phoenix',
+    });
+    expect(comebackMargin(result, 'phoenix')).toBe(0);
+  });
+
+  it('先に取られてから勝てば逆転差がつく', () => {
+    // 既定の試合は後攻が1点先に取られてから逆転している
+    expect(comebackMargin(makeResult(), 'phoenix')).toBe(1);
   });
 
   it('連勝を数えられる', () => {
