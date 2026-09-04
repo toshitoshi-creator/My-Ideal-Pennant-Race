@@ -625,6 +625,9 @@ export function runCpuFacilityInvestment(state: GameState): void {
 /** 球団方針を CPU の戦略から決め直す（ユーザー球団は自分で決めたものを保つ） */
 export function syncCpuDirections(state: GameState): void {
   ensureClubs(state);
+  // 「戦力が薄い」はリーグの中での相対で見る（絶対値だとどの年も当てはまらない）
+  const strengths = state.teams.map((t) => clubRating(state, t.id).strength);
+  const mean = strengths.reduce((a, b) => a + b, 0) / Math.max(1, strengths.length);
   for (const team of state.teams) {
     if (team.id === state.playerTeamId) continue;
     const plan = state.teamPlans?.[team.id];
@@ -634,8 +637,8 @@ export function syncCpuDirections(state: GameState): void {
       plan.strategy === 'WIN_NOW'
         ? 'WIN_NOW'
         : plan.strategy === 'YOUTH'
-          ? // 戦力が薄い球団は「再建」、そうでなければ「若手育成」
-            (clubRating(state, team.id).strength < 40 ? 'REBUILD' : 'DEVELOP')
+          ? // リーグ平均より目に見えて戦力が薄い球団は「再建」、そうでなければ「若手育成」
+            (clubRating(state, team.id).strength < mean - 8 ? 'REBUILD' : 'DEVELOP')
           : plan.strategy === 'BUDGET'
             ? 'THRIFTY'
             : 'BALANCED';
