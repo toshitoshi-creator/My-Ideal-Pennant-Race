@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../store';
+import { CountUp, RevealRows } from '../components/Reveal';
 import type { FAMarketPlayer, Player } from '../../domain/types';
 import { POSITION_LABELS, POSITION_SHORT } from '../../domain/positions';
 import { average, formatAverage, formatEra, formatInnings } from '../../domain/stats';
@@ -214,6 +215,7 @@ function ResultsCard({ onFinish }: { onFinish: () => void }) {
   const fa = state.fa!;
   const mine = fa.results.filter((r) => r.teamId === state.playerTeamId);
   const others = fa.results.filter((r) => r.teamId !== state.playerTeamId);
+  const team = state.teams.find((t) => t.id === state.playerTeamId)!;
 
   return (
     <>
@@ -223,6 +225,30 @@ function ResultsCard({ onFinish }: { onFinish: () => void }) {
           契約が決まらなかった選手（{fa.unsigned}人）は来オフも市場に残ります。
         </div>
       </div>
+
+      {/* PHASE 4.1: 選手 → 契約内容 → 加入 の順に見せる */}
+      {mine.length > 0 && (
+        <div className="card" style={{ borderColor: 'var(--good)' }}>
+          <h2>獲得した選手</h2>
+          {mine.map((r) => (
+            <div key={r.playerId} style={{ marginBottom: 10 }}>
+              <RevealRows
+                animationKey={`fa:${r.playerId}`}
+                intervalMs={260}
+                rows={[
+                  { label: '選手', value: r.name },
+                  {
+                    label: '年俸',
+                    value: <CountUp value={r.salary} format={(v) => formatSalary(v)} />,
+                  },
+                  { label: '契約年数', value: `${r.years}年` },
+                  { label: '', value: `${team.name} に加入`, emphasis: true },
+                ]}
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="card">
         <h2>あなたの獲得（{mine.length}人）</h2>

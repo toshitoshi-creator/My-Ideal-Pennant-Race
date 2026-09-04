@@ -5,6 +5,7 @@ import { formatDateJa } from '../../domain/dates';
 import { nextGameForTeam } from '../../domain/schedule';
 import { nextStarterId } from '../../domain/setup';
 import { Sheet } from '../components/common';
+import { useCountUp, usePlayback } from '../anim';
 
 export function GameScreen() {
   const { state, lastResult, playNextGame } = useGame();
@@ -171,17 +172,48 @@ export function GameResultView({
   const winPitcher = state.players.find((p) => p.id === result.winningPitcherId);
   const losePitcher = state.players.find((p) => p.id === result.losingPitcherId);
 
+  /*
+   * PHASE 4.1: 試合の結果を回ごとに再生する。
+   * 試合そのものは engine が一括で計算済みで、ここでやっているのは
+   * 「すでに決まっている結果を順番に見せる」だけ。
+   * 途中でスキップしても、リロードしても、結果は 1 ミリも変わらない。
+   */
+  const innings = Math.max(result.away.inningRuns.length, result.home.inningRuns.length);
+  const play = usePlayback(innings + 1, 190, true);
+  // step 回まで進んだ時点の得点（表示専用）
+  const shownInnings = Math.min(innings, play.step);
+  const partial = (runs: number[]) =>
+    runs.slice(0, shownInnings).reduce((a, b) => a + b, 0);
+  const awayRuns = play.done ? result.away.runs : partial(result.away.inningRuns);
+  const homeRuns = play.done ? result.home.runs : partial(result.home.inningRuns);
+  const awayShown = useCountUp(awayRuns, 240);
+  const homeShown = useCountUp(homeRuns, 240);
+
   return (
     <>
       <div className="big-score">
         <span className="t">{away.shortName}</span>
         <span className="s">
-          {result.away.runs} - {result.home.runs}
+          {awayShown} - {homeShown}
         </span>
         <span className="t">{home.shortName}</span>
       </div>
-      <div style={{ textAlign: 'center', marginBottom: 10, fontWeight: 700 }}>
-        {winner ? `勝利球団：${winner.name}` : '引き分け'}
+      <div className="spread" style={{ marginBottom: 10 }}>
+        <span className="muted" style={{ fontSize: 12 }}>
+          {play.done ? '試合終了' : `${shownInnings}回まで`}
+        </span>
+        {!play.done && (
+          <button className="skip-btn" onClick={play.skip}>
+            スキップ
+          </button>
+        )}
+      </div>
+      <div
+        style={{ textAlign: 'center', marginBottom: 10, fontWeight: 700, minHeight: 24 }}
+      >
+        {play.done && (
+          <span className="pop-in">{winner ? `勝利球団：${winner.name}` : '引き分け'}</span>
+        )}
       </div>
       <div className="scroll-x">
         <table className="linescore">
@@ -200,32 +232,34 @@ export function GameResultView({
             <tr>
               <td className="team">{away.shortName}</td>
               {result.away.inningRuns.map((r, i) => (
-                <td key={i}>{r}</td>
+                <td key={i}>{i < shownInnings ? r : ''}</td>
               ))}
-              <td className="total">{result.away.runs}</td>
-              <td>{result.away.hits}</td>
-              <td>{result.away.errors}</td>
+              <td className="total">{awayRuns}</td>
+              <td>{play.done ? result.away.hits : ''}</td>
+              <td>{play.done ? result.away.errors : ''}</td>
             </tr>
             <tr>
               <td className="team">{home.shortName}</td>
               {result.home.inningRuns.map((r, i) => (
                 <td key={i}>
-                  {i === result.innings - 1 &&
-                  result.home.inningRuns.length === result.innings &&
-                  r === 0 &&
-                  result.home.runs > result.away.runs
-                    ? 'X'
-                    : r}
+                  {i >= shownInnings
+                    ? ''
+                    : i === result.innings - 1 &&
+                        result.home.inningRuns.length === result.innings &&
+                        r === 0 &&
+                        result.home.runs > result.away.runs
+                      ? 'X'
+                      : r}
                 </td>
               ))}
-              <td className="total">{result.home.runs}</td>
-              <td>{result.home.hits}</td>
-              <td>{result.home.errors}</td>
+              <td className="total">{homeRuns}</td>
+              <td>{play.done ? result.home.hits : ''}</td>
+              <td>{play.done ? result.home.errors : ''}</td>
             </tr>
           </tbody>
         </table>
       </div>
-      {(winPitcher || losePitcher) && (
+      {play.done && (winPitcher || losePitcher) && (
         <div className="muted" style={{ marginTop: 8 }}>
           勝：{winPitcher?.name ?? '－'} ／ 敗：{losePitcher?.name ?? '－'}
         </div>

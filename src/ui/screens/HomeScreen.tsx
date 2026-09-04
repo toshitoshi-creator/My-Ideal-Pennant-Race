@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useGame, usePlayerMap } from '../store';
+import { useFirstVisit, useReducedMotion } from '../anim';
 import { formatDateFull, formatDateJa } from '../../domain/dates';
 import { nextGameForTeam } from '../../domain/schedule';
 import { nextStarterId } from '../../domain/setup';
@@ -39,6 +40,9 @@ export function HomeScreen() {
   const [showReport, setShowReport] = useState(false);
   const reportOpen = showReport || pendingReport;
   const byId = usePlayerMap();
+  // PHASE 4.1: 初回だけカードを上から順に出す。戻ってきたときは即表示
+  const reduced = useReducedMotion();
+  const homeAnim = useFirstVisit('home') && !reduced;
   const team = state.teams.find((t) => t.id === state.playerTeamId)!;
   const league = state.leagues.find((l) => l.id === team.leagueId)!;
   const record = state.records[team.id];
@@ -75,7 +79,7 @@ export function HomeScreen() {
   const rank = rankOfTeam(state, team.id);
 
   return (
-    <div className="screen">
+    <div className={`screen${homeAnim ? ' home-stagger' : ''}`}>
       <div className="card" style={{ borderLeft: `5px solid ${team.color}` }}>
         <div className="spread">
           <div>
@@ -417,8 +421,8 @@ function LatestNews() {
         <h2 style={{ margin: 0 }}>最新ニュース</h2>
         {unread > 0 && <span className="chip on">未読 {unread}</span>}
       </div>
-      {items.map((item) => (
-        <NewsCard key={item.id} item={item} />
+      {items.map((item, i) => (
+        <NewsCard key={item.id} item={item} index={i} />
       ))}
       <button className="btn secondary" style={{ marginTop: 10 }} onClick={() => setScreen('news')}>
         すべて見る

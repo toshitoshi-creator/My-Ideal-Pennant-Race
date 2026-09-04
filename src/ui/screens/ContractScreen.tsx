@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../store';
+import { CountUp, RevealRows } from '../components/Reveal';
 import type { Player } from '../../domain/types';
 import { POSITION_LABELS, POSITION_SHORT } from '../../domain/positions';
 import { overallRating } from '../../domain/rating';
@@ -231,10 +232,17 @@ function NegotiationSheet({ player, onClose }: { player: Player; onClose: () => 
           </div>
           <RankBadge value={overallRating(player)} />
         </div>
+        {/* PHASE 4.1: 年俸 → 市場評価 → 選手の希望 の順に見せる（スキップ可） */}
         <div style={{ marginTop: 10 }}>
-          <Row label="現在の年俸" value={formatSalary(current)} />
-          <Row label="市場価値" value={formatSalary(market)} />
-          <Row label="選手の希望" value={formatSalary(expected)} />
+          <RevealRows
+            animationKey={`contract:${player.id}`}
+            intervalMs={240}
+            rows={[
+              { label: '現在の年俸', value: formatSalary(current) },
+              { label: '市場価値', value: formatSalary(market) },
+              { label: '選手の希望', value: formatSalary(expected) },
+            ]}
+          />
         </div>
       </div>
 
@@ -283,7 +291,12 @@ function NegotiationSheet({ player, onClose }: { player: Player; onClose: () => 
           </span>
         </div>
 
-        <Row label="総額" value={formatMoney(salary * years)} />
+        <div className="spread" style={{ padding: '4px 0' }}>
+          <span className="muted">総額</span>
+          <span style={{ fontWeight: 700 }}>
+            <CountUp value={salary * years} format={(v) => formatMoney(v)} durationMs={280} />
+          </span>
+        </div>
         <div
           style={{
             marginTop: 10,

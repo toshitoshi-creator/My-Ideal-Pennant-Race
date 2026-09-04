@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useGame } from '../store';
+import { TeamAnalysisPanel } from '../components/TeamAnalysisPanel';
 import { Tabs } from '../components/common';
 import {
   DIRECTIONS,
@@ -26,7 +27,7 @@ import { formatSalary } from '../../domain/contract';
 import { overallRating } from '../../domain/rating';
 import type { ClubDirection, FacilityKind, UsageRole } from '../../domain/types';
 
-type Tab = 'overview' | 'facility' | 'usage';
+type Tab = 'overview' | 'analysis' | 'facility' | 'usage';
 
 /** 球団経営の画面（PHASE 4.0） */
 export function ClubScreen() {
@@ -40,6 +41,7 @@ export function ClubScreen() {
       <Tabs
         tabs={[
           { id: 'overview', label: '球団' },
+          { id: 'analysis', label: '分析' },
           { id: 'facility', label: '施設' },
           { id: 'usage', label: '起用' },
         ]}
@@ -48,6 +50,7 @@ export function ClubScreen() {
       />
       <div className="screen">
         {tab === 'overview' && <Overview />}
+        {tab === 'analysis' && <TeamAnalysisPanel />}
         {tab === 'facility' && <Facilities />}
         {tab === 'usage' && <Usage />}
       </div>

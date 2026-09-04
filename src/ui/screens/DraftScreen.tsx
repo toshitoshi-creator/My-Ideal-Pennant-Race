@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useGame } from '../store';
 import type { DraftProspect, ScoutCategory, ScoutReport } from '../../domain/types';
 import { availableProspects, currentPick } from '../../domain/draft';
+import { RevealRows } from '../components/Reveal';
 import { POSITION_LABELS, POSITION_SHORT } from '../../domain/positions';
 import {
   SCOUT_CATEGORIES,
@@ -37,6 +38,10 @@ export function DraftScreen() {
   const team = state.teams.find((t) => t.id === state.playerTeamId)!;
   const scouting = state.scouting.teams[state.playerTeamId];
   const myPicks = draft.picks.filter((p) => p.teamId === state.playerTeamId);
+  const latestPick = myPicks.length > 0 ? myPicks[myPicks.length - 1] : null;
+  const latestProspect = latestPick
+    ? (draft.prospects.find((p) => p.id === latestPick.prospectId) ?? null)
+    : null;
 
   // 表示用の調査結果（未調査でも初期状態のレポートを作る）
   const reports = useMemo(() => {
@@ -135,6 +140,36 @@ export function DraftScreen() {
                 </button>
               </>
             )}
+          </div>
+        )}
+
+        {/* PHASE 4.1: 直近の指名を球団→巡目→選手→評価の順に見せる（スキップ可） */}
+        {latestPick && latestProspect && (
+          <div className="card" style={{ borderColor: 'var(--accent)' }}>
+            <h2>指名</h2>
+            <RevealRows
+              animationKey={`${latestPick.round}-${latestPick.pick}-${latestPick.prospectId}`}
+              intervalMs={240}
+              rows={[
+                { label: '球団', value: team.name },
+                { label: '指名順', value: `${latestPick.round}巡 ${latestPick.pick}番目` },
+                { label: '選手', value: latestProspect.player.name },
+                {
+                  label: 'ポジション',
+                  value: `${POSITION_LABELS[latestProspect.player.mainPosition]} / ${latestProspect.player.age}歳`,
+                },
+                {
+                  label: 'スカウト評価',
+                  value: (() => {
+                    // 調査済みの推定だけを見せる。真の潜在能力は使わない
+                    const report = scouting?.reports[latestProspect.id];
+                    if (!report) return '未調査';
+                    return `現在 ${report.estimate.abilityLow}〜${report.estimate.abilityHigh} / 将来 ${report.estimate.potential ?? '未調査'}`;
+                  })(),
+                },
+                { label: '', value: '指名決定', emphasis: true },
+              ]}
+            />
           </div>
         )}
 

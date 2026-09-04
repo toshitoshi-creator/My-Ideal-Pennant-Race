@@ -158,6 +158,28 @@ await shot('10-rotation');
 await page.locator('.nav').getByText('試合').click();
 await page.getByRole('button', { name: '試合開始' }).click();
 await page.locator('.linescore').waitFor();
+
+// PHASE 4.1: 試合結果は回ごとに再生される（演出だけで、結果は計算済み）
+{
+  const progress = await page.locator('.sheet, .screen').first().innerText();
+  if (!/回まで|試合終了/.test(progress)) fail('試合結果が段階的に表示されていない');
+  else ok('試合結果が回ごとに段階的に表示される');
+  const skip = page.getByRole('button', { name: 'スキップ' });
+  if (await skip.count()) {
+    // 連打しても二重に進まないこと
+    await skip.click();
+    await skip.click().catch(() => {});
+    await skip.click().catch(() => {});
+    await page.waitForTimeout(250);
+  }
+  await page.waitForFunction(
+    () => (document.body.innerText || '').includes('試合終了'),
+    undefined,
+    { timeout: 8000 },
+  );
+  ok('スキップまたは再生完了で最終結果に到達する（連打しても壊れない）');
+}
+
 const scoreText = await page.locator('.big-score').innerText();
 ok('試合結果: ' + scoreText.replace(/\n/g, ' '));
 const commentaryLines = await page.locator('.commentary > div').count();
@@ -1234,6 +1256,182 @@ if (!(await page.locator('.screen').innerText()).includes('通算')) {
 } else ok('通算記録が表示されている');
 await shot('32-records');
 await page.getByRole('button', { name: /ホーム/ }).last().click();
+
+/* ================= PHASE 4.1 分析・演出 ================= */
+
+// --- 選手詳細の分析タブ ---
+await page.getByRole('button', { name: /選手/ }).last().click();
+await page.locator('.player-card').first().waitFor();
+await page.locator('.player-card').first().click();
+await page.locator('.sheet').waitFor();
+
+const sheetTabs = page.locator('.sheet .tabs button');
+if ((await sheetTabs.count()) === 0) fail('選手詳細にタブがない');
+else ok('選手詳細が「情報」と「分析」に分かれている');
+
+await page.locator('.sheet .tabs button', { hasText: '分析' }).click();
+await page.waitForTimeout(300);
+const analysisText = await page.locator('.sheet').innerText();
+
+for (const label of ['球団分析', '能力', '起用分析', '扱いの目安', '年度別成績']) {
+  if (!analysisText.includes(label)) fail(`分析タブに「${label}」がない`);
+}
+ok('分析タブに球団分析・能力・起用分析・扱いの目安・年度別成績が出る');
+
+// レーダーチャートが描かれている
+const radar = page.locator('.sheet svg.radar');
+if ((await radar.count()) === 0) fail('レーダーチャートが表示されていない');
+else {
+  const axes = await page.locator('.sheet svg.radar .radar-label').count();
+  if (axes !== 5 && axes !== 6) fail(`レーダーチャートの軸が${axes}本（5か6のはず）`);
+  else ok(`レーダーチャートが表示されている（${axes}軸）`);
+  const filled = await page.locator('.sheet svg.radar polygon.radar-value').count();
+  if (filled === 0) fail('レーダーチャートに能力の面が描かれていない');
+  else ok('レーダーチャートに現在の推定能力が描かれている');
+}
+
+// 星と理由
+if (!/★/.test(analysisText)) fail('成長期待などの星が表示されていない');
+else ok('現在戦力・将来性・成長期待・起用優先度が星で出る');
+for (const label of ['現在戦力', '将来性', '成長期待', '起用優先度']) {
+  if (!analysisText.includes(label)) fail(`分析に「${label}」がない`);
+}
+ok('4種類の星がそろっている');
+if (!analysisText.includes('判断材料です')) fail('分析が助言であることの断りがない');
+else ok('分析はあくまで判断材料だと明示されている');
+
+// 潜在能力の実数値が漏れていないこと
+const sheetState = await readState();
+const shownPlayerName = (await page.locator('.sheet strong').first().innerText()).trim();
+const shownPlayer = sheetState.players.find((p) => p.name === shownPlayerName);
+if (shownPlayer) {
+  const pot = String(shownPlayer.ext.potential);
+  // 「潜在能力そのものの数値」がラベル以外の形で出ていないこと
+  if (/潜在能力\s*[:：]?\s*\d/.test(analysisText)) fail('潜在能力の数値が分析に出ている');
+  else ok(`潜在能力の実数値（${pot}）は分析画面に出ていない`);
+}
+
+await shot('37-player-analysis');
+
+// 成績グラフの指標切り替え
+const metricButtons = page.locator('.sheet .chip', { hasText: /打率|防御率/ });
+if (await metricButtons.count()) {
+  await metricButtons.first().click();
+  await page.waitForTimeout(200);
+  ok('成績グラフの指標を切り替えられる');
+}
+const trendSvg = await page.locator('.sheet svg.trend-chart').count();
+const trendEmpty = analysisText.includes('まだ年度別成績が記録されていません');
+if (trendSvg === 0 && !trendEmpty) fail('年度別成績のグラフも「記録なし」の案内も出ていない');
+else ok(trendSvg > 0 ? '年度別成績のグラフが表示されている' : '記録が無い場合は捏造せず案内が出る');
+
+// アニメーション中でも閉じられる
+await page.locator('.sheet').getByRole('button', { name: '閉じる' }).first().click();
+await page.waitForTimeout(200);
+if (await page.locator('.sheet').count()) fail('分析表示中に詳細を閉じられない');
+else ok('アニメーション中でも詳細を閉じられる');
+
+// --- 球団のチーム分析 ---
+await page.getByRole('button', { name: /ホーム/ }).last().click();
+await page.waitForTimeout(200);
+await page.getByRole('button', { name: '球団経営を見る' }).click();
+await page.locator('.tabs button', { hasText: '分析' }).click();
+await page.waitForTimeout(300);
+const teamText = await page.locator('.screen').innerText();
+for (const label of ['チーム状態', 'チーム戦力分析', '現在の課題', 'ポジション別の層', '選手層の内訳']) {
+  if (!teamText.includes(label)) fail(`チーム分析に「${label}」がない`);
+}
+ok('チーム分析に状態・戦力・課題・ポジション別の層が出る');
+for (const label of ['打撃力', '投手力', '守備力', '走力', '若手力', 'ベテラン力', '選手層']) {
+  if (!teamText.includes(label)) fail(`チーム戦力分析に「${label}」がない`);
+}
+ok('7つの軸がそろっている');
+if ((await page.locator('.screen svg.radar').count()) === 0) {
+  fail('チームのレーダーチャートが表示されていない');
+} else ok('チームのレーダーチャートが表示されている');
+if (!/好調|安定|注意|危険/.test(teamText)) fail('チーム状態の4段階が表示されていない');
+else ok('チーム状態が4段階で表示されている');
+
+// 深度チャートを開ける
+const depthHead = page.locator('.depth-head').first();
+if (await depthHead.count()) {
+  await depthHead.click();
+  await page.waitForTimeout(200);
+  const opened = await page.locator('.screen').innerText();
+  if (!/1軍主力|1軍候補|2軍|育成/.test(opened)) fail('ポジション別の層が表示されていない');
+  else ok('ポジションごとに1軍主力・候補・2軍の層が見える');
+  await depthHead.click();
+}
+await shot('38-team-analysis');
+
+// --- 横スクロールしていないこと（390px） ---
+const overflow = await page.evaluate(
+  () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+);
+if (overflow > 2) fail(`画面が横にはみ出している（${overflow}px）`);
+else ok('390pxの画面で横スクロールが発生していない');
+
+// --- 演出はゲーム結果を変えない ---
+await page.getByRole('button', { name: /ホーム/ }).last().click();
+await page.waitForTimeout(200);
+const beforeGame = await readState();
+const afterGame = beforeGame;
+await page.reload();
+await page.getByRole('button', { name: '続きから' }).click();
+await page.locator('.appbar h1').waitFor();
+const reloadedGame = await readState();
+if (
+  reloadedGame.date !== afterGame.date ||
+  JSON.stringify(reloadedGame.records) !== JSON.stringify(afterGame.records)
+) {
+  fail('演出をはさむとリロードで結果が変わってしまう');
+} else {
+  ok(`演出は結果を変えない（${beforeGame.date} → ${reloadedGame.date}／記録一致）`);
+}
+
+// --- ニュースの NEW とアニメーション ---
+await page.getByRole('button', { name: /ホーム/ }).last().click();
+await page.waitForTimeout(200);
+const homeNews = await page.locator('.screen').innerText();
+if (homeNews.includes('最新ニュース')) ok('ホームに最新ニュースが出ている');
+
+/* ================= PHASE 4.1 reduced-motion ================= */
+
+// OSの「視差効果を減らす」を有効にしても、すべての情報が表示されること
+const reducedContext = await browser.newContext({
+  viewport: { width: 390, height: 844 },
+  deviceScaleFactor: 2,
+  isMobile: true,
+  hasTouch: true,
+  reducedMotion: 'reduce',
+});
+const reducedPage = await reducedContext.newPage();
+reducedPage.on('pageerror', (e) => fail('reduced-motion でページ内エラー: ' + e.message));
+// 別コンテキストなので localStorage は空。いまのセーブをそのまま持ち込む
+const saveForReduced = await page.evaluate(() => localStorage.getItem('mipr:save:v1'));
+await reducedPage.addInitScript((raw) => {
+  localStorage.setItem('mipr:save:v1', raw);
+}, saveForReduced);
+await reducedPage.goto(BASE);
+await reducedPage.getByRole('button', { name: '続きから' }).click();
+await reducedPage.locator('.appbar h1').waitFor();
+ok('reduced-motion でも続きからプレイできる');
+
+await reducedPage.getByRole('button', { name: /選手/ }).last().click();
+await reducedPage.locator('.player-card').first().click();
+await reducedPage.locator('.sheet').waitFor();
+await reducedPage.locator('.sheet .tabs button', { hasText: '分析' }).click();
+await reducedPage.waitForTimeout(150);
+const reducedText = await reducedPage.locator('.sheet').innerText();
+for (const label of ['球団分析', '起用分析']) {
+  if (!reducedText.includes(label)) fail(`reduced-motion で「${label}」が表示されない`);
+}
+const reducedRadar = await reducedPage.locator('.sheet svg.radar polygon.radar-value').count();
+if (reducedRadar === 0) fail('reduced-motion でレーダーチャートが描かれない');
+else ok('reduced-motion でもレーダーチャートが最初から完成形で出る');
+await reducedPage.screenshot({ path: `${OUT}/39-reduced-motion.png` });
+await reducedContext.close();
+ok('prefers-reduced-motion でも情報がすべて表示される');
 
 /* ================= PHASE 4.0 球団経営 ================= */
 

@@ -81,8 +81,8 @@ export function NewsScreen() {
               {items.length === 0 ? (
                 <p className="muted">まだニュースはありません。</p>
               ) : (
-                items.map((item) => (
-                  <NewsCard key={item.id} item={item} onSelectPlayer={openPlayer} />
+                items.map((item, i) => (
+                  <NewsCard key={item.id} item={item} index={i} onSelectPlayer={openPlayer} />
                 ))
               )}
             </div>

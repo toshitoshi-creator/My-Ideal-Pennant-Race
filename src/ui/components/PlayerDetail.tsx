@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import type { Player } from '../../domain/types';
 import { useGame } from '../store';
-import { AbilityBar, KeyValue, RankBadge, Sheet } from './common';
+import { AbilityBar, KeyValue, RankBadge, Sheet, Tabs } from './common';
+import { PlayerAnalysisPanel } from './PlayerAnalysisPanel';
 import { PlayerHistoryView } from './PlayerHistoryView';
 import { POSITION_LABELS, aptitudeLabel, FIELD_POSITIONS } from '../../domain/positions';
 import { overallRating } from '../../domain/rating';
@@ -27,8 +29,12 @@ import { specialAbilityDef } from '../../domain/specialAbilities';
 import { effectiveBreakdown } from '../../domain/effective';
 import { contractStatus, formatSalary, marketValue } from '../../domain/contract';
 
+type DetailTab = 'info' | 'analysis';
+
 export function PlayerDetail({ player, onClose }: { player: Player; onClose: () => void }) {
   const { state, mutate, showToast } = useGame();
+  // PHASE 4.1: 情報量が増えたので「情報」と「分析」に分ける
+  const [tab, setTab] = useState<DetailTab>('info');
   const stats = state.stats[player.id];
   // PHASE 3.7: 年度別成績・通算成績・所属球団の歩み
   const history = state.history.players[player.id];
@@ -83,6 +89,19 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
         </div>
       </div>
 
+      <Tabs
+        tabs={[
+          { id: 'info' as DetailTab, label: '情報' },
+          { id: 'analysis' as DetailTab, label: '分析' },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
+
+      {tab === 'analysis' && <PlayerAnalysisPanel player={player} />}
+
+      {tab === 'info' && (
+      <>
       <div className="card">
         <h2>コンディション</h2>
         <StatusPanel player={player} teamMorale={state.teamMorale[player.teamId] ?? 50} />
@@ -184,6 +203,8 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
           <h2>これまでの歩み</h2>
           <PlayerHistoryView history={history} />
         </div>
+      )}
+      </>
       )}
 
       {isPlayerTeam && (

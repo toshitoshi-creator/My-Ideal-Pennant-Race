@@ -36,6 +36,10 @@ export function PostseasonScreen() {
   const myTeam = state.playerTeamId;
   const next = currentSeries(state);
   const champion = postseason.championTeamId;
+  // リーグ優勝が決まっていて日本一がまだのときだけ、リーグ優勝を大きく見せる
+  const leagueWinners = state.leagues
+    .map((league) => postseason.leagueChampions[league.id])
+    .filter((id): id is string => !!id);
 
   // 1試合ずつ進める（段階の切り替えはドメイン側で行う）
   const playOne = () => mutate((draft) => void playNextPostseasonGame(draft));
@@ -45,14 +49,26 @@ export function PostseasonScreen() {
       <div className="card">
         <h2>{state.year}年 ポストシーズン</h2>
         <div style={{ fontSize: 18, fontWeight: 800 }}>{phaseLabel(postseason.phase)}</div>
+        {/* PHASE 4.1: 日本一だけ特別な演出にする（毎回派手にはしない） */}
         {champion && (
-          <div style={{ marginTop: 8, fontSize: 20, fontWeight: 800, color: 'var(--accent)' }}>
+          <div className="banner japan pop-in" style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 13, letterSpacing: '0.16em', color: 'var(--text-dim)' }}>
+              JAPAN SERIES CHAMPION
+            </div>
             🏆 {state.year}年 日本一　{teamName(champion)}
           </div>
         )}
         {champion === myTeam && (
-          <div className="muted" style={{ marginTop: 4 }}>
+          <div className="muted" style={{ marginTop: 6, textAlign: 'center' }}>
             おめでとうございます。日本一です。
+          </div>
+        )}
+        {!champion && leagueWinners.length > 0 && (
+          <div className="banner league pop-in" style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 12, letterSpacing: '0.16em', color: 'var(--text-dim)' }}>
+              LEAGUE CHAMPION
+            </div>
+            {leagueWinners.map((id) => teamName(id)).join('　/　')}
           </div>
         )}
       </div>
@@ -143,6 +159,12 @@ function SeriesCard({ series }: { series: SeriesState }) {
           {teamName(series.teamBId)}
         </span>
       </div>
+      {/* PHASE 4.1: シリーズが決まった瞬間だけ WIN を出す */}
+      {done && (
+        <div className="banner win pop-in" style={{ marginTop: 8, padding: '8px 10px' }}>
+          WIN　{teamName(series.winnerTeamId)}
+        </div>
+      )}
       <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
         {done
           ? `${teamName(series.winnerTeamId)}が${series.teamAWins}勝${series.teamBWins}敗でシリーズ突破`

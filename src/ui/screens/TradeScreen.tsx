@@ -699,11 +699,18 @@ function TradeHistoryCard() {
               <div className="muted" style={{ fontSize: 12 }}>
                 {record.year}年 {record.date}
               </div>
-              <div style={{ fontSize: 13 }}>
+              {/* PHASE 4.1: OUT が離れて IN が入ってくるように見せる（CSS のみ） */}
+              <div className={`trade-out`} style={{ fontSize: 13 }}>
+                <span className="chip" style={{ marginRight: 6 }}>
+                  OUT
+                </span>
                 {from?.shortName ?? record.fromTeamId} {record.playerNamesFrom.join('・')} →{' '}
                 {to?.shortName ?? record.toTeamId}
               </div>
-              <div style={{ fontSize: 13 }}>
+              <div className={`trade-in`} style={{ fontSize: 13 }}>
+                <span className="chip on" style={{ marginRight: 6 }}>
+                  IN
+                </span>
                 {to?.shortName ?? record.toTeamId} {record.playerNamesTo.join('・')} →{' '}
                 {from?.shortName ?? record.fromTeamId}
               </div>

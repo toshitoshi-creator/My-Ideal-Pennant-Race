@@ -359,7 +359,12 @@ table.data th.l {
   background: var(--bg-soft);
   border-radius: 18px 18px 0 0;
   border-top: 1px solid var(--line);
-  padding: 16px 14px calc(20px + env(safe-area-inset-bottom));
+  /*
+   * 下端はナビゲーションバーぶん空ける。
+   * 中身が長いシートで、いちばん下のボタンがナビの帯に重なって
+   * 押しにくくなるのを防ぐ（スマホでの操作性）。
+   */
+  padding: 16px 14px calc(var(--nav-h) + 20px + env(safe-area-inset-bottom));
   animation: slide-up 0.18s ease-out;
 }
 
@@ -636,4 +641,420 @@ h3.sec {
   color: var(--text-dim);
   font-weight: 700;
   letter-spacing: 0.04em;
+}
+
+/* ================= PHASE 4.1 分析 ================= */
+
+.analysis-summary {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.analysis-reason {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.grade-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 20px;
+  color: #10151c;
+}
+
+.reason-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.8;
+}
+
+.issue-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.issue.sev-3 {
+  color: #ffb0b0;
+}
+
+.issue.sev-2 {
+  color: var(--accent);
+}
+
+.stars-row {
+  padding: 3px 0;
+}
+
+.stars {
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: var(--accent);
+}
+
+.stars-off {
+  color: #38414f;
+}
+
+.axis-delta {
+  width: 42px;
+  text-align: right;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- レーダーチャート ---- */
+
+.radar-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.radar {
+  width: 100%;
+  max-width: 260px;
+  height: auto;
+  overflow: visible;
+}
+
+.radar-ring {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.radar-axis {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.radar-projection {
+  fill-opacity: 0.16;
+  stroke: none;
+}
+
+.radar-value {
+  fill-opacity: 0.32;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.radar-label {
+  font-size: 10px;
+  fill: var(--text-dim);
+}
+
+.radar-note {
+  font-size: 11px;
+  margin-top: 4px;
+  text-align: center;
+}
+
+/* ---- 成績推移 ---- */
+
+.trend-chart {
+  width: 100%;
+  min-width: 300px;
+  height: auto;
+}
+
+.trend-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.trend-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.trend-value {
+  font-size: 9px;
+  fill: var(--text);
+}
+
+.trend-year {
+  font-size: 9px;
+  fill: var(--text-dim);
+}
+
+.trend-mark {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.trend-mark.up {
+  color: var(--good);
+}
+
+.trend-mark.down {
+  color: var(--bad);
+}
+
+.trend-mark.flat {
+  color: var(--text-dim);
+}
+
+/* ---- 深度チャート ---- */
+
+.depth-col {
+  border-bottom: 1px solid var(--line);
+  padding: 8px 0;
+}
+
+.depth-col:last-child {
+  border-bottom: none;
+}
+
+.depth-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 2px 0 6px;
+}
+
+.depth-key {
+  font-weight: 800;
+  min-width: 34px;
+}
+
+.depth-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.depth-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.depth-row .stars-row {
+  flex: 0 0 auto;
+  padding: 0;
+}
+
+.depth-row .stars {
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.depth-slot {
+  flex: 0 0 52px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 4px;
+  border-radius: 5px;
+  text-align: center;
+  background: #2b3646;
+  color: var(--text-dim);
+}
+
+.depth-slot.slot-starter {
+  background: #3a2b1c;
+  color: #ffca7a;
+}
+
+.depth-slot.slot-backup {
+  background: #1f3242;
+  color: #8fc9ff;
+}
+
+/* ================= PHASE 4.1 アニメーション ================= */
+
+/*
+ * 画面遷移（§16）。
+ * 画面全体は不透明度だけを変える。位置を動かすと、切り替え直後に
+ * ボタンが動いてタップを取りこぼすため、動きは中のカードだけに任せる。
+ */
+@keyframes screen-in {
+  from {
+    opacity: 0.35;
+  }
+}
+
+.screen-anim {
+  animation: screen-in 150ms ease-out both;
+}
+
+/* 順番に現れるカード（§19） */
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.card-in {
+  animation: card-in 260ms ease-out both;
+}
+
+/* 強調（優勝・記録更新など。§20・§25） */
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  60% {
+    transform: scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.pop-in {
+  animation: pop-in 320ms ease-out both;
+}
+
+.news-new {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--accent);
+  color: #241a00;
+  margin-right: 6px;
+}
+
+/* 演出の見出し（優勝など） */
+.banner {
+  text-align: center;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 14px 10px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #202a37, #161d27);
+}
+
+.banner.league {
+  color: var(--accent);
+  font-size: 19px;
+}
+
+.banner.japan {
+  color: #ffe08a;
+  font-size: 22px;
+  border-color: var(--accent);
+  box-shadow: 0 0 24px rgba(255, 183, 3, 0.22);
+}
+
+.banner.win {
+  color: var(--good);
+  font-size: 20px;
+}
+
+.skip-btn {
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #2b3646;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-weight: 700;
+}
+
+/*
+ * 移動する選手カード（トレード。§23）。
+ * OUT は左へ抜けるように、IN は右から入るように一度だけ動かす。
+ * 終わったら通常の見た目に戻す（薄いまま固定しない）。
+ */
+@keyframes slide-out-left {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  45% {
+    opacity: 0.35;
+    transform: translateX(-14px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-right {
+  0% {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.trade-out {
+  animation: slide-out-left 420ms ease-out 1 both;
+}
+
+.trade-in {
+  animation: slide-in-right 340ms ease-out 1 both;
+  animation-delay: 160ms;
+}
+
+/* §27 視差効果を減らす設定のときは opacity 程度に抑える */
+@media (prefers-reduced-motion: reduce) {
+  .screen-anim,
+  .card-in,
+  .pop-in,
+  .trade-out,
+  .trade-in {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transform: none !important;
+  }
+
+  .banner.japan {
+    box-shadow: none;
+  }
+
+  * {
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ホーム画面のカードを上から順に出す（初回のみ。§19） */
+.home-stagger > .card {
+  animation: card-in 300ms ease-out both;
+}
+
+.home-stagger > .card:nth-child(1) { animation-delay: 0ms; }
+.home-stagger > .card:nth-child(2) { animation-delay: 55ms; }
+.home-stagger > .card:nth-child(3) { animation-delay: 110ms; }
+.home-stagger > .card:nth-child(4) { animation-delay: 160ms; }
+.home-stagger > .card:nth-child(5) { animation-delay: 205ms; }
+.home-stagger > .card:nth-child(n + 6) { animation-delay: 245ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .home-stagger > .card {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transform: none !important;
+  }
 }

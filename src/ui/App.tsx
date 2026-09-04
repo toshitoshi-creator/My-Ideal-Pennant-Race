@@ -88,6 +88,8 @@ function Root() {
         </button>
       </div>
 
+      {/* PHASE 4.1: 画面が切り替わったことが分かる軽い演出（reduced-motion では効かない） */}
+      <div className="screen-anim" key={screen}>
       {screen === 'home' && <HomeScreen />}
       {screen === 'game' && <GameScreen />}
       {screen === 'players' && <PlayersScreen />}
@@ -99,6 +101,7 @@ function Root() {
       {screen === 'postseason' && <PostseasonScreen />}
       {screen === 'news' && <NewsScreen />}
       {screen === 'club' && <ClubScreen />}
+      </div>
 
       <nav className="nav">
         {NAV.map((item) => (
