@@ -9,6 +9,7 @@ import { isAvailable } from './injury';
 import { runCpuTrades } from './trade';
 import { ensurePostseason } from './postseason';
 import { generateGameNews } from './news';
+import { generateManagementEvents, lineupBonus } from './club';
 
 /** 実況を保持しておくプレイヤー球団の試合数 */
 const COMMENTARY_KEEP = 20;
@@ -42,6 +43,8 @@ export function repairAllSetups(state: GameState): void {
       // 怪我人はオーダー・ローテーションから自動的に外れる
       availableFirstTeam(state, team.id),
       league.useDH,
+      // PHASE 4.0: 起用方針で出場の優先度が変わる（能力そのものは変えない）
+      (player) => lineupBonus(state, player),
     );
   }
 }
@@ -211,6 +214,9 @@ export function advanceDay(state: GameState): AdvanceResult {
 
   next.rngState = rng.getState();
   next.date = addDays(next.date, 1);
+  // PHASE 4.0: 節目の日に経営判断イベントを作る（毎日は調べない）
+  generateManagementEvents(next);
+
   next.seasonFinished = next.schedule.every((g) => g.played);
   // PHASE 3.8: レギュラーシーズンが終わったらポストシーズンを用意する
   if (next.seasonFinished) ensurePostseason(next);

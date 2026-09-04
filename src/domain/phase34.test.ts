@@ -965,7 +965,7 @@ describe('PHASE3.4 セーブ', () => {
 
   it('セーブバージョンが最新になっている', () => {
     // PHASE 3.9 でニュースを追加したため v13
-    expect(SAVE_VERSION).toBe(13);
+    expect(SAVE_VERSION).toBe(14);
     expect(newGame().version).toBe(SAVE_VERSION);
   });
 

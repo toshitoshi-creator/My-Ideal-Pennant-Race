@@ -12,6 +12,7 @@ import { tradeDeadline } from './trade';
 import { refreshTeamPlans } from './teamAi';
 import { createHistoryState } from './history';
 import { createNewsState } from './news';
+import { ensureClubs, syncCpuDirections } from './club';
 
 /**
  * 2: 弾道を 1〜4 から 1〜100 に変更
@@ -26,8 +27,9 @@ import { createNewsState } from './news';
  * 11: PHASE 3.7（歴史・記録・殿堂）
  * 12: PHASE 3.8（ポストシーズン・日本シリーズ）
  * 13: PHASE 3.9（ニュース・シーズンストーリー）
+ * 14: PHASE 4.0（球団経営・方針・施設・目標）
  */
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 export const START_YEAR = 2026;
 
 /** 1軍スタート人数（残りは 2軍スタート） */
@@ -117,6 +119,9 @@ export function createNewGame(
     history: createHistoryState(),
     postseason: null,
     news: createNewsState(),
+    clubs: {},
+    usage: {},
+    events: [],
     teamPlans: {},
     teamPlansYear: null,
   };
@@ -159,6 +164,10 @@ export function createNewGame(
 
   // ---- PHASE 3.6: 開幕時点の経営プラン（戦略・補強ポイント・FA予算） ----
   refreshTeamPlans(state);
+
+  // ---- PHASE 4.0: 球団の方針・施設・色を用意する ----
+  ensureClubs(state);
+  syncCpuDirections(state);
 
   return state;
 }

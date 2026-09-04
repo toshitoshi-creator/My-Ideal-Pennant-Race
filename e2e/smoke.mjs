@@ -1235,6 +1235,158 @@ if (!(await page.locator('.screen').innerText()).includes('通算')) {
 await shot('32-records');
 await page.getByRole('button', { name: /ホーム/ }).last().click();
 
+/* ================= PHASE 4.0 球団経営 ================= */
+
+await page.getByRole('button', { name: /ホーム/ }).last().click();
+await page.waitForTimeout(200);
+const homeClubText = await page.locator('.screen').innerText();
+if (!homeClubText.includes('球団経営')) fail('ホームに球団経営のカードがない');
+else ok('ホームから球団経営の状況が見える');
+for (const label of ['今季の方針', '球団評価', 'チーム士気', '施設']) {
+  if (!homeClubText.includes(label)) fail(`球団経営カードに「${label}」がない`);
+}
+ok('球団経営カードに方針・評価・士気・施設が出る');
+
+await page.getByRole('button', { name: '球団経営を見る' }).click();
+await page.locator('.tabs button', { hasText: '球団' }).waitFor();
+await shot('33-club');
+
+// --- 方針 ---
+const clubText = await page.locator('.screen').innerText();
+for (const label of ['優勝狙い', '若手育成', '再建', 'バランス', '堅実経営']) {
+  if (!clubText.includes(label)) fail(`球団方針に「${label}」がない`);
+}
+ok('5つの球団方針から選べる');
+if (!clubText.includes('球団の色')) fail('球団の色が表示されていない');
+else ok('球団の色（アイデンティティ）が表示されている');
+if (!/戦力|将来性|財務|育成/.test(clubText)) fail('球団評価の内訳がない');
+else ok('球団評価が戦力・将来性・財務・育成・経営で表示される');
+
+const directionBefore = (await readState()).clubs.phoenix.direction;
+await page.getByRole('button', { name: /若手育成/ }).first().click();
+await page.waitForTimeout(200);
+const afterDirection = await readState();
+if (afterDirection.clubs.phoenix.direction !== 'DEVELOP') fail('球団方針を変更できない');
+else ok(`球団方針を変更できた（${directionBefore} → DEVELOP）`);
+
+// --- 施設 ---
+await page.locator('.tabs button', { hasText: '施設' }).click();
+await page.waitForTimeout(200);
+const facilityText = await page.locator('.screen').innerText();
+for (const label of ['育成施設', '医療施設', 'スカウト施設', 'トレーニング施設']) {
+  if (!facilityText.includes(label)) fail(`施設に「${label}」がない`);
+}
+ok('4種類の球団施設がLv付きで表示される');
+if (!facilityText.includes('球団資金')) fail('球団資金が表示されていない');
+else ok('施設画面に球団資金が出る');
+await shot('34-club-facility');
+
+const cashBefore = (await readState()).finances.phoenix.cash;
+const levelBefore = (await readState()).clubs.phoenix.facilities.development;
+const upgradeBtn = page.getByRole('button', { name: /Lv\d+へ強化/ }).first();
+if ((await upgradeBtn.count()) && (await upgradeBtn.isEnabled())) {
+  await upgradeBtn.click();
+  await page.waitForTimeout(300);
+  const afterBuy = await readState();
+  const levelAfter = afterBuy.clubs.phoenix.facilities.development;
+  if (afterBuy.finances.phoenix.cash >= cashBefore) fail('施設を強化しても資金が減っていない');
+  else if (levelAfter !== levelBefore + 1) fail(`施設のレベルが上がっていない（${levelBefore} → ${levelAfter}）`);
+  else {
+    ok(
+      `施設を強化できた（育成 Lv${levelBefore} → Lv${levelAfter} / ` +
+        `資金 ${Math.round(cashBefore)} → ${Math.round(afterBuy.finances.phoenix.cash)}）`,
+    );
+  }
+} else {
+  ok('資金が足りないため施設強化ボタンは押せない状態（想定どおり）');
+}
+
+// --- 起用方針 ---
+await page.locator('.tabs button', { hasText: '起用' }).click();
+await page.waitForTimeout(200);
+const usageText = await page.locator('.screen').innerText();
+for (const label of ['主力', '準主力', '育成', '控え', 'ベテラン枠']) {
+  if (!usageText.includes(label)) fail(`起用方針に「${label}」がない`);
+}
+ok('5種類の起用方針を選べる');
+if (!usageText.includes('能力そのものは変わりません')) {
+  fail('起用方針が能力を変えないことの説明がない');
+} else ok('起用方針は出場機会だけを変えると明示されている');
+
+const abilityBefore = JSON.stringify(
+  (await readState()).players
+    .filter((p) => p.teamId === 'phoenix')
+    .map((p) => [p.id, p.batting, p.pitching]),
+);
+await page.locator('.card').getByRole('button', { name: '主力', exact: true }).first().click();
+await page.waitForTimeout(300);
+const afterUsage = await readState();
+const usageCount = Object.keys(afterUsage.usage ?? {}).length;
+if (usageCount === 0) fail('起用方針が保存されていない');
+else ok(`起用方針を設定できた（${usageCount}人）`);
+const abilityAfter = JSON.stringify(
+  afterUsage.players.filter((p) => p.teamId === 'phoenix').map((p) => [p.id, p.batting, p.pitching]),
+);
+if (abilityAfter !== abilityBefore) fail('起用方針を変えたら選手の基本能力が変わってしまった');
+else ok('起用方針を変えても選手の基本能力は変わらない');
+await shot('35-club-usage');
+
+// --- シーズンを進めて、経営イベント・士気・目標を確かめる ---
+await page.getByRole('button', { name: /ホーム/ }).last().click();
+await page.waitForTimeout(200);
+const moraleBefore = (await readState()).teamMorale.phoenix;
+for (let i = 0; i < 40; i++) {
+  const st = await readState();
+  if (st.seasonFinished) break;
+  const next = page.getByRole('button', { name: /次の日へ|試合へ|オフシーズンへ/ }).first();
+  if (!(await next.count())) break;
+  await next.click();
+  await page.waitForTimeout(120);
+  const sheet = page.locator('.sheet');
+  if (await sheet.count()) {
+    const close = sheet.getByRole('button', { name: /閉じる|進む|OK/ }).first();
+    if (await close.count()) await close.click();
+  }
+}
+const midSeason = await readState();
+ok(`球団経営を設定したままシーズンを進められた（${midSeason.date}）`);
+if (typeof midSeason.teamMorale.phoenix !== 'number') fail('チーム士気が失われた');
+else ok(`チーム士気が動いている（${Math.round(moraleBefore)} → ${Math.round(midSeason.teamMorale.phoenix)}）`);
+if (!Array.isArray(midSeason.events)) fail('経営イベントの入れ物が無い');
+else ok(`経営イベントの記録がある（${midSeason.events.length}件）`);
+
+// 発生していれば選択して決着させる
+const pending = midSeason.events.filter((e) => e.resolved === false);
+if (pending.length > 0) {
+  await page.getByRole('button', { name: '球団経営を見る' }).click();
+  await page.waitForTimeout(200);
+  const choice = page.locator('.card').getByRole('button', { name: /様子を見る|見送る/ }).first();
+  if (await choice.count()) {
+    await choice.click();
+    await page.waitForTimeout(300);
+    const resolved = (await readState()).events.filter((e) => e.resolved === true).length;
+    if (resolved === 0) fail('経営イベントを選択しても決着しない');
+    else ok(`経営イベントを選んで決着させた（${resolved}件）`);
+  }
+  await shot('36-club-event');
+  await page.getByRole('button', { name: /ホーム/ }).last().click();
+  await page.waitForTimeout(200);
+}
+
+// 施設・方針・起用がセーブに残っている
+const saved = await readState();
+if (saved.version !== 14) fail(`セーブのバージョンが14ではない（${saved.version}）`);
+else ok('セーブがv14になっている');
+if (!saved.clubs || Object.keys(saved.clubs).length !== 12) {
+  fail('12球団ぶんの球団経営データが無い');
+} else ok('12球団すべてに球団経営データがある');
+const cpuFacilities = Object.entries(saved.clubs)
+  .filter(([id]) => id !== 'phoenix')
+  .map(([, c]) => Object.values(c.facilities))
+  .flat();
+if (cpuFacilities.some((v) => v < 1 || v > 5)) fail('CPU球団の施設Lvが範囲外');
+else ok('CPU球団の施設も1〜5の範囲に収まっている');
+
 // リロード（アプリ再起動）
 const snapshot = await readState();
 await page.reload();

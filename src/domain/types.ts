@@ -381,6 +381,12 @@ export interface GameState {
   postseason: PostseasonState | null;
   /** ゲーム内ニュースと年度別の物語。PHASE 3.9 */
   news: NewsState;
+  /** 球団ごとの経営状態（方針・施設・目標）。PHASE 4.0 */
+  clubs: Record<string, ClubState>;
+  /** 選手ごとの起用方針（指定のない選手は自動判断）。PHASE 4.0 */
+  usage: Record<string, UsageRole>;
+  /** 進行中の経営判断イベント（プレイヤー球団のみ）。PHASE 4.0 */
+  events: ManagementEvent[];
   /** 球団ごとの今季の経営プラン。PHASE 3.6 */
   teamPlans: Record<string, TeamAiPlan>;
   /** 経営プランを作った年（作り直しの判定に使う）。PHASE 3.6 */
@@ -1150,4 +1156,120 @@ export interface NewsState {
   items: NewsItem[];
   /** 年度別の物語。消さない */
   stories: SeasonStory[];
+}
+
+/* ---------------- 球団経営：PHASE 4.0 ---------------- */
+
+/** 今季の球団方針。CPUだけでなくユーザー球団も選べる */
+export type ClubDirection = 'WIN_NOW' | 'DEVELOP' | 'REBUILD' | 'BALANCED' | 'THRIFTY';
+
+/**
+ * 選手の起用方針。
+ * 出場機会の優先度に効くだけで、能力そのものは変えない。
+ */
+export type UsageRole = 'CORE' | 'SEMI' | 'DEVELOP' | 'BENCH' | 'VETERAN';
+
+/** 球団施設の種類 */
+export type FacilityKind = 'development' | 'medical' | 'scouting' | 'training';
+/** 施設の段階（1が初期状態＝補正なし） */
+export type FacilityLevel = 1 | 2 | 3 | 4 | 5;
+export type FacilityState = Record<FacilityKind, FacilityLevel>;
+
+/** 球団の長期的な色。意思決定の傾向に使い、能力は変えない */
+export type TeamIdentity =
+  | 'DEVELOPER'
+  | 'BIG_SPENDER'
+  | 'DEFENSIVE'
+  | 'SLUGGER'
+  | 'PITCHING'
+  | 'STEADY';
+
+/** 経営目標の種類 */
+export type ObjectiveKind =
+  | 'A_CLASS'
+  | 'LEAGUE_TITLE'
+  | 'YOUTH_GAMES'
+  | 'TEAM_ERA'
+  | 'AVERAGE_AGE'
+  | 'PAYROLL'
+  | 'ROOKIE_GAMES';
+
+export interface TeamObjective {
+  kind: ObjectiveKind;
+  /** 達成に必要な値（種類によって「以上」「以下」が変わる） */
+  target: number;
+  /** シーズン終了時の実績。判定前は null */
+  actual: number | null;
+  /** 判定前は null */
+  achieved: boolean | null;
+}
+
+/**
+ * 球団経営の現在の状態（PHASE 4.0）。
+ * 日々の履歴は持たず、いまの状態だけを保つ。
+ */
+export interface ClubState {
+  direction: ClubDirection;
+  identity: TeamIdentity;
+  facilities: FacilityState;
+  /** 今季の経営目標 */
+  objectives: TeamObjective[];
+  /** 目標を立てた年（二重生成の防止） */
+  objectiveYear: number | null;
+  /** 目標を判定した年（二重判定の防止） */
+  evaluatedYear: number | null;
+  /** これまでに達成した目標の累計 */
+  achieved: number;
+  /** 今季すでに施設に使った額 */
+  facilitySpent: number;
+}
+
+export type ManagementEventKind =
+  | 'YOUNG_BREAKOUT'
+  | 'VETERAN_SLUMP'
+  | 'STAR_INJURY'
+  | 'LOSING_STREAK'
+  | 'WINNING_STREAK'
+  | 'TRADE_DEADLINE'
+  | 'CONTRACT_CONCERN';
+
+export interface ManagementEventChoice {
+  id: string;
+  label: string;
+  description: string;
+}
+
+/**
+ * シーズン中の経営判断イベント（PHASE 4.0）。
+ * 選んだ結果は起用方針・士気・評価に効くだけで、能力は変えない。
+ */
+export interface ManagementEvent {
+  id: string;
+  year: number;
+  date: string;
+  teamId: string;
+  kind: ManagementEventKind;
+  title: string;
+  body: string;
+  playerId: string | null;
+  choices: ManagementEventChoice[];
+  /** 選んだ選択肢。未選択なら null */
+  chosen: string | null;
+  resolved: boolean;
+}
+
+/** 球団の状態を数値で見たもの（表示・CPU判断用。勝敗を直接決めない） */
+export interface ClubRating {
+  /** 戦力 */
+  strength: number;
+  /** 将来性 */
+  future: number;
+  /** 財務 */
+  finance: number;
+  /** 育成 */
+  development: number;
+  /** 経営 */
+  management: number;
+  /** 総合（0〜100） */
+  total: number;
 }

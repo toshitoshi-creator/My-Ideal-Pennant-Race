@@ -48,7 +48,17 @@ export function rollInjury(
   rng: Rng,
   player: Player,
   today: string,
-  options: { pitched: boolean },
+  options: {
+    pitched: boolean;
+    /**
+     * 医療施設の効き目（PHASE 4.0）。
+     * relief は「重い怪我になりにくさ」0〜0.08、recovery は離脱日数の倍率。
+     * 既定は 0 と 1 で、従来とまったく同じ結果になる。
+     * 乱数を引く回数は変わらないので、既存の乱数列はずれない。
+     */
+    severityRelief?: number;
+    recoveryRate?: number;
+  },
 ): InjuryState | null {
   if (player.ext.injury) return null;
   // 復帰直後は怪我しにくい猶予をもうける
@@ -57,10 +67,13 @@ export function rollInjury(
 
   if (!rng.chance(injuryChance(player, options))) return null;
 
+  const relief = Math.max(0, Math.min(0.08, options.severityRelief ?? 0));
   const roll = rng.next();
-  const level: InjuryLevel = roll < 0.68 ? 'minor' : roll < 0.94 ? 'moderate' : 'major';
+  const level: InjuryLevel =
+    roll < 0.68 + relief ? 'minor' : roll < 0.94 + relief * 0.5 ? 'moderate' : 'major';
   const names = level === 'minor' ? MINOR_NAMES : level === 'moderate' ? MODERATE_NAMES : MAJOR_NAMES;
-  const days = injuryDays(rng, level);
+  const rate = Math.max(0.5, Math.min(1, options.recoveryRate ?? 1));
+  const days = Math.max(1, Math.round(injuryDays(rng, level) * rate));
   return {
     level,
     name: rng.pick(names),

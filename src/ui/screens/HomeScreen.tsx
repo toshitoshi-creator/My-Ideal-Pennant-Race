@@ -16,6 +16,14 @@ import {
 } from '../../domain/contract';
 import { championshipCount } from '../../domain/history';
 import { recentNews, unreadCount } from '../../domain/news';
+import {
+  DIRECTION_LABELS,
+  FACILITY_KINDS,
+  FACILITY_LABELS,
+  clubRating,
+  objectiveText,
+  pendingEvents,
+} from '../../domain/club';
 import { NewsCard } from '../components/NewsCard';
 import { isTradeOpen, pendingOffersForPlayer } from '../../domain/trade';
 import {
@@ -173,6 +181,8 @@ export function HomeScreen() {
           トレードを見る
         </button>
       </div>
+
+      <ClubSummary />
 
       <LatestNews />
 
@@ -412,6 +422,60 @@ function LatestNews() {
       ))}
       <button className="btn secondary" style={{ marginTop: 10 }} onClick={() => setScreen('news')}>
         すべて見る
+      </button>
+    </div>
+  );
+}
+
+/** ホームに出す球団経営のまとめ（PHASE 4.0） */
+function ClubSummary() {
+  const { state, setScreen } = useGame();
+  const teamId = state.playerTeamId;
+  const club = state.clubs?.[teamId];
+  if (!club) return null;
+  const rating = clubRating(state, teamId);
+  const events = pendingEvents(state);
+  const facilities = FACILITY_KINDS.map((kind) => `${FACILITY_LABELS[kind].slice(0, 2)}${club.facilities[kind]}`);
+
+  return (
+    <div
+      className="card"
+      style={{ borderColor: events.length > 0 ? 'var(--accent)' : undefined }}
+    >
+      <h2>球団経営</h2>
+      {events.length > 0 && (
+        <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 6 }}>
+          判断が必要な案件が{events.length}件あります
+        </div>
+      )}
+      <div className="spread" style={{ padding: '4px 0' }}>
+        <span className="muted">今季の方針</span>
+        <span style={{ fontWeight: 700 }}>{DIRECTION_LABELS[club.direction]}</span>
+      </div>
+      <div className="spread" style={{ padding: '4px 0' }}>
+        <span className="muted">球団評価</span>
+        <span style={{ fontWeight: 700 }}>
+          {rating.total} <span className="muted">（戦力{rating.strength} 将来{rating.future}）</span>
+        </span>
+      </div>
+      <div className="spread" style={{ padding: '4px 0' }}>
+        <span className="muted">チーム士気</span>
+        <span style={{ fontWeight: 700 }}>{Math.round(state.teamMorale[teamId] ?? 50)}</span>
+      </div>
+      <div className="spread" style={{ padding: '4px 0' }}>
+        <span className="muted">施設</span>
+        <span style={{ fontWeight: 700, fontSize: 13 }}>{facilities.join(' / ')}</span>
+      </div>
+      {club.objectives.length > 0 && (
+        <div className="spread" style={{ padding: '4px 0' }}>
+          <span className="muted">今季の目標</span>
+          <span style={{ fontWeight: 700, fontSize: 13 }}>
+            {objectiveText(club.objectives[0])}
+          </span>
+        </div>
+      )}
+      <button className="btn secondary" style={{ marginTop: 10 }} onClick={() => setScreen('club')}>
+        球団経営を見る
       </button>
     </div>
   );

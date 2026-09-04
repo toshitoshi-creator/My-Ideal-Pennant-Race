@@ -16,6 +16,8 @@ export function firstTeamPlayers(players: Player[], teamId: string): Player[] {
 /** 打順に入る 8（DH なら 9）人の野手を自動で選ぶ */
 function chooseFielders(
   candidates: Player[],
+  /** 起用方針による上乗せ点（PHASE 4.0）。指定がなければ 0 で従来と同じ */
+  bonusOf: (player: Player) => number = () => 0,
 ): { slots: LineupSlot[]; used: Set<string> } {
   const used = new Set<string>();
   const slots: LineupSlot[] = [];
@@ -28,7 +30,8 @@ function chooseFielders(
     let bestScore = -Infinity;
     for (const p of candidates) {
       if (used.has(p.id)) continue;
-      const score = effectiveDefense(p, position) * 0.62 + battingRating(p) * 0.38;
+      const score =
+        effectiveDefense(p, position) * 0.62 + battingRating(p) * 0.38 + bonusOf(p);
       if (score > bestScore) {
         bestScore = score;
         best = p;
@@ -76,12 +79,16 @@ function sortBattingOrder(slots: LineupSlot[], byId: Map<string, Player>): Lineu
 }
 
 /** ローテーション（先発 5 人）を自動で選ぶ */
-export function chooseRotation(players: Player[]): string[] {
+export function chooseRotation(
+  players: Player[],
+  /** 起用方針による上乗せ点（PHASE 4.0）。指定がなければ 0 で従来と同じ */
+  bonusOf: (player: Player) => number = () => 0,
+): string[] {
   return players
     .filter((p) => p.isPitcher && p.pitching)
     .sort((a, b) => {
-      const sa = pitchingRating(a) + a.pitching!.stamina * 0.5;
-      const sb = pitchingRating(b) + b.pitching!.stamina * 0.5;
+      const sa = pitchingRating(a) + a.pitching!.stamina * 0.5 + bonusOf(a);
+      const sb = pitchingRating(b) + b.pitching!.stamina * 0.5 + bonusOf(b);
       return sb - sa;
     })
     .slice(0, 5)
@@ -99,10 +106,12 @@ export function buildAutoSetup(
   teamId: string,
   firstTeam: Player[],
   useDH: boolean,
+  /** 起用方針による上乗せ点（PHASE 4.0）。指定がなければ 0 で従来と同じ */
+  bonusOf: (player: Player) => number = () => 0,
 ): TeamSetup {
   const byId = new Map(firstTeam.map((p) => [p.id, p]));
   const fielderCandidates = firstTeam.filter((p) => !p.isPitcher);
-  const { slots, used } = chooseFielders(fielderCandidates);
+  const { slots, used } = chooseFielders(fielderCandidates, bonusOf);
   const battingSlots = [...slots];
 
   if (useDH) {
@@ -110,7 +119,7 @@ export function buildAutoSetup(
     let bestScore = -Infinity;
     for (const p of fielderCandidates) {
       if (used.has(p.id)) continue;
-      const score = battingRating(p);
+      const score = battingRating(p) + bonusOf(p);
       if (score > bestScore) {
         bestScore = score;
         best = p;
@@ -127,7 +136,7 @@ export function buildAutoSetup(
   return {
     teamId,
     lineup,
-    rotation: chooseRotation(firstTeam),
+    rotation: chooseRotation(firstTeam, bonusOf),
     rotationIndex: 0,
   };
 }
@@ -141,8 +150,10 @@ export function repairSetup(
   teamId: string,
   firstTeam: Player[],
   useDH: boolean,
+  /** 起用方針による上乗せ点（PHASE 4.0） */
+  bonusOf: (player: Player) => number = () => 0,
 ): TeamSetup {
-  const auto = buildAutoSetup(teamId, firstTeam, useDH);
+  const auto = buildAutoSetup(teamId, firstTeam, useDH, bonusOf);
   if (!setup) return auto;
 
   const valid = new Map(firstTeam.map((p) => [p.id, p]));

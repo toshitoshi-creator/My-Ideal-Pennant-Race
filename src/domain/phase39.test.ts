@@ -882,7 +882,7 @@ describe('PHASE3.9 セーブ', () => {
   });
 
   it('セーブバージョンが13になっている', () => {
-    expect(SAVE_VERSION).toBe(13);
+    expect(SAVE_VERSION).toBe(14);
     expect(newGame().version).toBe(SAVE_VERSION);
   });
 

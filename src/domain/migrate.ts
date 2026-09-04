@@ -27,6 +27,7 @@ import { createContract, createTeamFinance, marketValue, refreshPayrolls } from 
 import { repairFreeAgents } from './freeAgency';
 import { createHistoryState, ensureHistory } from './history';
 import { createNewsState, ensureNews } from './news';
+import { ensureClubs, syncCpuDirections } from './club';
 import { createTradeState, tradeDeadline } from './trade';
 import { clamp1to100 } from './rank';
 
@@ -282,6 +283,31 @@ export function migrateV12ToV13(state: GameState): void {
   }
   ensureNews(state);
   state.version = 13;
+}
+
+/**
+ * v13 → v14：PHASE 4.0 の球団経営を用意する。
+ *
+ * 施設は Lv1（＝補正なし）から始め、過去に投資していたことにはしない。
+ * 方針・目標・起用方針も、初期状態から始める。
+ * 既存の歴史・ニュースには手を入れない。
+ */
+export function migrateV13ToV14(state: GameState): void {
+  if (!state.clubs || typeof state.clubs !== 'object') state.clubs = {};
+  if (!state.usage || typeof state.usage !== 'object') state.usage = {};
+  if (!Array.isArray(state.events)) state.events = [];
+  ensureClubs(state);
+  // 実在しない球団の状態は落とす
+  for (const teamId of Object.keys(state.clubs)) {
+    if (!state.teams.some((t) => t.id === teamId)) delete state.clubs[teamId];
+  }
+  // 実在しない選手の起用方針も落とす
+  const playerIds = new Set(state.players.map((p) => p.id));
+  for (const playerId of Object.keys(state.usage)) {
+    if (!playerIds.has(playerId)) delete state.usage[playerId];
+  }
+  syncCpuDirections(state);
+  state.version = 14;
 }
 
 /**

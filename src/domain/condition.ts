@@ -163,7 +163,12 @@ export function addGameFatigue(
  * 疲労の回復。毎日必ず少しずつ回復し、休んだ日はさらに大きく回復する。
  * 疲労が溜まっているほど回復量も大きくなるので、極端に振り切れない。
  */
-export function recoverFatigue(player: Player, rested: boolean): void {
+export function recoverFatigue(
+  player: Player,
+  rested: boolean,
+  /** トレーニング施設による回復倍率（PHASE 4.0）。既定の1で従来と同じ */
+  facilityRate = 1,
+): void {
   const ext = player.ext;
   const personality = personalityEffects(ext.personality);
   const base = rested ? 4.5 : 2;
@@ -171,7 +176,9 @@ export function recoverFatigue(player: Player, rested: boolean): void {
   const age = player.age;
   // 年齢が高いほど回復が遅い
   const ageFactor = age <= 26 ? 1.1 : age <= 31 ? 1 : 0.85;
-  const amount = (base + ext.fatigue * rate) * personality.fatigueRecovery * ageFactor;
+  const boost = Math.max(1, Math.min(1.3, facilityRate));
+  const amount =
+    (base + ext.fatigue * rate) * personality.fatigueRecovery * ageFactor * boost;
   ext.fatigue = clamp0to100(ext.fatigue - amount);
   if (rested) ext.consecutiveGames = 0;
 }

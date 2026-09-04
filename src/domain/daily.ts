@@ -15,6 +15,12 @@ import {
 } from './condition';
 import { resolveInjury, rollInjury, tickInjuryGrace, INJURY_LABELS } from './injury';
 import { generateInjuryNews } from './news';
+import {
+  facilityLevel,
+  fatigueRecoveryMultiplier,
+  injurySeverityRelief,
+  recoveryMultiplier,
+} from './club';
 import { diffDays } from './dates';
 import { overallRating } from './rating';
 
@@ -160,11 +166,16 @@ export function applyDailyUpdates(state: GameState, rng: Rng, results: GameResul
     if (appearance) {
       addGameFatigue(player, appearance);
       // 出場した日もわずかに回復する（疲労が振り切れないように）
-      recoverFatigue(player, false);
+      recoverFatigue(player, false, trainingRate(state, player.teamId));
       ext.firstTeamGames += 1;
       updateForm(rng, player, state.date, appearance.performance);
 
-      const injury = rollInjury(rng, player, state.date, { pitched: appearance.outs > 0 });
+      // PHASE 4.0: 医療施設があると重い怪我になりにくく、復帰も早い
+      const injury = rollInjury(rng, player, state.date, {
+        pitched: appearance.outs > 0,
+        severityRelief: injurySeverityRelief(facilityLevel(state, player.teamId, 'medical')),
+        recoveryRate: recoveryMultiplier(facilityLevel(state, player.teamId, 'medical')),
+      });
       if (injury) {
         ext.injury = injury;
         demoteForInjury(player);
@@ -179,7 +190,11 @@ export function applyDailyUpdates(state: GameState, rng: Rng, results: GameResul
         }
       }
     } else {
-      recoverFatigue(player, player.roster === 'second' || !teamOutcome.has(player.teamId));
+      recoverFatigue(
+        player,
+        player.roster === 'second' || !teamOutcome.has(player.teamId),
+        trainingRate(state, player.teamId),
+      );
       if (player.roster === 'second') ext.secondTeamDays += 1;
     }
 
@@ -199,4 +214,9 @@ export function applyDailyUpdates(state: GameState, rng: Rng, results: GameResul
   for (const team of state.teams) {
     ensureFirstTeamViable(state, team.id);
   }
+}
+
+/** トレーニング施設による疲労回復倍率（PHASE 4.0） */
+function trainingRate(state: GameState, teamId: string): number {
+  return fatigueRecoveryMultiplier(facilityLevel(state, teamId, 'training'));
 }

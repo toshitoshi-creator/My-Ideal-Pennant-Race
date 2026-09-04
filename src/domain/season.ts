@@ -45,6 +45,18 @@ import { finalizeSeason, recordRetirements } from './history';
 import { autoCompletePostseason } from './postseason';
 import { generateRetirementNews } from './news';
 import { buildSeasonStory } from './story';
+import { standingsForLeague } from './standings';
+import {
+  facilityLevel,
+  scoutPointBonus,
+  developmentModifiers,
+  ensureClubs,
+  evaluateObjectives,
+  applyRankMorale,
+  runCpuFacilityInvestment,
+  syncCpuDirections,
+  buildObjectives,
+} from './club';
 import { repairAllSetups } from './engine';
 import { ensureFirstTeamViable } from './daily';
 
@@ -120,6 +132,16 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
   // 日本一が決まってから歴史を確定する。すでに終わっていれば何もしない。
   autoCompletePostseason(state);
 
+  // ---- PHASE 4.0: 今季の経営目標を判定し、順位を士気に反映する ----
+  // 成績と順位がまだ残っているうちに行う。二度呼んでも達成数は増えない。
+  ensureClubs(state);
+  for (const league of state.leagues) {
+    for (const row of standingsForLeague(state, league.id)) {
+      evaluateObjectives(state, row.teamId);
+      applyRankMorale(state, row.teamId, row.rank);
+    }
+  }
+
   // ---- PHASE 3.7: 今季を歴史に確定する ----
   // 成長・引退でデータが変わる前に、いま残っている成績をそのまま記録する。
   // 同じ年に二度呼ばれても二重には記録されない。
@@ -137,6 +159,9 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
     results.push(
       applySeasonGrowth(rng, {
         player,
+        // PHASE 4.0: 育成施設と球団方針を成長判定の補正として渡す
+        // （施設Lv1・方針バランスなら 1.0 で、従来と同じ結果になる）
+        modifiers: developmentModifiers(state, player),
         firstTeamExperience: first,
         secondTeamExperience: second,
         performance,
@@ -217,6 +242,11 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
     });
   }
 
+  // ---- PHASE 4.0: CPUの方針を新しいプランに合わせ、施設に投資する ----
+  syncCpuDirections(state);
+  runCpuFacilityInvestment(state);
+  for (const team of state.teams) buildObjectives(state, team.id);
+
   // ---- PHASE 3.9: 今季の物語をまとめる ----
   // 歴史の確定と引退のニュースが出そろってから作る。二度呼んでも作り直さない。
   buildSeasonStory(state, state.year);
@@ -228,6 +258,12 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
   state.draft = createDraft(state, rng);
   if (state.draft) {
     resetScoutingForDraft(state.scouting, state.year);
+    // PHASE 4.0: スカウト施設があるぶん、調査できる回数が増える
+    for (const team of state.teams) {
+      const scouting = state.scouting.teams[team.id];
+      if (!scouting) continue;
+      scouting.points += scoutPointBonus(facilityLevel(state, team.id, 'scouting'));
+    }
     runCpuScouting(state, rng);
   }
 
@@ -455,7 +491,10 @@ export function completeOffseason(state: GameState): Player[] {
       runsScored: 0,
       runsAllowed: 0,
     };
-    state.teamMorale[team.id] = 50;
+    // PHASE 4.0: オフの出来事（順位・補強・優勝）を少しだけ翌季に持ち越す。
+    // 平均は50のままなので、リーグ全体で士気が上がり続けることはない。
+    const previous = state.teamMorale[team.id] ?? 50;
+    state.teamMorale[team.id] = 50 + (previous - 50) * 0.4;
   }
   // 成績は全選手ぶん作り直す（新人も含めて 0 から始まる）
   state.stats = {};

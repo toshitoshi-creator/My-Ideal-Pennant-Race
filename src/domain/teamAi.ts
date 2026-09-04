@@ -156,6 +156,14 @@ export function buildTeamPlan(state: GameState, teamId: string): TeamAiPlan {
   const analysis = analyzeTeam(state, teamId);
   const profile = teamProfile(state, teamId);
   const decided = decideStrategy(state, analysis, profile);
+
+  // PHASE 4.0: ユーザー球団は自分で決めた方針を使う（CPUは従来どおり自動判断）
+  const chosen = userStrategyOverride(state, teamId);
+  if (chosen) {
+    decided.strategy = chosen.strategy;
+    decided.reasons = [chosen.reason, ...decided.reasons].slice(0, 3);
+  }
+
   const needs = weightedNeeds(analysis, decided.strategy);
 
   return {
@@ -266,4 +274,29 @@ export function acquisitionReason(plan: TeamAiPlan, key: PositionKey): string {
   if (plan.strategy === 'BUDGET') return '年俸を抑えられるため獲得';
   if (plan.strategy === 'YOUTH') return '若手の底上げのため獲得';
   return '戦力の底上げのため獲得';
+}
+
+/**
+ * ユーザー球団が選んだ方針を、CPUと同じ戦略の形に読み替える（PHASE 4.0）。
+ * 選んでいない球団や CPU 球団では null を返し、従来の自動判断のままになる。
+ */
+function userStrategyOverride(
+  state: GameState,
+  teamId: string,
+): { strategy: TeamStrategy; reason: string } | null {
+  if (teamId !== state.playerTeamId) return null;
+  const direction = state.clubs?.[teamId]?.direction;
+  if (!direction) return null;
+  switch (direction) {
+    case 'WIN_NOW':
+      return { strategy: 'WIN_NOW', reason: '球団の方針として優勝を狙います' };
+    case 'DEVELOP':
+      return { strategy: 'YOUTH', reason: '球団の方針として若手を育てます' };
+    case 'REBUILD':
+      return { strategy: 'YOUTH', reason: '球団の方針としてチームを再建します' };
+    case 'THRIFTY':
+      return { strategy: 'BUDGET', reason: '球団の方針として支出を抑えます' };
+    case 'BALANCED':
+      return { strategy: 'BALANCED', reason: '球団の方針として戦力と将来のつり合いを取ります' };
+  }
 }
