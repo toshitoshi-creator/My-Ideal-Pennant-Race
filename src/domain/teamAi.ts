@@ -179,6 +179,16 @@ export function buildTeamPlan(state: GameState, teamId: string): TeamAiPlan {
   };
 }
 
+/**
+ * ユーザー球団が方針を変えたとき、その球団のプランだけ作り直す（PHASE 4.0）。
+ * CPU球団のプランには触らないので、PHASE 3.6 の判断は変わらない。
+ */
+export function refreshUserTeamPlan(state: GameState): void {
+  const teamId = state.playerTeamId;
+  if (!state.teamPlans?.[teamId]) return;
+  state.teamPlans[teamId] = buildTeamPlan(state, teamId);
+}
+
 /** 全球団のプランを作り直す（シーズン終了時に1回だけ） */
 export function refreshTeamPlans(state: GameState): void {
   if (state.teamPlans && state.teamPlansYear === state.year) return;

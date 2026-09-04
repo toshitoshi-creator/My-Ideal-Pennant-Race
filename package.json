@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "e2e": "node e2e/smoke.mjs",
-    "verify": "tsc --noEmit -p tsconfig.json && vitest run && vite build && node e2e/run-with-preview.mjs"
+    "verify": "tsc --noEmit -p tsconfig.json && vitest run && vite build && node e2e/run-with-preview.mjs",
+    "e2e:seeds": "node e2e/run-seeds.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

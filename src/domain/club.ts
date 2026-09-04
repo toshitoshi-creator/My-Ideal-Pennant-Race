@@ -32,6 +32,7 @@ import { overallRating } from './rating';
 import { teamPayroll } from './contract';
 import { standingsForLeague } from './standings';
 import { era } from './stats';
+import { refreshUserTeamPlan } from './teamAi';
 
 /* ---------------- 乱数（PHASE 4.0 専用の系列） ---------------- */
 
@@ -282,6 +283,8 @@ export function setDirection(
   direction: ClubDirection,
 ): void {
   ensureClub(state, teamId).direction = direction;
+  // 方針は「表示だけ」ではないので、自球団の経営プランにすぐ反映する
+  if (teamId === state.playerTeamId) refreshUserTeamPlan(state);
 }
 
 /* ---------------- 起用方針 ---------------- */
@@ -346,6 +349,8 @@ export function usagePriority(
 
 /** 起用方針から決まる、オーダー編成での上乗せ点 */
 export function lineupBonus(state: GameState, player: Player): number {
+  // 起用方針は自球団を動かすための機能。CPU球団の並べ方は PHASE 3.9 のまま変えない
+  if (player.teamId !== state.playerTeamId) return 0;
   const club = state.clubs?.[player.teamId];
   if (!club) return 0;
   return usagePriority(usageRoleOf(state, player), club.direction, player.age);

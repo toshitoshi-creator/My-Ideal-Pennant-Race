@@ -1358,9 +1358,17 @@ else ok(`経営イベントの記録がある（${midSeason.events.length}件）
 // 発生していれば選択して決着させる
 const pending = midSeason.events.filter((e) => e.resolved === false);
 if (pending.length > 0) {
-  await page.getByRole('button', { name: '球団経営を見る' }).click();
+  await page.getByRole('button', { name: /ホーム/ }).last().click();
+  await page.waitForTimeout(300);
+  const openClub = page.getByRole('button', { name: '球団経営を見る' });
+  if (await openClub.count()) await openClub.click();
   await page.waitForTimeout(200);
-  const choice = page.locator('.card').getByRole('button', { name: /様子を見る|見送る/ }).first();
+  const choice = page
+    .locator('.card')
+    .getByRole('button', {
+      name: /いまのまま|我慢して使う|主力で戦い抜く|主力として起用|確認した/,
+    })
+    .first();
   if (await choice.count()) {
     await choice.click();
     await page.waitForTimeout(300);

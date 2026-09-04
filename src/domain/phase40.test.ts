@@ -61,7 +61,7 @@ import {
 import { clearSave, loadGame, migrate, saveGame } from './save';
 import { overallRating } from './rating';
 import { scaleToVelocity } from './growth';
-import type { GameState, ManagementEvent, UsageRole } from './types';
+import type { GameState, ManagementEvent, Player, UsageRole } from './types';
 
 const PLAYER_TEAM = 'phoenix';
 
@@ -522,10 +522,13 @@ describe('PHASE4.0 起用方針', () => {
 /* ================= 育成環境 ================= */
 
 describe('PHASE4.0 育成環境', () => {
-  it('初期状態では補正なし', () => {
+  it('初期状態（施設Lv1・バランス・主力）では補正なし', () => {
     const s = newGame();
-    const player = s.players.find((p) => p.teamId === PLAYER_TEAM && p.age <= 24);
-    if (!player) return;
+    const player = s.players.find((p) => p.teamId === PLAYER_TEAM);
+    if (!player) throw new Error('自球団に選手がいない');
+    setDirection(s, PLAYER_TEAM, 'BALANCED');
+    setUsageRole(s, player.id, 'CORE');
+    expect(s.clubs[PLAYER_TEAM].facilities.development).toBe(1);
     const mods = developmentModifiers(s, player);
     expect(mods.facility).toBeCloseTo(1, 6);
     expect(mods.training).toBe(1);
@@ -962,6 +965,28 @@ describe('PHASE4.0 基本能力が変わらない', () => {
     const maxFacilities = (g: GameState) => {
       for (const team of g.teams) g.clubs[team.id].facilities.development = 5;
     };
+    // 生成時点ですでに潜在能力を上回っている能力がある（潜在能力は要約値であって
+    // 能力ごとの上限そのものではない）。成長で「押し上げられていない」ことを見る。
+    const grownKeys = (p: Player): [string, number][] =>
+      p.pitching
+        ? [
+            ['control', p.pitching.control],
+            ['stamina', p.pitching.stamina],
+            ['power', p.pitching.power],
+            ['movement', p.pitching.movement],
+            ['velocity', p.pitching.velocity],
+          ]
+        : [
+            ['contact', p.batting.contact],
+            ['power', p.batting.power],
+            ['trajectory', p.batting.trajectory],
+            ['speed', p.batting.speed],
+            ['arm', p.batting.arm],
+            ['fielding', p.batting.fielding],
+            ['catching', p.batting.catching],
+          ];
+    const start = new Map(s.players.map((p) => [p.id, new Map(grownKeys(p))]));
+
     maxFacilities(s);
     for (let i = 0; i < 6; i++) {
       s = playSeason(s);
@@ -969,25 +994,21 @@ describe('PHASE4.0 基本能力が変わらない', () => {
       startNextSeason(s);
       maxFacilities(s);
     }
+
+    let checked = 0;
     for (const player of s.players) {
+      const before = start.get(player.id);
+      if (!before) continue; // 途中で入ってきた新人は対象外
       const cap = player.ext.potential;
-      // 成長対象の能力は潜在能力を上限とする（球速だけ km/h 換算）
-      if (player.pitching) {
-        expect(player.pitching.control).toBeLessThanOrEqual(cap);
-        expect(player.pitching.stamina).toBeLessThanOrEqual(cap);
-        expect(player.pitching.power).toBeLessThanOrEqual(cap);
-        expect(player.pitching.movement).toBeLessThanOrEqual(cap);
-        expect(player.pitching.velocity).toBeLessThanOrEqual(scaleToVelocity(cap));
-      } else {
-        expect(player.batting.contact).toBeLessThanOrEqual(cap);
-        expect(player.batting.power).toBeLessThanOrEqual(cap);
-        expect(player.batting.trajectory).toBeLessThanOrEqual(cap);
-        expect(player.batting.speed).toBeLessThanOrEqual(cap);
-        expect(player.batting.arm).toBeLessThanOrEqual(cap);
-        expect(player.batting.fielding).toBeLessThanOrEqual(cap);
-        expect(player.batting.catching).toBeLessThanOrEqual(cap);
+      for (const [key, value] of grownKeys(player)) {
+        const limit = key === 'velocity' ? scaleToVelocity(cap) : cap;
+        const was = before.get(key) ?? limit;
+        // 上限か、もともとの値のどちらか高いほうを超えていないこと
+        expect(value).toBeLessThanOrEqual(Math.max(limit, was));
+        checked += 1;
       }
     }
+    expect(checked).toBeGreaterThan(500);
   }, 180000);
 });
 
