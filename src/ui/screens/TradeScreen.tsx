@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import type { Player, Team, TradeOffer } from '../../domain/types';
 import { POSITION_LABELS, POSITION_SHORT, positionGroup } from '../../domain/positions';
@@ -687,7 +688,7 @@ function TradeHistoryCard() {
   const history = [...state.trade.history].reverse().slice(0, 12);
   return (
     <div className="card">
-      <h2>トレード履歴</h2>
+      <Sec en="TRADE DESK" ja="トレード履歴" />
       {history.length === 0 ? (
         <div className="muted">まだトレードは成立していません。</div>
       ) : (

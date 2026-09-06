@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Sec } from '../components/Sec';
 import { useGame, usePlayerMap } from '../store';
 import { formatDateFull, formatDateJa } from '../../domain/dates';
 import { nextGameForTeam } from '../../domain/schedule';
@@ -126,6 +127,7 @@ export function HomeScreen() {
             </div>
           )}
           <div className="desk-record">
+            <span className="label">GAME STATUS</span>
             <div className="desk-wl">
               <b>{record.wins}</b>勝 <b>{record.losses}</b>敗 <b>{record.draws}</b>分
             </div>
@@ -136,12 +138,15 @@ export function HomeScreen() {
             </div>
           </div>
         </div>
-        <div className="desk-date">{formatDateFull(state.date)}</div>
+        <div className="desk-date">
+          <span className="label">TODAY</span>
+          {formatDateFull(state.date)}
+        </div>
       </header>
 
       {/* ── 2. 次の試合 ── いちばん面積を取る ── */}
       <section className="next-game">
-        <div className="label">NEXT GAME</div>
+        <Sec en="NEXT GAME" ja="次の試合" size="lead" />
         {next && opponent ? (
           <>
             <div className="next-matchup">
@@ -201,7 +206,7 @@ export function HomeScreen() {
       {/* ── 3. GMが決めること ── */}
       {decisions.length > 0 && (
         <div className="card">
-          <h2>GM DESK</h2>
+          <Sec en="GM DESK" ja="今日の判断" size="lead" />
           {decisions.map((d, i) => (
             <div key={i} className="decision">
               <span className="decision-tag">{d.tag}</span>
@@ -218,7 +223,7 @@ export function HomeScreen() {
 
       {/* ── 4. チーム状態 ── */}
       <div className="card">
-        <h2>チーム状態</h2>
+        <Sec en="TEAM STATUS" ja="チーム状態" />
         <PowerLine label="総合" value={power.total} lead />
         <PowerLine label="打撃" value={power.batting} />
         <PowerLine label="投手" value={power.pitching} />
@@ -254,7 +259,7 @@ export function HomeScreen() {
 
       {state.notices.length > 0 && (
         <div className="card">
-          <h2>球団報</h2>
+          <Sec en="CLUB BULLETIN" ja="球団報" size="sub" />
           {state.notices
             .slice(-5)
             .reverse()
@@ -269,7 +274,7 @@ export function HomeScreen() {
 
       {/* ── 6. 資料 ── 参照するだけのものは下 ── */}
       <div className="card">
-        <h2>球団経営</h2>
+        <Sec en="FINANCE" ja="球団経営" size="sub" />
         <FinanceRows
           cash={finance.cash}
           budget={finance.budget}
@@ -283,7 +288,7 @@ export function HomeScreen() {
       </div>
 
       <div className="card">
-        <h2>歴史・記録</h2>
+        <Sec en="RECORD BOOK" ja="歴史・記録" size="sub" />
         <div className="stat-line">
           <span className="muted">記録しているシーズン</span>
           <span style={{ fontWeight: 700 }}>{state.history.seasons.length}年</span>
@@ -423,7 +428,7 @@ function ClubSummary() {
       className="card"
       style={{ borderColor: events.length > 0 ? 'var(--accent)' : undefined }}
     >
-      <h2>球団の状態</h2>
+      <Sec en="CLUB STATUS" ja="球団の状態" />
       {events.length > 0 && (
         <div className="panel" style={{ marginTop: 0 }}>
           <span className="label" style={{ color: 'var(--accent)' }}>要判断</span>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import type { GameResult } from '../../domain/types';
 import { formatDateJa } from '../../domain/dates';
@@ -32,7 +33,7 @@ export function GameScreen() {
   return (
     <div className="screen">
       <div className="card">
-        <h2>次の試合</h2>
+        <Sec en="NEXT GAME" ja="次の試合" size="lead" />
         {next && opponent ? (
           <>
             <div className="muted">{formatDateJa(next.date)}</div>
@@ -56,11 +57,11 @@ export function GameScreen() {
       {lastResult && (
         <>
           <div className="card">
-            <h2>試合結果</h2>
+            <Sec en="SCOREBOOK" ja="試合結果" size="lead" />
             <GameResultView state={state} result={lastResult} />
           </div>
           <div className="card">
-            <h2>簡易実況</h2>
+            <Sec en="PLAY BY PLAY" ja="簡易実況" size="sub" />
             <div className="commentary">
               {lastResult.commentary.map((line, i) => (
                 <div key={i} className={line.startsWith('　') ? '' : 'head'}>
@@ -71,7 +72,7 @@ export function GameScreen() {
           </div>
           {sameDayResults.length > 0 && (
             <div className="card">
-              <h2>同日の他球団の結果</h2>
+              <Sec en="AROUND THE LEAGUE" ja="同日の他球団" size="sub" />
               {sameDayResults.map((r) => (
                 <ResultRow key={r.id} state={state} result={r} />
               ))}
@@ -81,7 +82,7 @@ export function GameScreen() {
       )}
 
       <div className="card">
-        <h2>これまでの試合</h2>
+        <Sec en="GAME LOG" ja="これまでの試合" size="sub" />
         {playerResults.length === 0 && <div className="muted">まだ試合を行っていません。</div>}
         {playerResults.slice(0, 20).map((r) => (
           <button
@@ -105,7 +106,7 @@ export function GameScreen() {
           </div>
           {detail.commentary.length > 0 && (
             <div className="card">
-              <h2>簡易実況</h2>
+              <Sec en="PLAY BY PLAY" ja="簡易実況" size="sub" />
               <div className="commentary" style={{ maxHeight: 'none' }}>
                 {detail.commentary.map((line, i) => (
                   <div key={i} className={line.startsWith('　') ? '' : 'head'}>
@@ -208,11 +209,29 @@ export function GameResultView({
           </button>
         )}
       </div>
-      <div
-        style={{ textAlign: 'center', marginBottom: 10, fontWeight: 700, minHeight: 24 }}
-      >
+      {/*
+        PHASE 4.3: 試合が終わったら、まず FINAL を静かに出し、
+        少し遅れて勝敗を出す（§6）。ポップアップも紙吹雪も出さない。
+      */}
+      <div className="final-line">
         {play.done && (
-          <span className="pop-in">{winner ? `勝利球団：${winner.name}` : '引き分け'}</span>
+          <>
+            <span className="label final-mark">FINAL</span>
+            <span
+              className={`final-result${
+                winner ? (winner.id === state.playerTeamId ? ' win' : ' loss') : ' draw'
+              }`}
+            >
+              {winner
+                ? winner.id === state.playerTeamId
+                  ? 'WIN'
+                  : 'LOSS'
+                : 'DRAW'}
+            </span>
+            <span className="final-team">
+              {winner ? `勝利球団：${winner.name}` : '引き分け'}
+            </span>
+          </>
         )}
       </div>
       <div className="scroll-x">

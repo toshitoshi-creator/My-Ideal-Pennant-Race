@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import { formatGamesBehind, formatWinPct, standingsForLeague } from '../../domain/standings';
 import { Tabs } from '../components/common';
@@ -103,7 +104,7 @@ function Leaders() {
   return (
     <>
       <div className="card">
-        <h2>打率（規定打席到達者）</h2>
+        <Sec en="BATTING AVERAGE" ja="打率" size="sub" note="規定打席到達者" />
         {batters.length === 0 ? (
           <div className="muted">規定打席に到達した選手がいません。</div>
         ) : (
@@ -123,7 +124,7 @@ function Leaders() {
       </div>
 
       <div className="card">
-        <h2>本塁打</h2>
+        <Sec en="HOME RUNS" ja="本塁打" size="sub" />
         <table className="data">
           <tbody>
             {homers.map((p, i) => (
@@ -139,7 +140,7 @@ function Leaders() {
       </div>
 
       <div className="card">
-        <h2>防御率（規定投球回到達者）</h2>
+        <Sec en="EARNED RUN AVERAGE" ja="防御率" size="sub" note="規定投球回到達者" />
         {pitchers.length === 0 ? (
           <div className="muted">規定投球回に到達した投手がいません。</div>
         ) : (

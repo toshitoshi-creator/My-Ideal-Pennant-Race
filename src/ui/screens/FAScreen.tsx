@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import { CountUp, RevealRows } from '../components/Reveal';
 import type { FAMarketPlayer, Player } from '../../domain/types';
@@ -109,7 +110,7 @@ export function FAScreen() {
 
       <div className="screen">
         <div className="card">
-          <h2>球団の資金</h2>
+          <Sec en="BUDGET" ja="球団の資金" size="sub" />
           <FinanceRows
             cash={finance.cash}
             budget={finance.budget}
@@ -128,7 +129,7 @@ export function FAScreen() {
         ) : (
           <>
             <div className="card">
-              <h2>FA市場</h2>
+              <Sec en="FREE AGENCY" ja="FA市場" size="lead" />
               <div className="muted">
                 契約が決まらなかった選手が移籍先を探しています。提示は締切でまとめて判断され、
                 選手は年俸だけでなく球団の力・出場機会も見て決めます。
@@ -229,7 +230,7 @@ function ResultsCard({ onFinish }: { onFinish: () => void }) {
       {/* PHASE 4.1: 選手 → 契約内容 → 加入 の順に見せる */}
       {mine.length > 0 && (
         <div className="card" style={{ borderColor: 'var(--good)' }}>
-          <h2>獲得した選手</h2>
+          <Sec en="SIGNED" ja="獲得した選手" />
           {mine.map((r) => (
             <div key={r.playerId} style={{ marginBottom: 10 }}>
               <RevealRows

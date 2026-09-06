@@ -14,16 +14,6 @@ const EMPHASISED = new Set<NewsCategory>([
   'FA',
 ]);
 
-/*
- * PHASE 4.2: 新聞の記事として組む。左の縦罫の濃さが優先度で、
- * 赤は「速報」のときにだけ使う。
- */
-const PRIORITY_RULE: Record<string, string> = {
-  BREAKING: 'var(--accent)',
-  HIGH: 'var(--ink)',
-  NORMAL: 'var(--rule-2)',
-  LOW: 'var(--rule)',
-};
 
 /**
  * ニュース1件のカード（PHASE 3.9）。
@@ -50,25 +40,31 @@ export function NewsCard({
   const first = useFirstVisit(`news:${item.id}`);
   const animate = first && !reduced;
 
+  /*
+   * PHASE 4.3: 新聞の紙面として組む（§13・§25）。
+   * 三段の扱いにして、同じ大きさで並べない。
+   *   lead   速報 — 大きな見出しと本文、上下に太い罫
+   *   normal 重要 — 見出しだけ大きめ
+   *   brief  通常 — 一行の短信
+   */
+  const tier = item.priority === 'BREAKING' ? 'lead' : big ? 'normal' : 'brief';
+
   return (
-    <div
-      className={animate ? (emphasise ? 'pop-in' : 'card-in') : undefined}
-      style={{
-        animationDelay: animate ? `${staggerDelay(index, reduced)}ms` : undefined,
-        borderLeft: `2px solid ${PRIORITY_RULE[item.priority]}`,
-        padding: big ? '11px 0 12px 11px' : '8px 0 8px 11px',
-        borderBottom: '1px solid var(--rule)',
-      }}
+    <article
+      className={`news-item news-${tier}${animate ? (emphasise ? ' pop-in' : ' card-in') : ''}`}
+      style={{ animationDelay: animate ? `${staggerDelay(index, reduced)}ms` : undefined }}
     >
       <div className="news-head">
-        <span className="news-date">{item.year}年 {formatDateJa(item.date)}</span>
+        <span className="news-date">
+          {item.year}年 {formatDateJa(item.date)}
+        </span>
         <span className={`news-kind${item.priority === 'BREAKING' ? ' breaking' : ''}`}>
           {item.priority === 'BREAKING' ? '速報' : CATEGORY_LABELS[item.category]}
         </span>
         {team && <span className="news-team">{team.shortName}</span>}
         {isNew && <span className="news-new">NEW</span>}
       </div>
-      <div style={{ fontWeight: big ? 800 : 700, fontSize: big ? 16 : 14 }}>
+      <h3 className="news-title">
         {item.playerId && onSelectPlayer ? (
           <button className="linky" onClick={() => onSelectPlayer(item.playerId!)}>
             {item.title}
@@ -76,12 +72,8 @@ export function NewsCard({
         ) : (
           item.title
         )}
-      </div>
-      {big && (
-        <div className="muted" style={{ fontSize: 13, marginTop: 3 }}>
-          {item.body}
-        </div>
-      )}
-    </div>
+      </h3>
+      {tier !== 'brief' && <p className="news-body">{item.body}</p>}
+    </article>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Sec } from '../components/Sec';
 import { useGame, usePlayerMap } from '../store';
 import type { LineupSlot, Player, PositionId } from '../../domain/types';
 import { FIRST_TEAM_LIMIT, ROSTER_LIMIT } from '../../domain/types';
@@ -432,7 +433,7 @@ function RotationTab() {
   return (
     <>
       <div className="card">
-        <h2>先発ローテーション</h2>
+        <Sec en="ROTATION" ja="先発ローテーション" />
         <div className="muted">
           試合日ごとに先発1→先発5の順で登板します。枠をタップで投手を変更できます。
         </div>

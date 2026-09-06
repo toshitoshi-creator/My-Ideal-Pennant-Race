@@ -3,6 +3,7 @@ import type { Player } from '../../domain/types';
 import { useGame } from '../store';
 import { AbilityBar, KeyValue, RankBadge, Sheet, Tabs } from './common';
 import { PlayerAnalysisPanel } from './PlayerAnalysisPanel';
+import { Sec } from './Sec';
 import { PlayerHistoryView } from './PlayerHistoryView';
 import { POSITION_LABELS, aptitudeLabel, FIELD_POSITIONS } from '../../domain/positions';
 import { overallRating } from '../../domain/rating';
@@ -60,6 +61,7 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
     <Sheet title={player.name} onClose={onClose}>
       {/* 選手名鑑の見出し（PHASE 4.2）。箱に入れず、罫線で区切る */}
       <header className="profile">
+        <div className="label profile-kicker">PLAYER REPORT</div>
         <div className="profile-top">
           <span className="profile-no">{player.uniformNumber}</span>
           <div className="profile-id">
@@ -102,27 +104,27 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
       {tab === 'info' && (
       <>
       <div className="card">
-        <h2>コンディション</h2>
+        <Sec en="CONDITION" ja="コンディション" />
         <StatusPanel player={player} teamMorale={state.teamMorale[player.teamId] ?? 50} />
       </div>
 
       <div className="card">
-        <h2>契約</h2>
+        <Sec en="CONTRACT" ja="契約" />
         <ContractPanel player={player} />
       </div>
 
       <div className="card">
-        <h2>個性</h2>
+        <Sec en="PROFILE" ja="個性" />
         <PersonalityPanel player={player} />
       </div>
 
       <div className="card">
-        <h2>特殊能力</h2>
+        <Sec en="SPECIAL" ja="特殊能力" />
         <SpecialAbilityPanel player={player} />
       </div>
 
       <div className="card">
-        <h2>能力</h2>
+        <Sec en="ABILITY" ja="能力" />
         {player.isPitcher && player.pitching ? (
           <>
             <AbilityBar
@@ -154,7 +156,7 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
 
       {!player.isPitcher && (
         <div className="card">
-          <h2>守備適性</h2>
+          <Sec en="POSITIONS" ja="守備適性" />
           <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
             {FIELD_POSITIONS.map((pos) => {
               const label = aptitudeLabel(player, pos);
@@ -175,7 +177,7 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
       )}
 
       <div className="card">
-        <h2>今季成績</h2>
+        <Sec en="SEASON RECORD" ja="今季成績" />
         {player.isPitcher ? (
           <>
             <KeyValue label="登板 / 先発" value={`${stats.pitching.games} / ${stats.pitching.starts}`} />
@@ -199,7 +201,7 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
 
       {history && history.seasons.length > 0 && (
         <div className="card">
-          <h2>これまでの歩み</h2>
+          <Sec en="CAREER HISTORY" ja="これまでの歩み" />
           <PlayerHistoryView history={history} />
         </div>
       )}

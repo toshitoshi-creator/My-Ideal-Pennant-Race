@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import type { Player } from '../../domain/types';
 import { PlayerCard } from '../components/PlayerCard';
@@ -91,7 +92,7 @@ function ContractTable({ onSelect }: { onSelect: (player: Player) => void }) {
   return (
     <>
       <div className="card">
-        <h2>球団の資金</h2>
+        <Sec en="BUDGET" ja="球団の資金" size="sub" />
         <div className="spread" style={{ padding: '5px 0' }}>
           <span className="muted">球団資金</span>
           <span style={{ fontWeight: 700, color: finance.cash < 0 ? 'var(--bad)' : undefined }}>
@@ -106,7 +107,7 @@ function ContractTable({ onSelect }: { onSelect: (player: Player) => void }) {
         </div>
       </div>
       <div className="card">
-        <h2>契約一覧</h2>
+        <Sec en="CONTRACTS" ja="契約一覧" />
         <div className="scroll-x">
           <table className="data">
             <thead>
@@ -158,7 +159,7 @@ function FreeAgentTable() {
   if (pool.length === 0) return null;
   return (
     <div className="card">
-      <h2>FA（未所属）の選手</h2>
+      <Sec en="FREE AGENTS" ja="FA（未所属）の選手" size="sub" />
       <div className="muted" style={{ marginBottom: 8, fontSize: 12 }}>
         どの球団にも所属していない選手です（{pool.length}人）。オフシーズンのFA市場で獲得できます。
       </div>
@@ -205,7 +206,7 @@ function StatsTables() {
   return (
     <>
       <div className="card">
-        <h2>野手成績</h2>
+        <Sec en="BATTING" ja="野手成績" />
         <div className="scroll-x">
           <table className="data">
             <thead>
@@ -248,7 +249,7 @@ function StatsTables() {
       </div>
 
       <div className="card">
-        <h2>投手成績</h2>
+        <Sec en="PITCHING" ja="投手成績" />
         <div className="scroll-x">
           <table className="data">
             <thead>

@@ -3,6 +3,7 @@
  * 分析そのものは domain/teamAnalysis.ts が決める。ここは並べるだけ。
  */
 import { useMemo, useState } from 'react';
+import { Sec } from './Sec';
 import {
   analyzeTeamForDisplay,
   TEAM_STATUS_LABELS,
@@ -45,7 +46,7 @@ export function TeamAnalysisPanel() {
   return (
     <>
       <div className="card">
-        <h2>チーム状態</h2>
+        <Sec en="CLUB REPORT" ja="球団レポート" size="lead" />
         <div className="spread">
           <span className="chip on" style={{ background: STATUS_COLORS[analysis.status], color: '#10151c' }}>
             {TEAM_STATUS_LABELS[analysis.status]}
@@ -58,7 +59,7 @@ export function TeamAnalysisPanel() {
       </div>
 
       <div className="card">
-        <h2>チーム戦力分析</h2>
+        <Sec en="TEAM STRENGTH" ja="チーム戦力" />
         <RadarChart axes={radar} animationKey={`team:${teamId}`} showProjection={false} />
         {analysis.axes.map((axis) => (
           <AxisBar
@@ -75,7 +76,7 @@ export function TeamAnalysisPanel() {
       </div>
 
       <div className="card">
-        <h2>現在の課題</h2>
+        <Sec en="AREAS TO WATCH" ja="現在の課題" />
         {analysis.issues.length === 0 ? (
           <p className="muted">目立った課題はありません。</p>
         ) : (
@@ -91,7 +92,7 @@ export function TeamAnalysisPanel() {
       </div>
 
       <div className="card">
-        <h2>ポジション別の層</h2>
+        <Sec en="DEPTH CHART" ja="ポジション別の層" />
         <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
           上から順に能力が高い選手です。タップすると全員を表示します。
         </div>
@@ -134,7 +135,7 @@ export function TeamAnalysisPanel() {
       </div>
 
       <div className="card">
-        <h2>選手層の内訳</h2>
+        <Sec en="ROSTER BREAKDOWN" ja="選手層の内訳" size="sub" />
         <div className="spread" style={{ padding: '4px 0' }}>
           <span className="muted">先発</span>
           <span style={{ fontWeight: 700 }}>{analysis.counts.starters}人</span>

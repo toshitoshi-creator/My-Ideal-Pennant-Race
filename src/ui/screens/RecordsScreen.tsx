@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import { Sheet, Tabs } from '../components/common';
 import {
@@ -48,7 +49,7 @@ export function RecordsScreen() {
     return (
       <div className="screen">
         <div className="card">
-          <h2>記録</h2>
+          <Sec en="RECORD BOOK" ja="記録" size="lead" />
           <p className="muted">
             まだ記録がありません。1シーズンを終えると、リーグ記録・球団記録が
             ここに残っていきます。
@@ -194,11 +195,11 @@ function TeamRecords({ onOpen }: { onOpen: (id: string) => void }) {
         </div>
       </div>
       <div className="card">
-        <h2>シーズン記録</h2>
+        <Sec en="SEASON RECORDS" ja="シーズン記録" />
         <RecordTable book={state.history.teamRecords[teamId]} kind="season" onOpen={onOpen} />
       </div>
       <div className="card">
-        <h2>通算記録</h2>
+        <Sec en="CAREER RECORDS" ja="通算記録" />
         <RecordTable book={state.history.teamRecords[teamId]} kind="career" onOpen={onOpen} />
       </div>
     </>
@@ -226,7 +227,7 @@ function SeasonBest({ onOpen }: { onOpen: (id: string) => void }) {
 
   return (
     <div className="card">
-      <h2>シーズンの上位記録</h2>
+      <Sec en="SEASON LEADERS" ja="シーズンの上位記録" size="sub" />
       <div className="scroll-x" style={{ paddingBottom: 4 }}>
         <div style={{ display: 'flex', gap: 6 }}>
           {LEADER_KEYS.map((k) => (

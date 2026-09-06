@@ -1278,10 +1278,27 @@ const analysisText = await page.locator('.sheet').innerText();
  * GM RECOMMENDATION に統合された（§11: 開いた瞬間に結論が読めること）。
  * 確認する内容は減らしていない — 結論・理由・判断材料の数をこの下で個別に見る。
  */
-for (const label of ['球団分析', '能力', '起用分析', 'GM RECOMMENDATION', '年度別成績']) {
+/*
+ * PHASE 4.3: 画面の用語を球団業務の言い方にそろえた（§3）。
+ *   球団分析 → SCOUT REPORT / スカウト評価
+ *   起用分析 → ROSTER STATUS / 起用の目安
+ * 欄名（ラテン語）と日本語の見出しの両方が出ていることを確かめる。
+ */
+for (const label of [
+  'SCOUT REPORT',
+  'スカウト評価',
+  'ABILITY',
+  '能力資料',
+  'ROSTER STATUS',
+  '起用の目安',
+  'GM RECOMMENDATION',
+  '扱いの助言',
+  'SEASON RECORD',
+  '年度別成績',
+]) {
   if (!analysisText.includes(label)) fail(`分析タブに「${label}」がない`);
 }
-ok('分析タブに球団分析・能力・起用分析・GM評価・年度別成績が出る');
+ok('分析タブの各欄が欄名（英）と見出し（日）の両方で出ている');
 
 // 扱いの結論と、その理由・判断材料が最上部に出ていること（PHASE 4.2 で追加）
 {
@@ -1359,7 +1376,18 @@ await page.getByRole('button', { name: '球団経営を見る' }).click();
 await page.locator('.tabs button', { hasText: '分析' }).click();
 await page.waitForTimeout(300);
 const teamText = await page.locator('.screen').innerText();
-for (const label of ['チーム状態', 'チーム戦力分析', '現在の課題', 'ポジション別の層', '選手層の内訳']) {
+// PHASE 4.3: チーム分析も球団レポートの用語にそろえた（§3・§12）
+for (const label of [
+  'CLUB REPORT',
+  '球団レポート',
+  'TEAM STRENGTH',
+  'チーム戦力',
+  'AREAS TO WATCH',
+  '現在の課題',
+  'DEPTH CHART',
+  'ポジション別の層',
+  '選手層の内訳',
+]) {
   if (!teamText.includes(label)) fail(`チーム分析に「${label}」がない`);
 }
 ok('チーム分析に状態・戦力・課題・ポジション別の層が出る');
@@ -1444,7 +1472,7 @@ await reducedPage.locator('.sheet').waitFor();
 await reducedPage.locator('.sheet .tabs button', { hasText: '分析' }).click();
 await reducedPage.waitForTimeout(150);
 const reducedText = await reducedPage.locator('.sheet').innerText();
-for (const label of ['球団分析', '起用分析', 'GM RECOMMENDATION']) {
+for (const label of ['SCOUT REPORT', 'スカウト評価', '起用の目安', 'GM RECOMMENDATION']) {
   if (!reducedText.includes(label)) fail(`reduced-motion で「${label}」が表示されない`);
 }
 const reducedRadar = await reducedPage.locator('.sheet svg.radar polygon.radar-value').count();

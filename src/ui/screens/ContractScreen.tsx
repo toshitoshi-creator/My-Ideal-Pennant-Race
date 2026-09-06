@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import { CountUp, RevealRows } from '../components/Reveal';
 import type { Player } from '../../domain/types';
@@ -247,7 +248,7 @@ function NegotiationSheet({ player, onClose }: { player: Player; onClose: () => 
       </div>
 
       <div className="card">
-        <h2>提示条件</h2>
+        <Sec en="CONTRACT DESK" ja="提示条件" size="lead" />
         <div className="spread" style={{ marginBottom: 10 }}>
           <span className="muted">年俸</span>
           <span className="row" style={{ gap: 8 }}>

@@ -1,4 +1,5 @@
 import { useGame } from '../store';
+import { Sec } from '../components/Sec';
 import {
   STAGE_LABELS,
   currentSeries,
@@ -74,7 +75,7 @@ export function PostseasonScreen() {
       </div>
 
       <div className="card">
-        <h2>進出球団</h2>
+        <Sec en="QUALIFIED" ja="進出球団" size="sub" />
         {state.leagues.map((league) => (
           <div key={league.id} style={{ marginBottom: 10 }}>
             <div className="muted" style={{ fontSize: 13 }}>

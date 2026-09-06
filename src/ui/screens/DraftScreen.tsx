@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import type { DraftProspect, ScoutCategory, ScoutReport } from '../../domain/types';
 import { availableProspects, currentPick } from '../../domain/draft';
@@ -146,7 +147,7 @@ export function DraftScreen() {
         {/* PHASE 4.1: 直近の指名を球団→巡目→選手→評価の順に見せる（スキップ可） */}
         {latestPick && latestProspect && (
           <div className="card" style={{ borderColor: 'var(--accent)' }}>
-            <h2>指名</h2>
+            <Sec en="DRAFT ROOM" ja="指名" size="lead" />
             <RevealRows
               animationKey={`${latestPick.round}-${latestPick.pick}-${latestPick.prospectId}`}
               intervalMs={240}
@@ -196,7 +197,7 @@ export function DraftScreen() {
 
         {draftLog.length > 0 && (
           <div className="card">
-            <h2>指名の経過</h2>
+            <Sec en="DRAFT LOG" ja="指名の経過" size="sub" />
             {draftLog.map((notice, i) => (
               <div key={i} style={{ padding: '4px 0', fontSize: 14 }}>
                 {notice.message}

@@ -1316,6 +1316,11 @@ h3.sec {
   padding-bottom: 3px;
 }
 
+.desk-record .label {
+  display: block;
+  margin-bottom: 1px;
+}
+
 .desk-wl {
   font-size: var(--text-md);
   color: var(--ink-2);
@@ -1328,7 +1333,12 @@ h3.sec {
 }
 
 .desk-date {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
   margin-top: var(--space-xs);
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--rule);
   font-size: var(--text-xs);
   color: var(--ink-2);
   letter-spacing: 0.02em;
@@ -1501,6 +1511,10 @@ h3.sec {
 }
 
 /* ---- 選手名鑑の見出し ---- */
+
+.profile-kicker {
+  margin-bottom: 5px;
+}
 
 .profile {
   padding: var(--space-xs) 0 var(--space-sm);
@@ -1750,4 +1764,287 @@ h3.sec {
 
 .concern-text {
   flex: 1;
+}
+
+
+/* ================= PHASE 4.3 資料の欄見出し ================= */
+
+.sec {
+  padding-top: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+/* 赤い短い罫。資料の欄の始まりを示す */
+.sec-rule {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--accent);
+  margin-bottom: 7px;
+}
+
+.sec-rule.grow {
+  animation: rule-grow 340ms var(--ease-out) both;
+  transform-origin: left center;
+}
+
+@keyframes rule-grow {
+  from {
+    transform: scaleX(0.1);
+  }
+}
+
+.sec-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.sec-en {
+  font-size: var(--text-label);
+  font-weight: 700;
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.sec-note {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+/* .card h2 の既定（小さな大文字ラベル）を上書きする */
+.sec h2.sec-ja,
+.sec-ja {
+  margin: 1px 0 0;
+  font-size: var(--text-md);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--ink);
+}
+
+/* 資料の中での重み（§25） */
+.sec-lead .sec-rule {
+  width: 30px;
+  height: 3px;
+}
+
+.sec-lead h2.sec-ja {
+  font-size: var(--text-lg);
+}
+
+.sec-sub .sec-rule {
+  width: 12px;
+  background: var(--rule-2);
+}
+
+.sec-sub h2.sec-ja {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+/* 見出しを持つ節は、上の罫線を引かない（見出しの赤罫と重なるため） */
+.card:has(> .sec) {
+  border-top: none;
+  padding-top: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sec-rule.grow {
+    animation: none;
+  }
+}
+
+
+/* ================= PHASE 4.3 新聞の紙面 ================= */
+
+.news-item {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.news-item:last-child {
+  border-bottom: none;
+}
+
+.news-title {
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.news-body {
+  margin: 3px 0 0;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  line-height: 1.7;
+}
+
+/* ---- 速報：紙面の頭。上下を太い罫で囲む ---- */
+.news-lead {
+  border-top: 2px solid var(--ink);
+  border-bottom: 2px solid var(--ink);
+  padding: var(--space-sm) 0 var(--space-md);
+  margin: var(--space-xs) 0 var(--space-sm);
+}
+
+.news-lead .news-title {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  margin-top: 2px;
+}
+
+.news-lead .news-body {
+  font-size: var(--text-md);
+  color: var(--ink);
+  margin-top: 6px;
+}
+
+/* ---- 重要：見出しだけ大きめ ---- */
+.news-normal {
+  padding: 11px 0 12px;
+}
+
+.news-normal .news-title {
+  font-size: var(--text-md);
+  font-weight: 800;
+}
+
+/* ---- 通常：一行の短信 ---- */
+.news-brief {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  padding: 6px 0;
+}
+
+.news-brief .news-head {
+  flex: 0 0 auto;
+  margin-bottom: 0;
+  gap: 6px;
+}
+
+.news-brief .news-team {
+  display: none;
+}
+
+.news-brief .news-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--ink);
+}
+
+.news-brief .news-date {
+  font-size: 10px;
+}
+
+.news-brief .news-kind {
+  display: none;
+}
+
+
+/* ---- 試合終了（§6） ---- */
+
+.final-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  min-height: 26px;
+  margin-bottom: var(--space-xs);
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--rule);
+}
+
+.final-mark {
+  color: var(--ink-3);
+}
+
+/* 勝敗は少し遅れて出る。色に加えて文字そのものが結果を示す */
+.final-result {
+  font-size: var(--text-lg);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  animation: final-in 260ms var(--ease-out) 320ms both;
+}
+
+.final-result.win {
+  color: var(--grass);
+}
+
+.final-result.loss {
+  color: var(--ink-2);
+}
+
+.final-result.draw {
+  color: var(--ink-3);
+}
+
+.final-team {
+  margin-left: auto;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+@keyframes final-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .final-result {
+    animation: none;
+  }
+}
+
+
+/* ---- 日付でまとめた紙面（§13） ---- */
+
+.news-day {
+  margin-bottom: var(--space-sm);
+}
+
+.news-day-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: var(--space-sm) 0 2px;
+}
+
+.news-day-date {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.news-day-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--rule-2);
+}
+
+/* 日付でまとまったので、行ごとの日付は消す */
+.news-day .news-brief .news-date {
+  display: none;
+}
+
+.news-day .news-brief .news-kind {
+  display: inline;
+  flex: 0 0 auto;
+  min-width: 46px;
+  font-size: 10px;
+}
+
+.news-day .news-normal .news-date,
+.news-day .news-lead .news-date {
+  display: none;
 }

@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import { Sheet, Tabs } from '../components/common';
 import { NewsCard } from '../components/NewsCard';
 import { PlayerHistoryView } from '../components/PlayerHistoryView';
 import { CATEGORY_LABELS, markNewsRead, newsOfCategory } from '../../domain/news';
 import { recentStories } from '../../domain/story';
+import { formatDateJa } from '../../domain/dates';
+import type { NewsItem } from '../../domain/types';
 import type { NewsCategory, PlayerHistory } from '../../domain/types';
 
 type Filter = NewsCategory | 'ALL';
@@ -26,6 +29,17 @@ const FILTERS: Filter[] = [
   'RETIREMENT',
   'INJURY',
 ];
+
+/** 同じ日のニュースをひとまとめにする（並び順は変えない） */
+function groupByDate(items: NewsItem[]): Array<{ date: string; items: NewsItem[] }> {
+  const groups: Array<{ date: string; items: NewsItem[] }> = [];
+  for (const item of items) {
+    const last = groups[groups.length - 1];
+    if (last && last.date === item.date) last.items.push(item);
+    else groups.push({ date: item.date, items: [item] });
+  }
+  return groups;
+}
 
 export function NewsScreen() {
   const { state, mutate } = useGame();
@@ -78,18 +92,36 @@ export function NewsScreen() {
               </div>
             </div>
             <div className="card">
+              <Sec en="CLUB NEWS" ja="ニュース" size="lead" note={`${items.length}件`} />
               {items.length === 0 ? (
                 <p className="muted">まだニュースはありません。</p>
               ) : (
-                items.map((item, i) => (
-                  <NewsCard key={item.id} item={item} index={i} onSelectPlayer={openPlayer} />
+                /*
+                 * PHASE 4.3: 新聞の紙面として日付ごとにまとめる。
+                 * 1行ずつ日付を繰り返すと同じ濃さの行が並び、紙面に見えないため。
+                 */
+                groupByDate(items).map((group) => (
+                  <section key={group.date} className="news-day">
+                    <div className="news-day-head">
+                      <span className="news-day-date">{formatDateJa(group.date)}</span>
+                      <span className="news-day-rule" />
+                    </div>
+                    {group.items.map((item, i) => (
+                      <NewsCard
+                        key={item.id}
+                        item={item}
+                        index={i}
+                        onSelectPlayer={openPlayer}
+                      />
+                    ))}
+                  </section>
                 ))
               )}
             </div>
           </>
         ) : (
           <div className="card">
-            <h2>年度の物語</h2>
+            <Sec en="SEASON STORY" ja="年度の物語" size="lead" />
             {stories.length === 0 ? (
               <p className="muted">
                 シーズンを終えると、その年を振り返る物語がここに残ります。

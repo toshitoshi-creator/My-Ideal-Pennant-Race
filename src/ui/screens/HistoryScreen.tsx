@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import { Sheet, Tabs } from '../components/common';
 import {
@@ -31,7 +32,7 @@ export function HistoryScreen() {
     return (
       <div className="screen">
         <div className="card">
-          <h2>球団の歴史</h2>
+          <Sec en="CLUB HISTORY" ja="球団の歴史" size="lead" />
           <p className="muted">
             まだ記録がありません。1シーズンを終えると、その年の順位・タイトル・記録が
             ここに残っていきます。
@@ -246,7 +247,7 @@ function HallOfFame() {
   return (
     <>
       <div className="card">
-        <h2>殿堂</h2>
+        <Sec en="HALL OF FAME" ja="殿堂" />
         {entries.length === 0 ? (
           <p className="muted">
             まだ殿堂入りした選手はいません。長く活躍して記録を積み上げた選手が、
@@ -297,7 +298,7 @@ function RetiredList({ onSelect }: { onSelect: (h: PlayerHistory) => void }) {
   if (retired.length === 0) return null;
   return (
     <div className="card">
-      <h2>最近引退した選手</h2>
+      <Sec en="RETIRED" ja="最近引退した選手" size="sub" />
       {retired.map((history) => (
         <button key={history.playerId} className="row-btn" onClick={() => onSelect(history)}>
           <div className="spread">
@@ -342,7 +343,7 @@ function TeamNews({ teamId }: { teamId: string }) {
   if (items.length === 0) return null;
   return (
     <div className="card">
-      <h2>球団ニュース</h2>
+      <Sec en="CLUB NEWS" ja="球団ニュース" size="sub" />
       {items.map((item) => (
         <NewsCard key={item.id} item={item} />
       ))}

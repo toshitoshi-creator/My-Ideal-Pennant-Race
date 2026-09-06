@@ -13,6 +13,7 @@ import {
 import { formatAverage } from '../../domain/stats';
 import { useGame } from '../store';
 import { RadarChart, Stars, TrendChart } from './charts';
+import { Sec } from './Sec';
 
 
 interface MetricDef {
@@ -63,7 +64,7 @@ export function PlayerAnalysisPanel({ player }: { player: Player }) {
     <>
       {/* ── 結論 ── */}
       <section className={`verdict verdict-${tone[analysis.recommendation]}`}>
-        <div className="label">GM RECOMMENDATION</div>
+        <Sec en="GM RECOMMENDATION" ja="扱いの助言" size="lead" />
         <div className="verdict-name">{verdict}</div>
         <p className="verdict-reason">{analysis.recommendationReason}</p>
         {analysis.reasons.length > 0 && (
@@ -85,14 +86,17 @@ export function PlayerAnalysisPanel({ player }: { player: Player }) {
 
       {/* ── 評価 ── */}
       <div className="card">
-        <h2>球団分析</h2>
+        <Sec
+          en="SCOUT REPORT"
+          ja="スカウト評価"
+          note={`確度 ${Math.round(analysis.scoutingConfidence * 100)}%`}
+        />
         <div className="grade-line">
           <span className="grade-mark">{analysis.grade}</span>
           <span className="grade-label">{GRADE_LABELS[analysis.grade]}</span>
-          <span className="grade-conf">
-            確度 {Math.round(analysis.scoutingConfidence * 100)}%
-            {player.teamId !== state.playerTeamId && '（他球団）'}
-          </span>
+          {player.teamId !== state.playerTeamId && (
+            <span className="grade-conf">他球団のため確度は低め</span>
+          )}
         </div>
         <Stars label="現在戦力" value={analysis.stars.current} />
         <Stars label="将来性" value={analysis.stars.future} />
@@ -102,7 +106,7 @@ export function PlayerAnalysisPanel({ player }: { player: Player }) {
 
       {/* ── 起用 ── */}
       <div className="card">
-        <h2>起用分析</h2>
+        <Sec en="ROSTER STATUS" ja="起用の目安" />
         <div className="usage-line">
           <span className="usage-mark">{USAGE_ADVICE_LABELS[analysis.usage]}</span>
           <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>
@@ -114,7 +118,7 @@ export function PlayerAnalysisPanel({ player }: { player: Player }) {
 
       {/* ── 能力 ── */}
       <div className="card">
-        <h2>能力</h2>
+        <Sec en="ABILITY" ja="能力資料" />
         <p className="scout-note">{analysis.summary}</p>
         <RadarChart axes={analysis.radar} animationKey={player.id} />
         {!analysis.abilityHistoryAvailable && (
@@ -125,7 +129,7 @@ export function PlayerAnalysisPanel({ player }: { player: Player }) {
       </div>
 
       <div className="card">
-        <h2>年度別成績</h2>
+        <Sec en="SEASON RECORD" ja="年度別成績" />
         {analysis.trend.length === 0 ? (
           <p className="muted">
             まだ年度別成績が記録されていません。シーズンを終えると記録されます。
