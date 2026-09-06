@@ -323,7 +323,7 @@ function PostGameSection({ result }: { result: GameResult }) {
   const report = useMemo(() => buildPostGameReport(state, result), [state, result]);
   return (
     <div className="card">
-      <Sec en="POST GAME" ja="試合結果" size="lead" note={report.score} />
+      <Sec en="POST GAME" ja="試合の講評" size="lead" note={report.score} />
       {report.keyMoments.length > 0 && (
         <div className="post-block">
           <span className="label">KEY MOMENTS</span>

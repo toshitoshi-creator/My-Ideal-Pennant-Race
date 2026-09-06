@@ -1943,7 +1943,8 @@ if (await p44StartButton.count()) {
   }
   await page.waitForTimeout(500);
   const p44Post = await page.locator('.screen').innerText();
-  for (const label of ['POST GAME', '試合結果', 'TEAM NOTE', 'チームの状況']) {
+  // 「試合結果」は SCOREBOOK の見出しと重なるため、講評側は「試合の講評」にした
+  for (const label of ['POST GAME', '試合の講評', 'TEAM NOTE', 'チームの状況']) {
     if (!p44Post.includes(label)) fail(`試合後の講評に「${label}」がない`);
   }
   ok('試合後に POST GAME の講評が出る（§16）');
