@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useGame, usePlayerMap } from '../store';
-import { useFirstVisit, useReducedMotion } from '../anim';
 import { formatDateFull, formatDateJa } from '../../domain/dates';
 import { nextGameForTeam } from '../../domain/schedule';
 import { nextStarterId } from '../../domain/setup';
 import { teamPower } from '../../domain/rating';
 import { rankOfTeam, formatWinPct, winPct } from '../../domain/standings';
-import { KeyValue, RankBadge } from '../components/common';
+import { RankBadge } from '../components/common';
 import { GrowthReportSheet } from '../components/GrowthReport';
 import { FinanceRows } from './ContractScreen';
 import {
@@ -26,11 +25,11 @@ import {
   pendingEvents,
 } from '../../domain/club';
 import { NewsCard } from '../components/NewsCard';
-import { isTradeOpen, pendingOffersForPlayer } from '../../domain/trade';
+import { pendingOffersForPlayer } from '../../domain/trade';
 import {
-  faActivityLabel,
   planSummary,
   targetLabels,
+  faActivityLabel,
   tradeActivityLabel,
 } from '../../domain/teamAi';
 
@@ -40,9 +39,6 @@ export function HomeScreen() {
   const [showReport, setShowReport] = useState(false);
   const reportOpen = showReport || pendingReport;
   const byId = usePlayerMap();
-  // PHASE 4.1: 初回だけカードを上から順に出す。戻ってきたときは即表示
-  const reduced = useReducedMotion();
-  const homeAnim = useFirstVisit('home') && !reduced;
   const team = state.teams.find((t) => t.id === state.playerTeamId)!;
   const league = state.leagues.find((l) => l.id === team.leagueId)!;
   const record = state.records[team.id];
@@ -60,7 +56,6 @@ export function HomeScreen() {
 
   const plan = state.teamPlans?.[team.id];
   const tradeOffers = pendingOffersForPlayer(state);
-  const tradeOpen = isTradeOpen(state);
   const finance = state.finances[team.id];
   const payroll = teamPayroll(state, team.id);
   const remaining = remainingBudget(state, team.id);
@@ -78,168 +73,201 @@ export function HomeScreen() {
   const starter = byId.get(nextStarterId(setup) ?? '');
   const rank = rankOfTeam(state, team.id);
 
+  /*
+   * PHASE 4.2: 並び順は「いま見るべき順」（§21）。
+   *   1 今日の状況  2 次の試合  3 GMが決めること  4 チーム状態  5 ニュース  6 資料
+   * 均等に並べるのではなく、上ほど大きく扱う。
+   */
+  const decisions: Array<{ tag: string; text: string; action?: () => void; label?: string }> = [];
+  if (state.fa) {
+    const listed = state.fa.listings.filter((l) => l.status !== 'SIGNED').length;
+    decisions.push({
+      tag: 'FA市場開催中',
+      text: `市場に${listed}人。提示中 ${state.fa.offers.filter((o) => o.teamId === team.id && o.status === 'PENDING').length}人`,
+      action: () => showFA(),
+      label: 'FA市場を見る',
+    });
+  }
+  if (tradeOffers.length > 0) {
+    decisions.push({
+      tag: 'TRADE',
+      text: `他球団からトレード提案が${tradeOffers.length}件届いています`,
+      action: () => setScreen('trade'),
+      label: 'トレードへ',
+    });
+  }
+  if (expiringCount > 0) {
+    decisions.push({ tag: 'CONTRACT', text: `今季で契約が切れる選手が${expiringCount}人います` });
+  }
+  if (remaining < 0) {
+    decisions.push({
+      tag: 'BUDGET',
+      text: `総年俸が年間予算（${formatMoney(finance.budget)}）を超えています`,
+    });
+  }
+  if (finance.cash < 0) decisions.push({ tag: 'BUDGET', text: '球団資金が赤字です' });
+
   return (
-    <div className={`screen${homeAnim ? ' home-stagger' : ''}`}>
-      <div className="card" style={{ borderLeft: `5px solid ${team.color}` }}>
-        <div className="spread">
-          <div>
-            <div style={{ fontSize: 21, fontWeight: 800 }}>{team.name}</div>
-            <div className="muted">
-              {state.year}年 / {league.name}
+    <div className="screen">
+      {/* ── 1. 今日の状況 ── 記録用紙の頭 ── */}
+      <header className="desk-head">
+        <div className="desk-head-top">
+          <span className="label">{state.year} SEASON</span>
+          <span className="label">{league.name}</span>
+        </div>
+        <h2 className="desk-team" style={{ borderBottomColor: team.color }}>
+          {team.name}
+        </h2>
+        <div className="desk-line">
+          {record.games > 0 && (
+            <div className="desk-standing">
+              <span className="figure">{rank}</span>
+              <span className="desk-standing-unit">位</span>
             </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--accent)' }}>
-              {record.games > 0 ? `${rank}位` : '－'}
+          )}
+          <div className="desk-record">
+            <div className="desk-wl">
+              <b>{record.wins}</b>勝 <b>{record.losses}</b>敗 <b>{record.draws}</b>分
             </div>
-            <div className="muted">
-              {record.games > 0 ? formatWinPct(winPct(record)) : '開幕前'}
+            <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>
+              {record.games > 0
+                ? `${record.games}試合 / 勝率 ${formatWinPct(winPct(record))}`
+                : '開幕前'}
             </div>
           </div>
         </div>
-        <div style={{ marginTop: 8, fontSize: 15 }}>{formatDateFull(state.date)}</div>
-        <div style={{ marginTop: 4, fontSize: 17, fontWeight: 700 }}>
-          {record.wins}勝 {record.losses}敗 {record.draws}分（{record.games}試合）
-        </div>
-      </div>
+        <div className="desk-date">{formatDateFull(state.date)}</div>
+      </header>
 
-      <div className="card">
-        <h2>球団総合力</h2>
-        <div className="spread" style={{ marginBottom: 10 }}>
-          <span style={{ fontSize: 15 }}>総合</span>
-          <span className="row">
-            <strong style={{ fontSize: 22 }}>{power.total}</strong>
-            <RankBadge value={power.total} />
-          </span>
+      {/* ── 2. 次の試合 ── いちばん面積を取る ── */}
+      <section className="next-game">
+        <div className="label">NEXT GAME</div>
+        {next && opponent ? (
+          <>
+            <div className="next-matchup">
+              <span className="next-team">{team.shortName}</span>
+              <span className="next-vs">vs</span>
+              <span className="next-team">{opponent.shortName}</span>
+            </div>
+            <div className="next-meta">
+              {formatDateJa(next.date)}・{next.homeTeamId === team.id ? 'ホーム' : 'ビジター'}
+              　{opponent.shortName} {state.records[opponent.id].wins}勝
+              {state.records[opponent.id].losses}敗
+            </div>
+            <div className="next-starter">
+              <span className="label">先発</span>
+              <span>
+                {starter
+                  ? `${starter.name}　${starter.pitching?.velocity ?? '-'}km/h`
+                  : '未設定'}
+              </span>
+            </div>
+          </>
+        ) : (
+          <div className="muted" style={{ padding: '10px 0' }}>
+            残り試合はありません（シーズン終了）
+          </div>
+        )}
+        <div className="btn-row" style={{ marginTop: 12 }}>
+          <button
+            className="btn primary"
+            disabled={!next}
+            onClick={() => {
+              const result = playNextGame();
+              if (result) setScreen('game');
+            }}
+          >
+            次の試合へ
+          </button>
+          <button className="btn secondary" onClick={() => skipOneDay()}>
+            1日進める
+          </button>
         </div>
-        <KeyValue
-          label="打撃力"
-          value={
-            <span className="row">
-              {power.batting} <RankBadge value={power.batting} />
-            </span>
-          }
-        />
-        <KeyValue
-          label="投手力"
-          value={
-            <span className="row">
-              {power.pitching} <RankBadge value={power.pitching} />
-            </span>
-          }
-        />
-        <KeyValue
-          label="守備力"
-          value={
-            <span className="row">
-              {power.defense} <RankBadge value={power.defense} />
-            </span>
-          }
-        />
-      </div>
+      </section>
 
-      {state.fa && (
-        <div className="card" style={{ borderColor: 'var(--accent)' }}>
-          <h2>FA市場開催中</h2>
-          <div className="spread" style={{ padding: '4px 0' }}>
-            <span className="muted">市場に出ている選手</span>
-            <span style={{ fontWeight: 700 }}>
-              {state.fa.listings.filter((l) => l.status !== 'SIGNED').length}人
-            </span>
+      {state.seasonFinished && (
+        <div className="panel">
+          <div className="label" style={{ color: 'var(--accent)' }}>SEASON CLOSED</div>
+          <div style={{ margin: '4px 0 10px', fontWeight: 700 }}>
+            {state.year}年シーズン終了。{record.wins}勝{record.losses}敗{record.draws}分（{rank}位）
           </div>
-          <div className="spread" style={{ padding: '4px 0' }}>
-            <span className="muted">提示中</span>
-            <span style={{ fontWeight: 700 }}>
-              {state.fa.offers.filter(
-                (o) => o.teamId === team.id && o.status === 'PENDING',
-              ).length}
-              人
-            </span>
-          </div>
-          <button className="btn primary" style={{ marginTop: 10 }} onClick={() => showFA()}>
-            FA市場を見る
+          <PostseasonNotice />
+          <button className="btn primary" onClick={() => advanceSeason()}>
+            オフシーズンへ
           </button>
         </div>
       )}
 
-      <div className="card" style={{ borderColor: tradeOffers.length > 0 ? 'var(--accent)' : undefined }}>
-        <h2>トレード</h2>
-        {tradeOffers.length > 0 ? (
-          <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 6 }}>
-            トレード提案 {tradeOffers.length}件
-          </div>
-        ) : (
-          <div className="muted" style={{ marginBottom: 6 }}>
-            {tradeOpen
-              ? `トレード期限は ${state.trade.deadline} までです`
-              : 'トレード市場は閉鎖されています'}
+      {/* ── 3. GMが決めること ── */}
+      {decisions.length > 0 && (
+        <div className="card">
+          <h2>GM DESK</h2>
+          {decisions.map((d, i) => (
+            <div key={i} className="decision">
+              <span className="decision-tag">{d.tag}</span>
+              <span className="decision-text">{d.text}</span>
+              {d.action && (
+                <button className="linky" onClick={d.action}>
+                  {d.label}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── 4. チーム状態 ── */}
+      <div className="card">
+        <h2>チーム状態</h2>
+        <PowerLine label="総合" value={power.total} lead />
+        <PowerLine label="打撃" value={power.batting} />
+        <PowerLine label="投手" value={power.pitching} />
+        <PowerLine label="守備" value={power.defense} />
+        {plan && (
+          <div className="stat-line" style={{ marginTop: 6 }}>
+            <span className="muted">今季の方針</span>
+            <span style={{ fontWeight: 700 }}>{planSummary(plan)}</span>
           </div>
         )}
-        <div className="spread" style={{ padding: '4px 0' }}>
-          <span className="muted">今季の成立数</span>
-          <span style={{ fontWeight: 700 }}>
-            {state.trade.history.filter((r) => r.year === state.year).length}件
-          </span>
-        </div>
-        <button className="btn secondary" style={{ marginTop: 10 }} onClick={() => setScreen('trade')}>
-          トレードを見る
-        </button>
-      </div>
-
-      <ClubSummary />
-
-      <LatestNews />
-
-      <div className="card">
-        <h2>歴史・記録</h2>
-        <div className="spread" style={{ padding: '4px 0' }}>
-          <span className="muted">記録しているシーズン</span>
-          <span style={{ fontWeight: 700 }}>{state.history.seasons.length}年</span>
-        </div>
-        <div className="spread" style={{ padding: '4px 0' }}>
-          <span className="muted">優勝回数</span>
-          <span style={{ fontWeight: 700 }}>
-            {championshipCount(state.history, state.playerTeamId)}回
-          </span>
-        </div>
-        <div className="spread" style={{ padding: '4px 0' }}>
-          <span className="muted">殿堂入り</span>
-          <span style={{ fontWeight: 700 }}>{state.history.hallOfFame.length}人</span>
-        </div>
-        <div className="btn-row" style={{ marginTop: 10 }}>
-          <button className="btn secondary" onClick={() => setScreen('history')}>
-            歴史
-          </button>
-          <button className="btn secondary" onClick={() => setScreen('records')}>
-            記録
-          </button>
-        </div>
-      </div>
-
-      {plan && (
-        <div className="card">
-          <h2>今季の方針</h2>
-          <div style={{ fontSize: 18, fontWeight: 800 }}>{planSummary(plan)}</div>
-          {plan.reasons.length > 0 && (
-            <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>
-              {plan.reasons[0]}
-            </div>
-          )}
-          <div className="spread" style={{ padding: '6px 0', marginTop: 6 }}>
+        {plan && (
+          <div className="stat-line">
             <span className="muted">補強ポイント</span>
             <span style={{ fontWeight: 700 }}>
               {targetLabels(plan).join('・') || '特になし'}
             </span>
           </div>
-          <div className="spread" style={{ padding: '4px 0' }}>
+        )}
+        {plan && (
+          <div className="stat-line">
             <span className="muted">FA積極度 / トレード積極度</span>
             <span style={{ fontWeight: 700 }}>
               {faActivityLabel(plan)} / {tradeActivityLabel(plan)}
             </span>
           </div>
+        )}
+      </div>
+
+      <ClubSummary />
+
+      {/* ── 5. ニュース ── */}
+      <LatestNews />
+
+      {state.notices.length > 0 && (
+        <div className="card">
+          <h2>球団報</h2>
+          {state.notices
+            .slice(-5)
+            .reverse()
+            .map((notice, i) => (
+              <div key={i} className="notice-line">
+                <span className="notice-date">{formatDateJa(notice.date)}</span>
+                {notice.message}
+              </div>
+            ))}
         </div>
       )}
 
+      {/* ── 6. 資料 ── 参照するだけのものは下 ── */}
       <div className="card">
         <h2>球団経営</h2>
         <FinanceRows
@@ -248,109 +276,44 @@ export function HomeScreen() {
           payroll={payroll}
           lastResult={finance.lastResult}
         />
-        <div className="spread" style={{ padding: '6px 0' }}>
+        <div className="stat-line">
           <span className="muted">契約満了</span>
           <span style={{ fontWeight: 700 }}>{expiringCount}人</span>
         </div>
-        {state.lastOffseason && state.lastOffseason.faListed > 0 && (
-          <div className="spread" style={{ padding: '6px 0' }}>
-            <span className="muted">今オフのFA補強</span>
-            <span style={{ fontWeight: 700 }}>
-              {state.lastOffseason.faSignedByPlayer}人（市場{state.lastOffseason.faListed}人）
-            </span>
-          </div>
-        )}
-        {remaining < 0 && (
-          <div style={{ color: 'var(--bad)', fontWeight: 700, marginTop: 6, fontSize: 13 }}>
-            ⚠ 総年俸が年間予算（{formatMoney(finance.budget)}）を超えています
-          </div>
-        )}
-        {finance.cash < 0 && (
-          <div style={{ color: 'var(--bad)', fontWeight: 700, marginTop: 6, fontSize: 13 }}>
-            ⚠ 球団資金が赤字です
-          </div>
-        )}
       </div>
 
       <div className="card">
-        <h2>次の試合</h2>
-        {next && opponent ? (
-          <>
-            <div style={{ fontSize: 17, fontWeight: 800 }}>
-              {formatDateJa(next.date)}　vs {opponent.name}
-            </div>
-            <div className="muted" style={{ marginBottom: 8 }}>
-              {next.homeTeamId === team.id ? 'ホーム' : 'ビジター'} / {opponent.name}は
-              {state.records[opponent.id].wins}勝{state.records[opponent.id].losses}敗
-            </div>
-            <KeyValue
-              label="次回先発投手"
-              value={
-                starter
-                  ? `${starter.name}（球速${starter.pitching?.velocity ?? '-'}km/h）`
-                  : '未設定'
-              }
-            />
-          </>
-        ) : (
-          <div className="muted">残り試合はありません（シーズン終了）</div>
-        )}
-      </div>
-
-      <div className="btn-row" style={{ marginBottom: 10 }}>
-        <button
-          className="btn primary"
-          disabled={!next}
-          onClick={() => {
-            const result = playNextGame();
-            if (result) setScreen('game');
-          }}
-        >
-          次の試合へ
-        </button>
-        <button
-          className="btn secondary"
-          onClick={() => skipOneDay()}
-        >
-          1日進める
-        </button>
-      </div>
-
-      {state.seasonFinished && (
-        <div className="card" style={{ borderColor: 'var(--accent)' }}>
-          <h2>シーズン終了</h2>
-          <div style={{ marginBottom: 10 }}>
-            {state.year}年シーズンが終了しました。最終成績は {record.wins}勝{record.losses}敗
-            {record.draws}分（{rank}位）です。
-          </div>
-          <PostseasonNotice />
-          <button className="btn primary" onClick={() => advanceSeason()}>
-            オフシーズンへ（引退・ドラフト）
+        <h2>歴史・記録</h2>
+        <div className="stat-line">
+          <span className="muted">記録しているシーズン</span>
+          <span style={{ fontWeight: 700 }}>{state.history.seasons.length}年</span>
+        </div>
+        <div className="stat-line">
+          <span className="muted">優勝 / 殿堂入り</span>
+          <span style={{ fontWeight: 700 }}>
+            {championshipCount(state.history, state.playerTeamId)}回 /{' '}
+            {state.history.hallOfFame.length}人
+          </span>
+        </div>
+        <div className="btn-row" style={{ marginTop: 10 }}>
+          <button className="btn secondary" onClick={() => setScreen('history')}>
+            歴史
           </button>
-          <div className="muted" style={{ marginTop: 8 }}>
-            ポストシーズンが残っていれば最後まで進めたあと、選手が1歳年をとって
-            成長・衰退し、引退者が出たあとドラフト会議を行います。
-          </div>
+          <button className="btn secondary" onClick={() => setScreen('records')}>
+            記録
+          </button>
+          <button className="btn secondary" onClick={() => setScreen('trade')}>
+            トレードを見る
+          </button>
         </div>
-      )}
-
-      {state.notices.length > 0 && (
-        <div className="card">
-          <h2>球団ニュース</h2>
-          {state.notices
-            .slice(-5)
-            .reverse()
-            .map((notice, i) => (
-              <div key={i} style={{ padding: '5px 0', fontSize: 14 }}>
-                <span className="muted">{formatDateJa(notice.date)}　</span>
-                {notice.message}
-              </div>
-            ))}
-        </div>
-      )}
+      </div>
 
       {state.lastGrowthReport && !state.seasonFinished && (
-        <button className="btn secondary" onClick={() => setShowReport(true)}>
+        <button
+          className="btn secondary"
+          style={{ marginTop: 12 }}
+          onClick={() => setShowReport(true)}
+        >
           {state.lastGrowthReport.year}年オフの成長・引退を見る
         </button>
       )}
@@ -364,6 +327,20 @@ export function HomeScreen() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+/** チーム状態の1行。数値・ランク・棒をまとめて出す */
+function PowerLine({ label, value, lead }: { label: string; value: number; lead?: boolean }) {
+  return (
+    <div className={`power-line${lead ? ' lead' : ''}`}>
+      <span className="power-label">{label}</span>
+      <span className="power-bar">
+        <span style={{ width: `${Math.max(3, Math.min(100, value))}%` }} />
+      </span>
+      <span className="power-value">{value}</span>
+      <RankBadge value={value} />
     </div>
   );
 }
@@ -446,34 +423,42 @@ function ClubSummary() {
       className="card"
       style={{ borderColor: events.length > 0 ? 'var(--accent)' : undefined }}
     >
-      <h2>球団経営</h2>
+      <h2>球団の状態</h2>
       {events.length > 0 && (
-        <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 6 }}>
-          判断が必要な案件が{events.length}件あります
+        <div className="panel" style={{ marginTop: 0 }}>
+          <span className="label" style={{ color: 'var(--accent)' }}>要判断</span>
+          <div style={{ fontWeight: 700, marginTop: 2 }}>
+            判断が必要な案件が{events.length}件あります
+          </div>
         </div>
       )}
-      <div className="spread" style={{ padding: '4px 0' }}>
-        <span className="muted">今季の方針</span>
+      <div className="stat-line">
+        <span className="muted">球団方針</span>
         <span style={{ fontWeight: 700 }}>{DIRECTION_LABELS[club.direction]}</span>
       </div>
-      <div className="spread" style={{ padding: '4px 0' }}>
+      <div className="stat-line">
         <span className="muted">球団評価</span>
         <span style={{ fontWeight: 700 }}>
-          {rating.total} <span className="muted">（戦力{rating.strength} 将来{rating.future}）</span>
+          {rating.total}
+          <span className="muted" style={{ marginLeft: 6 }}>
+            戦力{rating.strength}・将来{rating.future}
+          </span>
         </span>
       </div>
-      <div className="spread" style={{ padding: '4px 0' }}>
+      <div className="stat-line">
         <span className="muted">チーム士気</span>
         <span style={{ fontWeight: 700 }}>{Math.round(state.teamMorale[teamId] ?? 50)}</span>
       </div>
-      <div className="spread" style={{ padding: '4px 0' }}>
+      <div className="stat-line">
         <span className="muted">施設</span>
-        <span style={{ fontWeight: 700, fontSize: 13 }}>{facilities.join(' / ')}</span>
+        <span style={{ fontWeight: 700, fontSize: 'var(--text-sm)' }}>
+          {facilities.join(' / ')}
+        </span>
       </div>
       {club.objectives.length > 0 && (
-        <div className="spread" style={{ padding: '4px 0' }}>
+        <div className="stat-line">
           <span className="muted">今季の目標</span>
-          <span style={{ fontWeight: 700, fontSize: 13 }}>
+          <span style={{ fontWeight: 700, fontSize: 'var(--text-sm)' }}>
             {objectiveText(club.objectives[0])}
           </span>
         </div>

@@ -58,36 +58,35 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
 
   return (
     <Sheet title={player.name} onClose={onClose}>
-      <div className="card">
-        <div className="spread">
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 800 }}>
-              背番号 {player.uniformNumber}　{player.name}
-            </div>
-            <div className="muted">
-              {team.name} / {player.age}歳 / {POSITION_LABELS[player.mainPosition]} /{' '}
+      {/* 選手名鑑の見出し（PHASE 4.2）。箱に入れず、罫線で区切る */}
+      <header className="profile">
+        <div className="profile-top">
+          <span className="profile-no">{player.uniformNumber}</span>
+          <div className="profile-id">
+            <div className="profile-name">{player.name}</div>
+            <div className="profile-meta">
+              {POSITION_LABELS[player.mainPosition]}・{player.age}歳・
               {player.throws === 'R' ? '右' : '左'}投
               {player.bats === 'R' ? '右' : '左'}打
             </div>
           </div>
-          <div style={{ textAlign: 'center' }}>
-            <div className="muted" style={{ fontSize: 11 }}>
-              総合
-            </div>
+          <div className="profile-rank">
+            <span className="label">総合</span>
             <RankBadge value={overallRating(player)} />
           </div>
         </div>
-        <div className="row" style={{ marginTop: 10, gap: 6, flexWrap: 'wrap' }}>
-          <span className={player.roster === 'first' ? 'badge-1st' : 'badge-2nd'}>
-            {player.roster === 'first' ? '1軍登録' : '2軍'}
+        <div className="profile-foot">
+          <span>{team.name}</span>
+          <span className={player.roster === 'first' ? 'roster-1st' : 'roster-2nd'}>
+            {player.roster === 'first' ? '1軍' : '2軍'}
           </span>
           {lockDays > 0 && (
-            <span className="badge-lock">
-              登録変更まであと{lockDays}日（{formatDateJa(nextChangeDate(player)!)}〜）
+            <span className="roster-lock">
+              登録変更まで{lockDays}日（{formatDateJa(nextChangeDate(player)!)}〜）
             </span>
           )}
         </div>
-      </div>
+      </header>
 
       <Tabs
         tabs={[
@@ -358,11 +357,11 @@ function StatusPanel({ player, teamMorale }: { player: Player; teamMorale: numbe
 function conditionColor(condition: Player['ext']['condition']): string {
   switch (condition) {
     case 'best':
-      return '#ff9f43';
+      return 'var(--brass)';
     case 'good':
       return 'var(--good)';
     case 'bad':
-      return '#ffca7a';
+      return 'var(--accent)';
     case 'worst':
       return 'var(--bad)';
     default:

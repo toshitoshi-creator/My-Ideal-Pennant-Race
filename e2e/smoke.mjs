@@ -1273,10 +1273,31 @@ await page.locator('.sheet .tabs button', { hasText: '分析' }).click();
 await page.waitForTimeout(300);
 const analysisText = await page.locator('.sheet').innerText();
 
-for (const label of ['球団分析', '能力', '起用分析', '扱いの目安', '年度別成績']) {
+/*
+ * PHASE 4.2: 「扱いの目安」という別の節は無くなり、画面の最上部の
+ * GM RECOMMENDATION に統合された（§11: 開いた瞬間に結論が読めること）。
+ * 確認する内容は減らしていない — 結論・理由・判断材料の数をこの下で個別に見る。
+ */
+for (const label of ['球団分析', '能力', '起用分析', 'GM RECOMMENDATION', '年度別成績']) {
   if (!analysisText.includes(label)) fail(`分析タブに「${label}」がない`);
 }
-ok('分析タブに球団分析・能力・起用分析・扱いの目安・年度別成績が出る');
+ok('分析タブに球団分析・能力・起用分析・GM評価・年度別成績が出る');
+
+// 扱いの結論と、その理由・判断材料が最上部に出ていること（PHASE 4.2 で追加）
+{
+  const verdict = page.locator('.sheet .verdict-name');
+  if ((await verdict.count()) === 0) fail('扱いの結論が表示されていない');
+  else ok(`扱いの結論が最上部に出ている（${(await verdict.first().innerText()).trim()}）`);
+  const reason = await page.locator('.sheet .verdict-reason').first().innerText();
+  if (reason.trim().length < 10) fail('結論の理由が表示されていない');
+  else ok('結論に理由が添えられている');
+  const tally = page.locator('.sheet .tally-head');
+  if (await tally.count()) {
+    const text = await tally.first().innerText();
+    if (!/判断材料\s*\d+\s*\/\s*6/.test(text)) fail(`判断材料の内訳が不正（${text}）`);
+    else ok(`判断材料の内訳が出ている（${text.trim()}）`);
+  }
+}
 
 // レーダーチャートが描かれている
 const radar = page.locator('.sheet svg.radar');
@@ -1423,7 +1444,7 @@ await reducedPage.locator('.sheet').waitFor();
 await reducedPage.locator('.sheet .tabs button', { hasText: '分析' }).click();
 await reducedPage.waitForTimeout(150);
 const reducedText = await reducedPage.locator('.sheet').innerText();
-for (const label of ['球団分析', '起用分析']) {
+for (const label of ['球団分析', '起用分析', 'GM RECOMMENDATION']) {
   if (!reducedText.includes(label)) fail(`reduced-motion で「${label}」が表示されない`);
 }
 const reducedRadar = await reducedPage.locator('.sheet svg.radar polygon.radar-value').count();

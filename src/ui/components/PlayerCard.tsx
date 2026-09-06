@@ -68,11 +68,11 @@ export function PlayerCard({
 function conditionColor(player: Player): string {
   switch (player.ext.condition) {
     case 'best':
-      return '#ff9f43';
+      return 'var(--brass)';
     case 'good':
       return 'var(--good)';
     case 'bad':
-      return '#ffca7a';
+      return 'var(--accent)';
     case 'worst':
       return 'var(--bad)';
     default:

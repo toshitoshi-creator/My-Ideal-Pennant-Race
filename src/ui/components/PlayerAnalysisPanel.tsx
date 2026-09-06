@@ -9,19 +9,11 @@ import {
   GRADE_LABELS,
   RECOMMENDATION_LABELS,
   USAGE_ADVICE_LABELS,
-  type PlayerGrade,
 } from '../../domain/playerAnalysis';
 import { formatAverage } from '../../domain/stats';
 import { useGame } from '../store';
 import { RadarChart, Stars, TrendChart } from './charts';
 
-const GRADE_COLORS: Record<PlayerGrade, string> = {
-  S: '#ff4d6d',
-  A: '#ff9f43',
-  B: '#ffd93d',
-  C: '#4db4ff',
-  D: '#9aa4b2',
-};
 
 interface MetricDef {
   key: string;
@@ -53,70 +45,83 @@ export function PlayerAnalysisPanel({ player }: { player: Player }) {
   const [metric, setMetric] = useState(metrics[0].key);
   const current = metrics.find((m) => m.key === metric) ?? metrics[0];
 
+  /*
+   * PHASE 4.2: いちばん上に「この選手をどう扱うか」を置く（§11）。
+   * 星や数値より先に、結論とその理由が読めること。
+   */
+  const verdict = RECOMMENDATION_LABELS[analysis.recommendation];
+  const tone: Record<string, string> = {
+    CORE: 'core',
+    KEEP: 'keep',
+    DEVELOP: 'develop',
+    ADJUST: 'adjust',
+    RELEASE_CANDIDATE: 'release',
+    INJURY_RETURN: 'injury',
+  };
+
   return (
     <>
+      {/* ── 結論 ── */}
+      <section className={`verdict verdict-${tone[analysis.recommendation]}`}>
+        <div className="label">GM RECOMMENDATION</div>
+        <div className="verdict-name">{verdict}</div>
+        <p className="verdict-reason">{analysis.recommendationReason}</p>
+        {analysis.reasons.length > 0 && (
+          <div className="tally">
+            <div className="label tally-head">
+              判断材料 {analysis.reasons.length} / 6
+            </div>
+            <ul className="tally-list">
+              {analysis.reasons.map((reason, i) => (
+                <li key={i}>{reason}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className="verdict-note">
+          判断材料です。起用と契約を決めるのは監督（あなた）です。
+        </div>
+      </section>
+
+      {/* ── 評価 ── */}
       <div className="card">
         <h2>球団分析</h2>
-        <div className="spread" style={{ marginBottom: 8 }}>
-          <span
-            className="grade-badge"
-            style={{ background: GRADE_COLORS[analysis.grade] }}
-            aria-label={`評価 ${analysis.grade}`}
-          >
-            {analysis.grade}
+        <div className="grade-line">
+          <span className="grade-mark">{analysis.grade}</span>
+          <span className="grade-label">{GRADE_LABELS[analysis.grade]}</span>
+          <span className="grade-conf">
+            確度 {Math.round(analysis.scoutingConfidence * 100)}%
+            {player.teamId !== state.playerTeamId && '（他球団）'}
           </span>
-          <div style={{ flex: 1, marginLeft: 10 }}>
-            <div style={{ fontWeight: 800 }}>{GRADE_LABELS[analysis.grade]}</div>
-            <div className="muted" style={{ fontSize: 12 }}>
-              情報の確度 {Math.round(analysis.scoutingConfidence * 100)}%
-              {player.teamId !== state.playerTeamId && '（他球団の選手のため低めです）'}
-            </div>
-          </div>
         </div>
-        <p className="analysis-summary">{analysis.summary}</p>
-      </div>
-
-      <div className="card">
-        <h2>能力</h2>
-        <RadarChart axes={analysis.radar} animationKey={player.id} />
         <Stars label="現在戦力" value={analysis.stars.current} />
         <Stars label="将来性" value={analysis.stars.future} />
         <Stars label="成長期待" value={analysis.stars.development} />
         <Stars label="起用優先度" value={analysis.stars.usage} />
-        {!analysis.abilityHistoryAvailable && (
-          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-            能力の履歴は保存していないため、過去の能力推移は表示できません。
-          </div>
-        )}
       </div>
 
+      {/* ── 起用 ── */}
       <div className="card">
         <h2>起用分析</h2>
-        <div className="spread" style={{ marginBottom: 6 }}>
-          <span className="chip on">{USAGE_ADVICE_LABELS[analysis.usage]}</span>
-          <span className="muted" style={{ fontSize: 12 }}>
+        <div className="usage-line">
+          <span className="usage-mark">{USAGE_ADVICE_LABELS[analysis.usage]}</span>
+          <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>
             自動では変更しません
           </span>
         </div>
         <p className="analysis-reason">{analysis.usageReason}</p>
       </div>
 
+      {/* ── 能力 ── */}
       <div className="card">
-        <h2>扱いの目安</h2>
-        <div className="spread" style={{ marginBottom: 6 }}>
-          <span className="chip on">{RECOMMENDATION_LABELS[analysis.recommendation]}</span>
-        </div>
-        <p className="analysis-reason">{analysis.recommendationReason}</p>
-        {analysis.reasons.length > 0 && (
-          <ul className="reason-list">
-            {analysis.reasons.map((reason, i) => (
-              <li key={i}>{reason}</li>
-            ))}
-          </ul>
+        <h2>能力</h2>
+        <p className="scout-note">{analysis.summary}</p>
+        <RadarChart axes={analysis.radar} animationKey={player.id} />
+        {!analysis.abilityHistoryAvailable && (
+          <div className="muted" style={{ fontSize: 'var(--text-xs)', marginTop: 6 }}>
+            能力の履歴は保存していないため、過去の能力推移は表示できません。
+          </div>
         )}
-        <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-          これは判断材料です。最終的な起用・契約の判断は監督（あなた）が決めます。
-        </div>
       </div>
 
       <div className="card">

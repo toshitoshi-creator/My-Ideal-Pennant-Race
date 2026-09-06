@@ -14,11 +14,15 @@ const EMPHASISED = new Set<NewsCategory>([
   'FA',
 ]);
 
-const PRIORITY_COLOR: Record<string, string> = {
+/*
+ * PHASE 4.2: 新聞の記事として組む。左の縦罫の濃さが優先度で、
+ * 赤は「速報」のときにだけ使う。
+ */
+const PRIORITY_RULE: Record<string, string> = {
   BREAKING: 'var(--accent)',
-  HIGH: 'var(--accent-2)',
-  NORMAL: 'var(--line)',
-  LOW: 'var(--line)',
+  HIGH: 'var(--ink)',
+  NORMAL: 'var(--rule-2)',
+  LOW: 'var(--rule)',
 };
 
 /**
@@ -51,26 +55,18 @@ export function NewsCard({
       className={animate ? (emphasise ? 'pop-in' : 'card-in') : undefined}
       style={{
         animationDelay: animate ? `${staggerDelay(index, reduced)}ms` : undefined,
-        borderLeft: `3px solid ${PRIORITY_COLOR[item.priority]}`,
-        padding: big ? '10px 0 10px 10px' : '7px 0 7px 10px',
-        borderBottom: '1px solid var(--line)',
+        borderLeft: `2px solid ${PRIORITY_RULE[item.priority]}`,
+        padding: big ? '11px 0 12px 11px' : '8px 0 8px 11px',
+        borderBottom: '1px solid var(--rule)',
       }}
     >
-      <div className="spread" style={{ marginBottom: 3 }}>
-        <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          {isNew && <span className="news-new">NEW</span>}
-          <span className={item.priority === 'BREAKING' ? 'chip on' : 'chip'}>
-            {item.priority === 'BREAKING' ? '速報' : CATEGORY_LABELS[item.category]}
-          </span>
-          {team && (
-            <span className="muted" style={{ fontSize: 12 }}>
-              {team.shortName}
-            </span>
-          )}
+      <div className="news-head">
+        <span className="news-date">{item.year}年 {formatDateJa(item.date)}</span>
+        <span className={`news-kind${item.priority === 'BREAKING' ? ' breaking' : ''}`}>
+          {item.priority === 'BREAKING' ? '速報' : CATEGORY_LABELS[item.category]}
         </span>
-        <span className="muted" style={{ fontSize: 12 }}>
-          {item.year}年 {formatDateJa(item.date)}
-        </span>
+        {team && <span className="news-team">{team.shortName}</span>}
+        {isNew && <span className="news-new">NEW</span>}
       </div>
       <div style={{ fontWeight: big ? 800 : 700, fontSize: big ? 16 : 14 }}>
         {item.playerId && onSelectPlayer ? (

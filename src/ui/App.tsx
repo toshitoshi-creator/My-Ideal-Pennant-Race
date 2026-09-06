@@ -17,12 +17,17 @@ import { NewsScreen } from './screens/NewsScreen';
 import { ClubScreen } from './screens/ClubScreen';
 import { formatDateJa } from '../domain/dates';
 
-const NAV: Array<{ id: ScreenId; label: string; icon: string }> = [
-  { id: 'home', label: 'ホーム', icon: '🏠' },
-  { id: 'game', label: '試合', icon: '⚾' },
-  { id: 'players', label: '選手', icon: '👥' },
-  { id: 'roster', label: '編成', icon: '📋' },
-  { id: 'standings', label: '順位', icon: '📊' },
+/*
+ * ナビゲーション。絵文字のアイコンはやめ、文字だけにする。
+ * 上の小さなラテン語は「どの資料を開いているか」の見出しで、
+ * 日本語のほうが実際のラベル。
+ */
+const NAV: Array<{ id: ScreenId; label: string; tag: string }> = [
+  { id: 'home', label: 'ホーム', tag: 'DESK' },
+  { id: 'game', label: '試合', tag: 'GAME' },
+  { id: 'players', label: '選手', tag: 'ROSTER' },
+  { id: 'roster', label: '編成', tag: 'LINEUP' },
+  { id: 'standings', label: '順位', tag: 'STANDINGS' },
 ];
 
 export function App() {
@@ -110,7 +115,7 @@ function Root() {
             className={screen === item.id ? 'on' : ''}
             onClick={() => setScreen(item.id)}
           >
-            <span className="ico">{item.icon}</span>
+            <span className="nav-tag">{item.tag}</span>
             {item.label}
           </button>
         ))}

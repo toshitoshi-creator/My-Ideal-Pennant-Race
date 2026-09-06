@@ -15,14 +15,20 @@ export function rankOf(value: number): AbilityRank {
   return 'G';
 }
 
+/**
+ * ランクの色（表示専用。計算には一切使わない）。
+ * 紙にインクで刷った等級表として読めるよう、明るい web カラーではなく
+ * 紙の上で沈む濃さにそろえてある。
+ * 色だけで等級を伝えないよう、UI では必ずランクの文字も並べて出す。
+ */
 export const RANK_COLORS: Record<AbilityRank, string> = {
-  A: '#ff4d6d',
-  B: '#ff9f43',
-  C: '#ffd93d',
-  D: '#4dd07a',
-  E: '#4db4ff',
-  F: '#9aa4b2',
-  G: '#6b7280',
+  A: 'oklch(43.5% 0.148 26)',
+  B: 'oklch(50% 0.115 52)',
+  C: 'oklch(52% 0.105 78)',
+  D: 'oklch(46% 0.085 148)',
+  E: 'oklch(50% 0.060 240)',
+  F: 'oklch(60% 0.020 265)',
+  G: 'oklch(70% 0.008 265)',
 };
 
 /** 球速 km/h を 1〜100 のスケールに変換（125km/h=1, 165km/h=100 あたり） */

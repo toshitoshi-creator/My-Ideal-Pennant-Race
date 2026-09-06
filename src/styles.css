@@ -1,16 +1,80 @@
+/* Hallmark · genre: editorial · macrostructure: record-sheet (app family)
+ * theme: custom "ink on paper" · paper oklch(96.2% .008 85) · accent oklch(43.5% .148 26) warm
+ * design-system: design.md · designed-as-app
+ * pre-emit critique: P5 H5 E4 S5 R5 V4
+ */
+
 :root {
-  --bg: #0d1117;
-  --bg-soft: #161b22;
-  --card: #1c2430;
-  --card-2: #232d3b;
-  --line: #2d3748;
-  --text: #e8edf4;
-  --text-dim: #9aa7b8;
-  --accent: #ffb703;
-  --accent-2: #4dabf7;
-  --good: #4dd07a;
-  --bad: #ff6b6b;
-  --nav-h: 62px;
+  color-scheme: light;
+
+  /* --- 紙 --- */
+  --paper: oklch(96.2% 0.008 85);
+  --paper-2: oklch(93.4% 0.010 85);
+  --paper-3: oklch(89.5% 0.012 85);
+  --paper-edge: oklch(88.0% 0.014 85);
+
+  /* --- 墨 --- */
+  --ink: oklch(24.5% 0.012 265);
+  --ink-2: oklch(46.0% 0.010 265);
+  --ink-3: oklch(62.0% 0.008 265);
+
+  /* --- 罫線 --- */
+  --rule: oklch(84.0% 0.010 85);
+  --rule-2: oklch(71.0% 0.012 85);
+
+  /* --- 意味を持つ色（§6） --- */
+  --accent: oklch(43.5% 0.148 26);
+  --accent-soft: oklch(93.0% 0.030 26);
+  --accent-ink: oklch(98% 0.005 85);
+  --grass: oklch(46.0% 0.085 148);
+  --grass-soft: oklch(93.0% 0.030 148);
+  --brass: oklch(52.0% 0.105 78);
+  --brass-soft: oklch(93.0% 0.040 78);
+  --focus: oklch(43.5% 0.148 26);
+
+  /* --- 旧トークン名の受け皿（既存コードを壊さないため） --- */
+  --bg: var(--paper);
+  --bg-soft: var(--paper-2);
+  --card: var(--paper);
+  --card-2: var(--paper-2);
+  --line: var(--rule);
+  --text: var(--ink);
+  --text-dim: var(--ink-2);
+  --good: var(--grass);
+  --bad: var(--accent);
+  --accent-2: var(--ink-2);
+
+  /* --- 余白 4pt --- */
+  --space-3xs: 2px;
+  --space-2xs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 44px;
+
+  /* --- 文字 --- */
+  --font-body: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP',
+    'Yu Gothic', sans-serif;
+  --text-label: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 15px;
+  --text-lg: 17px;
+  --text-xl: 21px;
+  --text-figure: 36px;
+
+  --track-label: 0.14em;
+
+  /* --- 動き --- */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-short: 140ms;
+  --dur-mid: 240ms;
+
+  --radius: 3px;
+  --nav-h: 56px;
 }
 
 * {
@@ -22,11 +86,11 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: #05070b;
+  background: var(--paper-3);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', 'Yu Gothic',
-    sans-serif;
+  font-family: var(--font-body);
   font-size: 16px;
+  font-variant-numeric: tabular-nums;
   line-height: 1.5;
   overscroll-behavior-y: none;
 }
@@ -35,8 +99,10 @@ body {
   max-width: 480px;
   margin: 0 auto;
   min-height: 100vh;
-  background: var(--bg);
+  background: var(--paper);
   position: relative;
+  /* 紙の縁。左右にごく薄い影を落として「紙が載っている」感じにする */
+  box-shadow: 0 0 0 1px var(--paper-edge);
 }
 
 button {
@@ -58,70 +124,123 @@ button {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: linear-gradient(180deg, #131a24 0%, #0f151d 100%);
-  border-bottom: 1px solid var(--line);
-  padding: 10px 14px;
+  background: var(--paper);
+  border-bottom: 2px solid var(--ink);
+  padding: 9px 14px 7px;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 8px;
 }
 
 .appbar h1 {
-  font-size: 17px;
+  font-size: var(--text-md);
   margin: 0;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
 .appbar .sub {
-  font-size: 13px;
-  color: var(--text-dim);
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  letter-spacing: 0.02em;
 }
 
 .screen {
-  padding: 12px 12px 20px;
+  padding: 0 14px 24px;
 }
 
+/*
+ * かつては全部これで「カード」にしていた（角丸・枠・影）。
+ * いまは罫線と余白で区切るだけの「節」。箱ではない。
+ * 全画面がこのクラスを使っているので、ここを直すと全部の見た目が変わる。
+ */
 .card {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 14px;
-  margin-bottom: 12px;
+  border-top: 1px solid var(--rule);
+  padding: var(--space-md) 0 var(--space-sm);
 }
 
+/* 画面のいちばん上の節には罫線を引かない（見出しの直下で二重線に見えるため） */
+.screen > .card:first-child {
+  border-top: none;
+  padding-top: var(--space-sm);
+}
+
+/* 節の見出し＝スコアブックの欄名。小さく、大文字、字間を空ける */
 .card h2 {
-  margin: 0 0 10px;
-  font-size: 15px;
-  color: var(--text-dim);
+  margin: 0 0 var(--space-xs);
+  font-size: var(--text-label);
+  color: var(--ink-3);
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+
+/*
+ * 判断を求める箱だけは「箱」でよい。左の赤帯で「ここは決めるところ」と示す。
+ * 画面にひとつかふたつまで。
+ */
+.panel {
+  border-left: 3px solid var(--accent);
+  background: var(--paper-2);
+  padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-md);
+  margin: var(--space-sm) 0;
+}
+
+.panel.calm {
+  border-left-color: var(--rule-2);
 }
 
 .btn {
   display: block;
   width: 100%;
-  padding: 15px 16px;
-  border-radius: 12px;
-  background: var(--card-2);
-  border: 1px solid var(--line);
+  padding: 13px 16px;
+  border-radius: var(--radius);
+  background: var(--paper);
+  border: 1px solid var(--ink-2);
+  color: var(--ink);
   font-weight: 700;
-  font-size: 16px;
+  font-size: var(--text-md);
   text-align: center;
+  letter-spacing: 0.02em;
 }
 
 .btn:active {
-  transform: scale(0.985);
+  background: var(--paper-3);
+}
+
+.btn:disabled {
+  opacity: 1;
+  color: var(--ink-3);
+  border-color: var(--rule);
+  background: var(--paper-2);
+}
+
+.btn:focus-visible,
+.chip:focus-visible,
+.nav button:focus-visible,
+.row-btn:focus-visible,
+.linky:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .btn.primary {
-  background: linear-gradient(180deg, #ffcb47, #f5a300);
-  color: #241a00;
-  border-color: #f5a300;
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
 }
 
 .btn.secondary {
-  background: #2a3646;
+  background: var(--paper-2);
+  border-color: var(--rule-2);
+}
+
+/* 取り消し・却下など、押すと戻れない操作 */
+.btn.danger {
+  background: var(--paper);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .btn:disabled {
@@ -141,24 +260,26 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 30px;
-  padding: 3px 8px;
-  border-radius: 8px;
-  font-size: 13px;
+  min-width: 28px;
+  padding: 3px 7px;
+  border-radius: var(--radius);
+  font-size: var(--text-xs);
   font-weight: 700;
-  background: #2b3646;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  color: var(--ink-2);
 }
 
 .rank {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius);
   font-weight: 800;
-  font-size: 15px;
-  color: #10151c;
+  font-size: 13px;
+  color: var(--paper);
 }
 
 .tabs {
@@ -168,26 +289,50 @@ button {
   overflow-x: auto;
 }
 
+.tabs {
+  border-bottom: 1px solid var(--rule);
+  gap: 0;
+  padding: 0 14px;
+}
+
 .tabs button {
   flex: 0 0 auto;
-  padding: 9px 14px;
-  border-radius: 999px;
-  background: var(--card);
-  border: 1px solid var(--line);
-  font-size: 14px;
+  padding: 10px 13px 8px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: var(--text-sm);
   font-weight: 700;
-  color: var(--text-dim);
+  color: var(--ink-3);
+  margin-bottom: -1px;
 }
 
 .tabs button.on {
-  background: var(--accent);
-  color: #241a00;
-  border-color: var(--accent);
+  color: var(--ink);
+  border-bottom-color: var(--accent);
 }
 
 .muted {
-  color: var(--text-dim);
-  font-size: 13px;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+/* スコアブックの欄名。画面のどこでも同じ書式 */
+.label {
+  font-size: var(--text-label);
+  font-weight: 700;
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* 資料の主役になる数字 */
+.figure {
+  font-size: var(--text-figure);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 .row {
@@ -204,36 +349,45 @@ button {
 }
 
 /* ---------- 選手カード ---------- */
+/*
+ * 選手一覧の行。かつては1人ずつ角丸カードに入れていたが、
+ * 名鑑は「行が並ぶ表」なので罫線で区切るだけにする（§2・§25）。
+ */
 .player-card {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
   text-align: left;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 10px 12px;
-  margin-bottom: 8px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--rule);
+  padding: 9px 2px;
 }
 
+.player-card:active {
+  background: var(--paper-2);
+}
+
+/* 守備位置は名前の左に置く欄。塗った四角ではなく、細い枠の欄にする */
 .player-card .pos {
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
-  border-radius: 10px;
-  background: #2b3646;
+  width: 30px;
+  height: 26px;
+  flex: 0 0 30px;
+  border-radius: var(--radius);
+  border: 1px solid var(--rule-2);
+  color: var(--ink-2);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 800;
-  font-size: 15px;
+  font-weight: 700;
+  font-size: var(--text-sm);
 }
 
 .player-card .name {
-  font-size: 16px;
+  font-size: var(--text-md);
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.3;
 }
 
 .player-card .meta {
@@ -250,8 +404,8 @@ button {
   font-size: 11px;
   padding: 2px 6px;
   border-radius: 6px;
-  background: #3a2b1c;
-  color: #ffca7a;
+  background: var(--brass-soft);
+  color: var(--brass);
   font-weight: 700;
 }
 
@@ -259,8 +413,8 @@ button {
   font-size: 11px;
   padding: 2px 6px;
   border-radius: 6px;
-  background: #17351f;
-  color: #7ee2a0;
+  background: var(--grass-soft);
+  color: var(--grass);
   font-weight: 700;
 }
 
@@ -268,8 +422,8 @@ button {
   font-size: 11px;
   padding: 2px 6px;
   border-radius: 6px;
-  background: #3a1f24;
-  color: #ff9aa2;
+  background: var(--accent-soft);
+  color: var(--accent);
   font-weight: 700;
 }
 
@@ -314,8 +468,8 @@ table.data th.l {
   max-width: 480px;
   height: var(--nav-h);
   display: flex;
-  background: #0f151d;
-  border-top: 1px solid var(--line);
+  background: var(--paper);
+  border-top: 2px solid var(--ink);
   z-index: 30;
 }
 
@@ -331,20 +485,44 @@ table.data th.l {
   font-weight: 700;
 }
 
-.nav button .ico {
-  font-size: 20px;
-  line-height: 1;
+/* 資料の見出しにあたる小さなラテン文字 */
+.nav button .nav-tag {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+}
+
+.nav button {
+  font-size: var(--text-sm);
+  gap: 3px;
+  position: relative;
 }
 
 .nav button.on {
+  color: var(--ink);
+}
+
+.nav button.on .nav-tag {
   color: var(--accent);
+}
+
+/* 選んでいる欄には、上に赤い見出し罫を引く */
+.nav button.on::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 2px;
+  background: var(--accent);
 }
 
 /* ---------- モーダル ---------- */
 .sheet-bg {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: oklch(24.5% 0.012 265 / 0.42);
   z-index: 40;
   display: flex;
   align-items: flex-end;
@@ -356,9 +534,9 @@ table.data th.l {
   max-width: 480px;
   max-height: 88vh;
   overflow-y: auto;
-  background: var(--bg-soft);
-  border-radius: 18px 18px 0 0;
-  border-top: 1px solid var(--line);
+  background: var(--paper);
+  border-radius: 6px 6px 0 0;
+  border-top: 2px solid var(--ink);
   /*
    * 下端はナビゲーションバーぶん空ける。
    * 中身が長いシートで、いちばん下のボタンがナビの帯に重なって
@@ -393,7 +571,7 @@ table.data th.l {
   flex: 1;
   height: 9px;
   border-radius: 5px;
-  background: #202a37;
+  background: var(--paper-2);
   overflow: hidden;
 }
 
@@ -422,7 +600,7 @@ table.data th.l {
   gap: 8px;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius);
   padding: 9px 10px;
   margin-bottom: 8px;
   transition: transform 0.14s ease;
@@ -461,8 +639,8 @@ table.data th.l {
   flex: 0 0 auto;
   min-width: 54px;
   padding: 6px 8px;
-  border-radius: 9px;
-  background: #2b3646;
+  border-radius: var(--radius);
+  background: var(--paper-2);
   border: 1px solid var(--line);
   font-size: 13px;
   font-weight: 700;
@@ -470,13 +648,13 @@ table.data th.l {
 }
 
 .order-row .pos-btn.warn {
-  background: #3a2b1c;
-  color: #ffca7a;
+  background: var(--brass-soft);
+  color: var(--brass);
 }
 
 .order-row .pos-btn.bad {
-  background: #3a1f24;
-  color: #ff9aa2;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 /* ---------- 試合 ---------- */
@@ -505,24 +683,38 @@ table.data th.l {
 .linescore td.total {
   font-weight: 800;
   font-size: 15px;
-  color: var(--accent);
+  color: var(--ink);
+  border-left: 1px solid var(--rule-2);
+}
+
+/* スコアボードの枠。表として読ませる */
+.linescore th {
+  font-size: 11px;
+  color: var(--ink-3);
+  font-weight: 700;
+  border-bottom: 2px solid var(--ink);
+}
+
+.linescore td.team {
+  border-right: 1px solid var(--rule-2);
+  padding-right: 10px;
 }
 
 .commentary {
   max-height: 320px;
   overflow-y: auto;
-  background: #10161e;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  background: var(--paper-2);
+  border-left: 2px solid var(--rule-2);
   padding: 10px 12px;
   font-size: 14px;
   line-height: 1.75;
 }
 
 .commentary .head {
-  color: var(--accent-2);
+  color: var(--ink);
   font-weight: 700;
-  margin-top: 6px;
+  margin-top: 8px;
+  letter-spacing: 0.02em;
 }
 
 .big-score {
@@ -534,8 +726,9 @@ table.data th.l {
 }
 
 .big-score .s {
-  font-size: 34px;
+  font-size: 42px;
   font-weight: 800;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -554,7 +747,7 @@ table.data th.l {
   justify-content: center;
   padding: 24px 18px;
   gap: 14px;
-  background: radial-gradient(120% 80% at 50% 0%, #1b2735 0%, #0b0f15 70%);
+  background: var(--paper);
 }
 
 .title-screen h1 {
@@ -580,14 +773,14 @@ table.data th.l {
   background: var(--card);
   border: 1px solid var(--line);
   border-left-width: 5px;
-  border-radius: 12px;
+  border-radius: var(--radius);
   padding: 12px;
   margin-bottom: 8px;
 }
 
 .team-pick.on {
   border-color: var(--accent);
-  background: #2a2416;
+  background: var(--accent-soft);
 }
 
 .toast {
@@ -595,11 +788,11 @@ table.data th.l {
   left: 50%;
   bottom: calc(var(--nav-h) + 16px);
   transform: translateX(-50%);
-  background: #2b3646;
+  background: var(--paper-2);
   border: 1px solid var(--line);
   color: var(--text);
   padding: 11px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   font-size: 14px;
   font-weight: 700;
   z-index: 60;
@@ -610,8 +803,9 @@ table.data th.l {
 
 /* ---- PHASE 3.7: 歴史・記録 ---- */
 .chip.on {
-  background: var(--accent);
-  color: #241a00;
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
 }
 /* 一覧の1行をボタンにする（選手・記録の詳細を開く） */
 .row-btn {
@@ -665,10 +859,10 @@ h3.sec {
   width: 40px;
   height: 40px;
   flex: 0 0 40px;
-  border-radius: 12px;
+  border-radius: var(--radius);
   font-weight: 800;
   font-size: 20px;
-  color: #10151c;
+  color: var(--paper);
 }
 
 .reason-list {
@@ -687,7 +881,7 @@ h3.sec {
 }
 
 .issue.sev-3 {
-  color: #ffb0b0;
+  color: var(--accent);
 }
 
 .issue.sev-2 {
@@ -699,13 +893,13 @@ h3.sec {
 }
 
 .stars {
-  font-size: 15px;
-  letter-spacing: 2px;
-  color: var(--accent);
+  font-size: 14px;
+  letter-spacing: 1px;
+  color: var(--brass);
 }
 
 .stars-off {
-  color: #38414f;
+  color: var(--rule-2);
 }
 
 .axis-delta {
@@ -868,18 +1062,18 @@ h3.sec {
   padding: 2px 4px;
   border-radius: 5px;
   text-align: center;
-  background: #2b3646;
+  background: var(--paper-2);
   color: var(--text-dim);
 }
 
 .depth-slot.slot-starter {
-  background: #3a2b1c;
-  color: #ffca7a;
+  background: var(--brass-soft);
+  color: var(--brass);
 }
 
 .depth-slot.slot-backup {
-  background: #1f3242;
-  color: #8fc9ff;
+  background: var(--paper-3);
+  color: var(--ink-2);
 }
 
 /* ================= PHASE 4.1 アニメーション ================= */
@@ -931,13 +1125,46 @@ h3.sec {
 }
 
 .news-new {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
-  padding: 1px 5px;
-  border-radius: 5px;
+  letter-spacing: 0.08em;
+  padding: 1px 4px;
+  border-radius: var(--radius);
   background: var(--accent);
-  color: #241a00;
-  margin-right: 6px;
+  color: var(--accent-ink);
+}
+
+/* ---- 新聞の見出し行（§20） ---- */
+
+.news-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  margin-bottom: 3px;
+  font-size: 11px;
+}
+
+.news-date {
+  font-weight: 700;
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.news-kind {
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--ink-2);
+  text-transform: uppercase;
+}
+
+.news-kind.breaking {
+  color: var(--accent);
+}
+
+.news-team {
+  color: var(--ink-3);
+  margin-left: auto;
 }
 
 /* 演出の見出し（優勝など） */
@@ -946,9 +1173,9 @@ h3.sec {
   font-weight: 800;
   letter-spacing: 0.08em;
   padding: 14px 10px;
-  border-radius: 14px;
+  border-radius: var(--radius);
   border: 1px solid var(--line);
-  background: linear-gradient(180deg, #202a37, #161d27);
+  background: var(--paper-2);
 }
 
 .banner.league {
@@ -957,7 +1184,7 @@ h3.sec {
 }
 
 .banner.japan {
-  color: #ffe08a;
+  color: var(--brass);
   font-size: 22px;
   border-color: var(--accent);
   box-shadow: 0 0 24px rgba(255, 183, 3, 0.22);
@@ -969,12 +1196,12 @@ h3.sec {
 }
 
 .skip-btn {
-  font-size: 12px;
-  padding: 5px 12px;
-  border-radius: 999px;
-  background: #2b3646;
-  border: 1px solid var(--line);
-  color: var(--text-dim);
+  font-size: var(--text-xs);
+  padding: 5px 11px;
+  border-radius: var(--radius);
+  background: var(--paper);
+  border: 1px solid var(--rule-2);
+  color: var(--ink-2);
   font-weight: 700;
 }
 
@@ -1039,22 +1266,488 @@ h3.sec {
   }
 }
 
-/* ホーム画面のカードを上から順に出す（初回のみ。§19） */
-.home-stagger > .card {
-  animation: card-in 300ms ease-out both;
 }
 
-.home-stagger > .card:nth-child(1) { animation-delay: 0ms; }
-.home-stagger > .card:nth-child(2) { animation-delay: 55ms; }
-.home-stagger > .card:nth-child(3) { animation-delay: 110ms; }
-.home-stagger > .card:nth-child(4) { animation-delay: 160ms; }
-.home-stagger > .card:nth-child(5) { animation-delay: 205ms; }
-.home-stagger > .card:nth-child(n + 6) { animation-delay: 245ms; }
 
-@media (prefers-reduced-motion: reduce) {
-  .home-stagger > .card {
-    animation-duration: 1ms !important;
-    animation-delay: 0ms !important;
-    transform: none !important;
-  }
+/* ================= PHASE 4.2 記録用紙の視覚言語 ================= */
+
+/* ---- ホームの頭（今日の状況） ---- */
+
+.desk-head {
+  padding: var(--space-sm) 0 var(--space-md);
+}
+
+.desk-head-top {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.desk-team {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  /* 球団色は名前の下の一本線だけに使う。面で塗らない */
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 6px;
+}
+
+.desk-line {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-md);
+}
+
+.desk-standing {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.desk-standing-unit {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.desk-record {
+  flex: 1;
+  padding-bottom: 3px;
+}
+
+.desk-wl {
+  font-size: var(--text-md);
+  color: var(--ink-2);
+}
+
+.desk-wl b {
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.desk-date {
+  margin-top: var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  letter-spacing: 0.02em;
+}
+
+/* ---- 次の試合（いちばん大きく扱う） ---- */
+
+.next-game {
+  border-top: 2px solid var(--ink);
+  border-bottom: 1px solid var(--rule);
+  padding: var(--space-sm) 0 var(--space-md);
+  margin-bottom: 2px;
+}
+
+.next-matchup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0 var(--space-xs);
+}
+
+.next-team {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.next-vs {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--ink-3);
+  text-transform: uppercase;
+}
+
+.next-meta {
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+.next-starter {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+  padding-top: var(--space-xs);
+  border-top: 1px dotted var(--rule);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+/* ---- GMが決めること ---- */
+
+.decision {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  padding: 7px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--text-sm);
+}
+
+.decision:last-child {
+  border-bottom: none;
+}
+
+.decision-tag {
+  flex: 0 0 auto;
+  min-width: 58px;
+  white-space: nowrap;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 1px 4px;
+  text-align: center;
+}
+
+.decision-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- ラベルと値の行（旧 KeyValue の置き換え） ---- */
+
+.stat-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--text-sm);
+}
+
+.stat-line:last-child {
+  border-bottom: none;
+}
+
+/* ---- チーム状態の棒 ---- */
+
+.power-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 5px 0;
+}
+
+.power-label {
+  flex: 0 0 38px;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+.power-line.lead .power-label {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.power-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--paper-3);
+  overflow: hidden;
+}
+
+.power-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--ink-2);
+}
+
+.power-line.lead .power-bar {
+  height: 9px;
+}
+
+.power-line.lead .power-bar > span {
+  background: var(--ink);
+}
+
+.power-value {
+  flex: 0 0 26px;
+  text-align: right;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 球団報 ---- */
+
+.notice-line {
+  padding: 5px 0;
+  font-size: var(--text-sm);
+  border-bottom: 1px solid var(--rule);
+}
+
+.notice-line:last-child {
+  border-bottom: none;
+}
+
+.notice-date {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  margin-right: var(--space-xs);
+}
+
+/* ---- 選手名鑑の見出し ---- */
+
+.profile {
+  padding: var(--space-xs) 0 var(--space-sm);
+  border-bottom: 2px solid var(--ink);
+}
+
+.profile-top {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+
+.profile-no {
+  flex: 0 0 auto;
+  font-size: 27px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+}
+
+.profile-id {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-name {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.profile-meta {
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  margin-top: 2px;
+}
+
+.profile-rank {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.profile-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  margin-top: var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+}
+
+.roster-1st,
+.roster-2nd,
+.roster-lock {
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: var(--radius);
+  border: 1px solid currentColor;
+  font-size: 11px;
+}
+
+.roster-1st {
+  color: var(--grass);
+}
+
+.roster-2nd {
+  color: var(--ink-3);
+}
+
+.roster-lock {
+  color: var(--accent);
+}
+
+/* ---- GM の結論（画面を開いて最初に読むところ・§11） ---- */
+
+.verdict {
+  border-top: 2px solid var(--ink);
+  border-bottom: 1px solid var(--rule);
+  padding: var(--space-sm) 0 var(--space-md);
+  margin-bottom: 2px;
+}
+
+.verdict-name {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 2px 0 6px;
+  /* 色だけで意味を出さないよう、左の縦罫と合わせて示す */
+  padding-left: var(--space-xs);
+  border-left: 4px solid var(--ink-3);
+}
+
+.verdict-core .verdict-name {
+  border-left-color: var(--brass);
+}
+
+.verdict-develop .verdict-name {
+  border-left-color: var(--grass);
+}
+
+.verdict-adjust .verdict-name,
+.verdict-injury .verdict-name {
+  border-left-color: var(--ink-2);
+}
+
+.verdict-release .verdict-name {
+  border-left-color: var(--accent);
+}
+
+.verdict-reason {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.75;
+}
+
+/* 判断材料の内訳（§12） */
+.tally {
+  margin-top: var(--space-sm);
+  background: var(--paper-2);
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.tally-head {
+  color: var(--ink-2);
+}
+
+.tally-list {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  font-size: var(--text-sm);
+  line-height: 1.9;
+  color: var(--ink);
+}
+
+.verdict-note {
+  margin-top: var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+/* ---- 評価 ---- */
+
+.grade-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  padding-bottom: var(--space-xs);
+  margin-bottom: var(--space-2xs);
+  border-bottom: 1px solid var(--rule);
+}
+
+/* 等級は刷られた印のように。丸い塗りボタンにしない */
+.grade-mark {
+  font-size: 25px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.grade-label {
+  flex: 1;
+  font-weight: 700;
+  font-size: var(--text-sm);
+}
+
+.grade-conf {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+/* ---- 起用 ---- */
+
+.usage-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  margin-bottom: 4px;
+}
+
+.usage-mark {
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+
+.scout-note {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-sm);
+  line-height: 1.75;
+  color: var(--ink-2);
+  border-left: 2px solid var(--rule-2);
+  padding-left: var(--space-xs);
+}
+
+
+/* シートの中のタブは、上の罫線を重ねない */
+.sheet .tabs {
+  padding: 0;
+  margin-bottom: var(--space-2xs);
+}
+
+
+/* ---- チームの課題（§13） ---- */
+
+.concern-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.concern {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--text-sm);
+}
+
+.concern:last-child {
+  border-bottom: none;
+}
+
+.concern-no {
+  flex: 0 0 auto;
+  font-size: var(--text-md);
+  font-weight: 800;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 重い課題ほど番号を濃くする。文字色そのものは変えない（可読性のため） */
+.concern.sev-3 .concern-no {
+  color: var(--accent);
+}
+
+.concern.sev-2 .concern-no {
+  color: var(--ink-2);
+}
+
+.concern-text {
+  flex: 1;
 }

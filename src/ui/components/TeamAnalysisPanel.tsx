@@ -79,13 +79,14 @@ export function TeamAnalysisPanel() {
         {analysis.issues.length === 0 ? (
           <p className="muted">目立った課題はありません。</p>
         ) : (
-          <ul className="issue-list">
-            {analysis.issues.map((issue) => (
-              <li key={issue.id} className={`issue sev-${issue.severity}`}>
-                {issue.text}
+          <ol className="concern-list">
+            {analysis.issues.map((issue, i) => (
+              <li key={issue.id} className={`concern sev-${issue.severity}`}>
+                <span className="concern-no">{String(i + 1).padStart(2, '0')}</span>
+                <span className="concern-text">{issue.text}</span>
               </li>
             ))}
-          </ul>
+          </ol>
         )}
       </div>
 

@@ -319,19 +319,22 @@ export function AxisBar({
   const first = useFirstVisit(`axis:${animationKey}:${label}`);
   const t = useProgress(reduced ? 0 : first ? 460 : 180, animationKey);
   const width = Math.max(2, Math.min(100, value)) * easeOutCubic(t);
-  const color = RANK_COLORS[rankOf(value)];
   const sign = vsLeague > 0 ? '+' : '';
+  // PHASE 4.2: 棒は「量」なので墨で引く。等級の色は使わない（§6）。
+  // リーグ平均との差だけを、記号と色の両方で示す。
+  const above = vsLeague >= 0;
   return (
     <div className="ability">
       <span className="label">{label}</span>
       <span className="bar">
-        <span style={{ width: `${width}%`, background: color }} />
+        <span style={{ width: `${width}%`, background: 'var(--ink-2)' }} />
       </span>
       <span className="val">{Math.round(value)}</span>
       <span
         className="axis-delta"
-        style={{ color: vsLeague >= 0 ? 'var(--good)' : 'var(--text-dim)' }}
+        style={{ color: above ? 'var(--grass)' : 'var(--accent)' }}
       >
+        {above ? '▲' : '▼'}
         {sign}
         {vsLeague.toFixed(1)}
       </span>
