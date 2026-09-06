@@ -28,8 +28,9 @@ import { ensureClubs, syncCpuDirections } from './club';
  * 12: PHASE 3.8（ポストシーズン・日本シリーズ）
  * 13: PHASE 3.9（ニュース・シーズンストーリー）
  * 14: PHASE 4.0（球団経営・方針・施設・目標）
+ * 15: PHASE 4.4（GMの判断記録）
  */
-export const SAVE_VERSION = 14;
+export const SAVE_VERSION = 15;
 export const START_YEAR = 2026;
 
 /** 1軍スタート人数（残りは 2軍スタート） */
@@ -124,6 +125,8 @@ export function createNewGame(
     events: [],
     teamPlans: {},
     teamPlansYear: null,
+    // PHASE 4.4: GMの判断記録。新規ゲームでは当然まだ何も無い
+    decisions: [],
   };
   state.trade.deadline = tradeDeadline(state);
 

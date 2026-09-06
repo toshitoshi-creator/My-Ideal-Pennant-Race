@@ -2048,3 +2048,894 @@ h3.sec {
 .news-day .news-lead .news-date {
   display: none;
 }
+
+/* ================= PHASE 4.4 GMの机 ================= */
+
+/*
+ * 案件票（§4）。角丸のカードにはしない。
+ * 左に太い罫を引いた「回覧資料」で、上から順に読ませる。
+ */
+
+.gm-desk-lead {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+.gm-note {
+  border-left: 2px solid var(--rule-2);
+  padding: var(--space-xs) 0 var(--space-md) var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.gm-note:last-child {
+  margin-bottom: 0;
+}
+
+/* 1枚目だけ、罫を赤くして余白を広く取る（§25 大きさの不均一さ） */
+.gm-note.gm-lead {
+  border-left-color: var(--accent);
+  padding-bottom: var(--space-lg);
+}
+
+.gm-note-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.gm-note-date {
+  font-size: var(--text-label);
+  letter-spacing: var(--track-label);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.gm-note-title {
+  margin: var(--space-2xs) 0 var(--space-sm);
+  font-size: var(--text-md);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+
+.gm-lead .gm-note-title {
+  font-size: var(--text-lg);
+}
+
+.gm-block {
+  margin-top: var(--space-sm);
+}
+
+.gm-block-ja {
+  margin-left: var(--space-xs);
+  font-size: var(--text-label);
+  color: var(--ink-3);
+}
+
+.gm-text {
+  margin: var(--space-3xs) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--ink);
+}
+
+.gm-data {
+  margin: var(--space-2xs) 0 0;
+}
+
+.gm-data-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 5px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--text-sm);
+}
+
+.gm-data-row:last-child {
+  border-bottom: none;
+}
+
+.gm-data-row dt {
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.gm-data-row dd {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* 短期と長期は並べて置く（§6）。狭い画面では縦に積む */
+.gm-terms {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--rule);
+}
+
+@media (max-width: 400px) {
+  .gm-terms {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gm-term .gm-text {
+  font-size: var(--text-xs);
+}
+
+.gm-options {
+  margin-top: var(--space-2xs);
+}
+
+.gm-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--rule);
+  padding: 9px 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.gm-option:active {
+  background: var(--paper-2);
+}
+
+.gm-option-label {
+  display: block;
+  font-weight: 700;
+  font-size: var(--text-sm);
+}
+
+.gm-option-note {
+  display: block;
+  margin-top: 1px;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+/* ---- 判断を記録したときの表示（§5） ---- */
+
+.decision-stamp {
+  margin-top: var(--space-sm);
+  border-left: 3px solid var(--grass);
+  background: var(--paper-2);
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.decision-stamp-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+
+.decision-stamp-ja {
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+}
+
+.decision-stamp-body {
+  margin-top: var(--space-2xs);
+}
+
+.decision-stamp-tag {
+  font-size: var(--text-label);
+  letter-spacing: var(--track-label);
+  color: var(--ink-3);
+}
+
+.decision-stamp-kind {
+  margin-left: var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+}
+
+.decision-stamp-choice {
+  margin-top: 2px;
+  font-weight: 800;
+  font-size: var(--text-md);
+}
+
+.decision-stamp-note {
+  margin: var(--space-2xs) 0 0;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+/* ---- 試合前資料（§14） ---- */
+
+.brief-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--text-sm);
+}
+
+.brief-line .label {
+  flex: 0 0 108px;
+}
+
+.brief-line > span:last-child {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.brief-watch {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-xs);
+  border-top: 2px solid var(--rule-2);
+}
+
+.brief-watch-ja {
+  margin-left: var(--space-xs);
+  font-size: var(--text-label);
+  color: var(--ink-3);
+}
+
+.brief-watch-list {
+  margin: var(--space-2xs) 0 0;
+  padding-left: 1.1em;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+}
+
+/* ---- 試合後の講評（§16） ---- */
+
+.post-block {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--rule);
+}
+
+.post-block:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.post-ja {
+  margin-left: var(--space-xs);
+  font-size: var(--text-label);
+  color: var(--ink-3);
+}
+
+.post-moments {
+  margin: var(--space-2xs) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.post-moments li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  padding: 5px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--text-sm);
+}
+
+.post-moments li:last-child {
+  border-bottom: none;
+}
+
+.post-inning {
+  flex: 0 0 auto;
+  min-width: 34px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.post-moment-label {
+  flex: 0 0 auto;
+  font-size: var(--text-label);
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+
+.post-moment-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink-2);
+}
+
+.post-player {
+  padding: var(--space-xs) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.post-player:last-child {
+  border-bottom: none;
+}
+
+.post-player-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.post-player-name {
+  font-weight: 800;
+}
+
+.post-player-today {
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.post-player-before {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+}
+
+.post-player-note {
+  margin: var(--space-3xs) 0 0;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+.post-team {
+  margin: var(--space-3xs) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+}
+
+/* ---- 選手報告書（§7・§9・§10・§11） ---- */
+
+.report-rows {
+  margin: 0;
+}
+
+.report-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 7px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.report-row:last-child {
+  border-bottom: none;
+}
+
+.report-row dt {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.report-ja {
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+}
+
+.report-row dd {
+  margin: 0;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.report-value {
+  font-weight: 800;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.report-note {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+.split-note {
+  padding: var(--space-xs) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.split-ja {
+  margin-left: var(--space-xs);
+  font-size: var(--text-label);
+  color: var(--ink-3);
+}
+
+.split-text {
+  margin: var(--space-3xs) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+}
+
+.split-combined {
+  margin: var(--space-sm) 0 0;
+  padding-left: var(--space-sm);
+  border-left: 2px solid var(--rule-2);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  font-weight: 700;
+}
+
+.axis-notes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--rule);
+}
+
+@media (max-width: 400px) {
+  .axis-notes {
+    grid-template-columns: 1fr;
+  }
+}
+
+.axis-note-ja {
+  margin-left: var(--space-2xs);
+  font-size: var(--text-label);
+  color: var(--ink-3);
+}
+
+.axis-note-name {
+  margin-top: 2px;
+  font-weight: 800;
+  font-size: var(--text-md);
+}
+
+.axis-note-text {
+  margin: 2px 0 0;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+.trend-read {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--rule);
+}
+
+.trend-read-mark {
+  margin-left: var(--space-xs);
+  font-weight: 800;
+  font-size: var(--text-sm);
+}
+
+.trend-read.trend-up .trend-read-mark {
+  color: var(--grass);
+}
+
+.trend-read.trend-down .trend-read-mark {
+  color: var(--accent);
+}
+
+.trend-read-text {
+  margin: var(--space-3xs) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+
+/* ---- 球団の課題と手だて（§12・§13） ---- */
+
+.issue-details {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issue-detail {
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.issue-detail:last-child {
+  border-bottom: none;
+}
+
+.issue-detail-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+
+.issue-detail-no {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+  line-height: 1;
+}
+
+.issue-detail.sev-3 .issue-detail-no {
+  color: var(--accent);
+}
+
+.issue-detail.sev-2 .issue-detail-no {
+  color: var(--brass);
+}
+
+.issue-detail-name {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.issue-detail-ja {
+  font-weight: 800;
+  font-size: var(--text-md);
+  line-height: 1.4;
+}
+
+.issue-part {
+  margin-top: var(--space-xs);
+}
+
+.issue-part-ja {
+  margin-left: var(--space-xs);
+  font-size: var(--text-label);
+  color: var(--ink-3);
+}
+
+.issue-text {
+  margin: var(--space-3xs) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+
+.issue-data {
+  margin: var(--space-xs) 0 0;
+}
+
+.issue-data-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--text-sm);
+}
+
+.issue-data-row:last-child {
+  border-bottom: none;
+}
+
+.issue-data-row dt {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.issue-data-row dd {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.consider-lead {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+.plan {
+  padding: var(--space-sm) 0;
+  border-top: 2px solid var(--rule-2);
+}
+
+.plan-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+
+.plan-ja {
+  font-weight: 800;
+  font-size: var(--text-md);
+}
+
+.plan-option {
+  margin-top: var(--space-xs);
+  padding: var(--space-xs) 0 var(--space-xs) var(--space-sm);
+  border-left: 1px solid var(--rule);
+}
+
+.plan-option-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+
+.plan-option-ja {
+  font-weight: 700;
+  font-size: var(--text-sm);
+}
+
+.plan-option-text {
+  margin: 2px 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.6;
+}
+
+.plan-tradeoff {
+  margin-top: var(--space-2xs);
+}
+
+.plan-tradeoff > div {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  padding: 2px 0;
+}
+
+.plan-tradeoff .label {
+  flex: 0 0 34px;
+}
+
+.plan-tradeoff-text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+/* ---- 一日の流れ（§18） ---- */
+
+.flow-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flow-item {
+  display: flex;
+  gap: var(--space-xs);
+  padding: var(--space-xs) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.flow-item:last-child {
+  border-bottom: none;
+}
+
+.flow-mark {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+  border: 1px solid var(--ink-3);
+}
+
+.flow-item.flow-decision .flow-mark {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.flow-item.flow-game .flow-mark {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.flow-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.flow-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+
+.flow-ja {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  min-width: 0;
+}
+
+.flow-text {
+  margin: 2px 0 0;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+/* ---- シーズンの記録（§19） ---- */
+
+.timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline-row {
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.timeline-row:last-child {
+  border-bottom: none;
+}
+
+.timeline-month {
+  flex: 0 0 38px;
+  font-size: var(--text-label);
+  letter-spacing: var(--track-label);
+  font-weight: 700;
+  color: var(--accent);
+  padding-top: 2px;
+}
+
+.timeline-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.timeline-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.timeline-date {
+  font-size: var(--text-label);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-title {
+  margin-top: 1px;
+  font-weight: 700;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+.timeline-text {
+  margin: 2px 0 0;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+.story-row {
+  padding: var(--space-xs) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.story-row:last-child {
+  border-bottom: none;
+}
+
+/* ---- GM日誌（§21） ---- */
+
+.journal-row {
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.journal-row:last-child {
+  border-bottom: none;
+}
+
+.journal-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.journal-kind {
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+}
+
+.journal-date {
+  margin-left: auto;
+  font-size: var(--text-label);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.journal-title {
+  margin-top: var(--space-3xs);
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+.journal-choice {
+  font-weight: 800;
+  font-size: var(--text-md);
+  line-height: 1.4;
+}
+
+.journal-part {
+  margin-top: var(--space-xs);
+  padding-left: var(--space-sm);
+  border-left: 1px solid var(--rule);
+}
+
+.journal-part-ja {
+  margin-left: var(--space-2xs);
+  font-size: var(--text-label);
+  color: var(--ink-3);
+}
+
+.journal-text {
+  margin: 2px 0 0;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+.journal-note {
+  margin: var(--space-md) 0 0;
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--rule);
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+  line-height: 1.6;
+}
+
+/* ---- reduced-motion（§28）。演出だけ止め、情報は一切減らさない ---- */
+
+@media (prefers-reduced-motion: reduce) {
+  .gm-note,
+  .gm-note.card-in,
+  .decision-stamp {
+    animation: none !important;
+    animation-delay: 0ms !important;
+    transform: none !important;
+  }
+}
+
+/* ---- 390px 幅で読みきれること（§29） ---- */
+
+.gm-note,
+.gm-note-title,
+.gm-text,
+.issue-text,
+.journal-choice,
+.timeline-title,
+.split-text,
+.plan-option-text,
+.plan-tradeoff-text,
+.post-player-note {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+/* 数字の並ぶ行は縮まずに桁が読めること。溢れる場合はその行だけ横に流す */
+.gm-data,
+.issue-data,
+.report-rows {
+  overflow-x: auto;
+}

@@ -11,6 +11,7 @@
  * v8: PHASE 3.4（FA市場・未所属選手）
  * v9: PHASE 3.5（トレード・在籍履歴）
  * v10: PHASE 3.6（球団経営AIのプラン）
+ * v15: PHASE 4.4（GMの判断記録）
  *
  * 古いセーブは不足分を安全な初期値で補完し、既存のデータ（能力・成績・順位・日付・
  * 1軍/2軍・7日制限）は一切書き換えない。
@@ -30,6 +31,7 @@ import { createNewsState, ensureNews } from './news';
 import { ensureClubs, syncCpuDirections } from './club';
 import { createTradeState, tradeDeadline } from './trade';
 import { clamp1to100 } from './rank';
+import { DECISION_LIMIT } from './decisions';
 
 /** v1 → v2：弾道を 1〜4 から 1〜100 へ */
 export function migrateV1ToV2(state: GameState): void {
@@ -308,6 +310,26 @@ export function migrateV13ToV14(state: GameState): void {
   }
   syncCpuDirections(state);
   state.version = 14;
+}
+
+/**
+ * v14 → v15：PHASE 4.4 のGM判断記録の入れ物を用意する。
+ *
+ * 過去の判断は存在しないので作り出さない（空で始める）。
+ * 既存のデータには一切触れない。
+ */
+export function migrateV14ToV15(state: GameState): void {
+  if (!Array.isArray(state.decisions)) state.decisions = [];
+  // 記録の中に実在しない選手が混じっていたら落とす（§37）
+  const playerIds = new Set(state.players.map((p) => p.id));
+  for (const record of state.decisions) {
+    if (!Array.isArray(record.playerIds)) record.playerIds = [];
+    else record.playerIds = record.playerIds.filter((id) => playerIds.has(id));
+  }
+  if (state.decisions.length > DECISION_LIMIT) {
+    state.decisions.splice(0, state.decisions.length - DECISION_LIMIT);
+  }
+  state.version = 15;
 }
 
 /**

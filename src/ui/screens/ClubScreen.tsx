@@ -2,6 +2,10 @@ import { useState } from 'react';
 import { useGame } from '../store';
 import { TeamAnalysisPanel } from '../components/TeamAnalysisPanel';
 import { Tabs } from '../components/common';
+import { Sec } from '../components/Sec';
+import { DecisionStamp } from '../components/DecisionStamp';
+import { recordDecision } from '../../domain/decisions';
+import { rankOfTeam } from '../../domain/standings';
 import {
   DIRECTIONS,
   DIRECTION_DESCRIPTIONS,
@@ -25,7 +29,7 @@ import {
 } from '../../domain/club';
 import { formatSalary } from '../../domain/contract';
 import { overallRating } from '../../domain/rating';
-import type { ClubDirection, FacilityKind, UsageRole } from '../../domain/types';
+import type { ClubDirection, DecisionRecord, FacilityKind, UsageRole } from '../../domain/types';
 
 type Tab = 'overview' | 'analysis' | 'facility' | 'usage';
 
@@ -64,16 +68,43 @@ function Overview() {
   const club = state.clubs[teamId];
   const rating = clubRating(state, teamId);
   const events = pendingEvents(state);
+  /*
+   * PHASE 4.4: 直前に記録した判断（§5）。
+   * ゲームの状態はボタンを押した時点で確定していて、これはその写しでしかない。
+   */
+  const [stamp, setStamp] = useState<DecisionRecord | null>(null);
+
+  /** そのとき球団がどういう状況だったかを、あとで読み返せる形で残す */
+  const situationNow = () => {
+    const record = state.records[teamId];
+    const rank = rankOfTeam(state, teamId);
+    return `${state.year}年 ${record.games}試合消化・${record.wins}勝${record.losses}敗${record.draws}分（${rank}位）／球団評価 ${rating.total}`;
+  };
 
   const choose = (direction: ClubDirection) => {
-    mutate((draft) => setDirection(draft, teamId, direction));
+    if (direction === club.direction) {
+      showToast(`すでに「${DIRECTION_LABELS[direction]}」です`);
+      return;
+    }
+    let saved: DecisionRecord | null = null;
+    mutate((draft) => {
+      setDirection(draft, teamId, direction);
+      saved = recordDecision(draft, {
+        kind: 'DIRECTION',
+        key: teamId,
+        title: '今季の球団方針',
+        choice: DIRECTION_LABELS[direction],
+        situation: situationNow(),
+      });
+    });
+    setStamp(saved);
     showToast(`今季の方針を「${DIRECTION_LABELS[direction]}」にしました`);
   };
 
   return (
     <>
       <div className="card">
-        <h2>今季の方針</h2>
+        <Sec en="CLUB DIRECTION" ja="今季の方針" size="lead" />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {DIRECTIONS.map((d) => (
             <button
@@ -95,10 +126,11 @@ function Overview() {
         <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
           方針は起用の優先度・補強の動き・若手の成長環境に効きます。能力そのものは変わりません。
         </div>
+        {stamp && <DecisionStamp record={stamp} />}
       </div>
 
       <div className="card">
-        <h2>球団評価</h2>
+        <Sec en="CLUB RATING" ja="球団評価" />
         <div style={{ fontSize: 30, fontWeight: 800, marginBottom: 6 }}>
           {rating.total}
           <span className="muted" style={{ fontSize: 14, fontWeight: 400 }}> / 100</span>
@@ -119,7 +151,7 @@ function Overview() {
       </div>
 
       <div className="card">
-        <h2>今季の経営目標</h2>
+        <Sec en="CLUB OBJECTIVE" ja="今季の経営目標" />
         {club.objectives.length === 0 ? (
           <p className="muted">まだ目標はありません。オフシーズンに立てられます。</p>
         ) : (
@@ -139,8 +171,8 @@ function Overview() {
       </div>
 
       {events.length > 0 && (
-        <div className="card" style={{ borderColor: 'var(--accent)' }}>
-          <h2>判断が必要です</h2>
+        <div className="card">
+          <Sec en="PENDING DECISION" ja="判断が必要な案件" size="lead" />
           {events.map((event) => (
             <div key={event.id} style={{ marginBottom: 12 }}>
               <div style={{ fontWeight: 800 }}>{event.title}</div>
@@ -150,9 +182,21 @@ function Overview() {
               {event.choices.length === 0 ? (
                 <button
                   className="btn secondary"
-                  onClick={() =>
-                    mutate((draft) => void resolveEvent(draft, event.id, 'ok'))
-                  }
+                  onClick={() => {
+                    let saved: DecisionRecord | null = null;
+                    mutate((draft) => {
+                      resolveEvent(draft, event.id, 'ok');
+                      saved = recordDecision(draft, {
+                        kind: 'EVENT',
+                        key: event.id,
+                        title: event.title,
+                        choice: '確認した',
+                        situation: situationNow(),
+                        playerIds: event.playerId ? [event.playerId] : [],
+                      });
+                    });
+                    setStamp(saved);
+                  }}
                 >
                   確認した
                 </button>
@@ -163,7 +207,19 @@ function Overview() {
                     className="btn secondary"
                     style={{ marginBottom: 6, textAlign: 'left', padding: '9px 12px' }}
                     onClick={() => {
-                      mutate((draft) => void resolveEvent(draft, event.id, choice.id));
+                      let saved: DecisionRecord | null = null;
+                      mutate((draft) => {
+                        resolveEvent(draft, event.id, choice.id);
+                        saved = recordDecision(draft, {
+                          kind: 'EVENT',
+                          key: event.id,
+                          title: event.title,
+                          choice: choice.label,
+                          situation: situationNow(),
+                          playerIds: event.playerId ? [event.playerId] : [],
+                        });
+                      });
+                      setStamp(saved);
                       showToast(`「${choice.label}」を選びました`);
                     }}
                   >
@@ -277,6 +333,7 @@ function Facilities() {
 
 function Usage() {
   const { state, mutate } = useGame();
+  const [stamp, setStamp] = useState<DecisionRecord | null>(null);
   const teamId = state.playerTeamId;
   const roster = state.players
     .filter((p) => p.teamId === teamId)
@@ -284,11 +341,12 @@ function Usage() {
 
   return (
     <div className="card">
-      <h2>選手の起用方針</h2>
+      <Sec en="PLAYER USAGE" ja="選手の起用方針" size="lead" />
       <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
         出場機会の優先度が変わります。指定しても能力そのものは変わりません。
         怪我をしている選手は自動的に外れます。
       </div>
+      {stamp && <DecisionStamp record={stamp} />}
       {roster.map((player) => {
         const role = usageRoleOf(state, player);
         return (
@@ -313,9 +371,29 @@ function Usage() {
                     key={r}
                     className={r === role ? 'chip on' : 'chip'}
                     style={{ whiteSpace: 'nowrap' }}
-                    onClick={() =>
-                      mutate((draft) => setUsageRole(draft, player.id, r as UsageRole))
-                    }
+                    onClick={() => {
+                      /*
+                       * 同じ役割を押したときも「その役割で行く」という指定として保存する
+                       * （自動判断のままにせず、GMが決めた形にする）。
+                       * ただし日誌に残すのは実際に変わったときだけ。
+                       */
+                      let saved: DecisionRecord | null = null;
+                      mutate((draft) => {
+                        setUsageRole(draft, player.id, r as UsageRole);
+                        if (r === role) return;
+                        saved = recordDecision(draft, {
+                          kind: 'USAGE',
+                          key: player.id,
+                          title: `${player.name}の起用方針`,
+                          choice: USAGE_LABELS[r],
+                          situation: `${player.age}歳・総合 ${overallRating(player)}・${
+                            player.roster === 'first' ? '1軍' : '2軍'
+                          }`,
+                          playerIds: [player.id],
+                        });
+                      });
+                      setStamp(saved);
+                    }}
                   >
                     {USAGE_LABELS[r]}
                   </button>

@@ -551,12 +551,35 @@ await shot('16-season-end');
   await page.waitForTimeout(200);
   ok('ニュースをカテゴリで絞り込める');
 
-  // 年度の物語（この時点ではまだシーズンを終えていないので案内が出る）
-  await page.locator('.tabs button', { hasText: '年度の物語' }).click();
+  /*
+   * PHASE 4.4: 「年度の物語」タブは「シーズンの記録」タブに広がり、
+   * その中に SEASON TIMELINE と年度の物語の両方が入るようになった（§19）。
+   * 確かめる内容は減らしていない — 年度の物語が読めることに加えて、
+   * シーズンの記録（月ごとの流れ）が出ていることも見る。
+   */
+  await page.locator('.tabs button', { hasText: 'シーズンの記録' }).click();
   await page.waitForTimeout(200);
   const storyText = await page.locator('.screen').innerText();
-  if (!storyText.includes('年度の物語')) fail('年度の物語タブが開けない');
-  else ok('年度の物語タブが開ける');
+  if (!storyText.includes('年度の物語')) fail('年度の物語が読めない');
+  else ok('年度の物語が読める');
+  for (const label of ['SEASON TIMELINE', 'シーズンの記録']) {
+    if (!storyText.includes(label)) fail(`シーズンの記録に「${label}」がない`);
+  }
+  ok('シーズンの記録（月ごとの流れ）が出ている');
+
+  // PHASE 4.4: GM日誌（§21）
+  await page.locator('.tabs button', { hasText: 'GM日誌' }).click();
+  await page.waitForTimeout(200);
+  const journalText = await page.locator('.screen').innerText();
+  for (const label of ['GM JOURNAL', 'GM日誌']) {
+    if (!journalText.includes(label)) fail(`GM日誌に「${label}」がない`);
+  }
+  if (!journalText.includes('良し悪しの採点はしていません')) {
+    fail('GM日誌が「評価ではなく記録」であることを示していない');
+  }
+  ok('GM日誌が開ける（判断の記録であって採点ではないと明示されている）');
+  await page.locator('.tabs button', { hasText: 'ニュース' }).click();
+  await page.waitForTimeout(150);
 
   await page.locator('.nav').getByText('ホーム').click();
   await page.waitForTimeout(200);
@@ -1382,7 +1405,8 @@ for (const label of [
   '球団レポート',
   'TEAM STRENGTH',
   'チーム戦力',
-  'AREAS TO WATCH',
+  // PHASE 4.4: 課題の欄を「なぜ課題なのか」まで書く球団レポートに広げた（§12）
+  'TEAM REPORT',
   '現在の課題',
   'DEPTH CHART',
   'ポジション別の層',
@@ -1630,8 +1654,12 @@ if (pending.length > 0) {
 
 // 施設・方針・起用がセーブに残っている
 const saved = await readState();
-if (saved.version !== 14) fail(`セーブのバージョンが14ではない（${saved.version}）`);
-else ok('セーブがv14になっている');
+// PHASE 4.4: GMの判断記録を保存するため v15 になった（§33）。
+// 確かめる内容は同じ — 保存されたデータが最新の形式であること。
+if (saved.version !== 15) fail(`セーブのバージョンが15ではない（${saved.version}）`);
+else ok('セーブがv15になっている');
+if (!Array.isArray(saved.decisions)) fail('判断記録の入れ物が保存されていない');
+else ok('判断記録の入れ物が保存されている');
 if (!saved.clubs || Object.keys(saved.clubs).length !== 12) {
   fail('12球団ぶんの球団経営データが無い');
 } else ok('12球団すべてに球団経営データがある');
@@ -1641,6 +1669,340 @@ const cpuFacilities = Object.entries(saved.clubs)
   .flat();
 if (cpuFacilities.some((v) => v < 1 || v > 5)) fail('CPU球団の施設Lvが範囲外');
 else ok('CPU球団の施設も1〜5の範囲に収まっている');
+
+
+/* ================= PHASE 4.4 GMとして判断する1日 ================= */
+
+// --- ホーム＝GMの机 ---
+await page.getByRole('button', { name: /ホーム/ }).last().click();
+await page.waitForTimeout(250);
+const p44DeskText = await page.locator('.screen').innerText();
+
+// §14 試合前資料がホームのいちばん上の判断材料になっている
+if (!p44DeskText.includes('PRE-GAME BRIEF') || !p44DeskText.includes('試合前資料')) {
+  fail('ホームに試合前資料が出ていない');
+} else ok('ホームに試合前資料（PRE-GAME BRIEF）が出ている');
+if (!p44DeskText.includes('TEAM FORM')) fail('試合前資料に直近の成績が出ていない');
+else ok('試合前資料に直近5試合の成績が出ている');
+
+// §2・§4 案件票
+const noteCount = await page.locator('.gm-note').count();
+if (noteCount === 0) {
+  ok('この時点では判断すべき案件が無い（案件が無いときは何も置かない）');
+} else {
+  if (noteCount > 3) fail(`案件が${noteCount}件あり上限3件を超えている`);
+  else ok(`GMの机に案件票が${noteCount}枚（上限3枚以内）`);
+  for (const label of ['GM NOTE', '今日の判断材料', 'CURRENT SITUATION', 'SCOUT NOTE', 'OPTIONS']) {
+    if (!p44DeskText.includes(label)) fail(`案件票に「${label}」がない`);
+  }
+  ok('案件票が 状況 → 数字 → 見方 → 決められる場所 の順になっている');
+  if (!p44DeskText.includes('決めるのはGMであるあなたです')) {
+    fail('判断が自動実行されないことが明示されていない');
+  } else ok('判断を自動実行しないと明示されている');
+  // §3・§22 禁止語
+  for (const word of ['おすすめ', '最適', 'AI分析', 'AIが']) {
+    if (p44DeskText.includes(word)) fail(`GMの机に「${word}」が出ている`);
+  }
+  ok('「おすすめ」「最適」「AI」を使っていない');
+
+  // 案件票は同じ大きさで並べない（1枚目だけ短期・長期を出す）
+  const leadCount = await page.locator('.gm-note.gm-lead').count();
+  if (leadCount !== 1) fail(`案件票の重みづけが不正（lead ${leadCount}枚）`);
+  else ok('1枚目の案件票だけ大きく扱っている（均一に並べていない）');
+
+  // §2 案件票の［決められる場所］は画面を移すだけで、何も決めない
+  const p44Before = await readState();
+  const p44Option = page.locator('.gm-note .gm-option').first();
+  if (await p44Option.count()) {
+    await p44Option.click();
+    await page.waitForTimeout(300);
+    const after = await readState();
+    if (
+      after.date !== p44Before.date ||
+      after.rngState !== p44Before.rngState ||
+      after.players.length !== p44Before.players.length ||
+      JSON.stringify(after.records) !== JSON.stringify(p44Before.records)
+    ) {
+      fail('案件票の選択肢を押しただけでゲームの状態が変わった');
+    } else ok('案件票の選択肢は画面を移すだけで、勝手に判断しない');
+    await page.getByRole('button', { name: /ホーム/ }).last().click();
+    await page.waitForTimeout(200);
+  }
+}
+await shot('60-gm-desk');
+
+// 同じ state からは同じ案件が出る（画面を出入りしても内容が変わらない）
+{
+  const first = await page.locator('.gm-note .gm-note-title').allInnerTexts();
+  await page.locator('.nav').getByText('順位').click();
+  await page.waitForTimeout(200);
+  await page.getByRole('button', { name: /ホーム/ }).last().click();
+  await page.waitForTimeout(300);
+  const second = await page.locator('.gm-note .gm-note-title').allInnerTexts();
+  if (JSON.stringify(first) !== JSON.stringify(second)) {
+    fail('画面を出入りするだけで案件の内容が変わった');
+  } else ok('判断画面は開くたびに内容が変わらない');
+}
+
+// --- §7〜§11 選手報告書 ---
+await page.locator('.nav').getByText('選手').click();
+await page.locator('.player-card').first().waitFor();
+await page.locator('.player-card').first().click();
+await page.locator('.sheet').waitFor();
+await page.locator('.sheet .tabs button', { hasText: '分析' }).click();
+await page.waitForTimeout(300);
+const p44ReportText = await page.locator('.sheet').innerText();
+for (const label of [
+  'PLAYER STATUS',
+  'いまの立ち位置',
+  'CURRENT',
+  '現在の戦力',
+  'FORM',
+  '直近状態',
+  'TREND',
+  '成績傾向',
+  'ROLE',
+  '現在の役割',
+  'DEVELOPMENT',
+  'CONTRACT',
+  'HEALTH',
+]) {
+  if (!p44ReportText.includes(label)) fail(`選手報告書に「${label}」がない`);
+}
+ok('選手報告書に §7 の項目（現在戦力・状態・傾向・年齢・役割・成長・契約・状態）がそろっている');
+
+for (const label of [
+  'CURRENT PERFORMANCE',
+  '現在の成績',
+  'DEVELOPMENT',
+  '成長傾向',
+  'POTENTIAL OUTLOOK',
+  '将来性の推定',
+]) {
+  if (!p44ReportText.includes(label)) fail(`選手報告書に「${label}」がない`);
+}
+ok('「活躍している」と「成長している」が別々に読める（§9）');
+
+// §10 レーダーの隣に強み・弱みが言葉で出る
+const axisNoteCount = await page.locator('.sheet .axis-note').count();
+if (axisNoteCount === 0) {
+  ok('能力に偏りが無い選手なので強み・弱みは出さない（無理に断定しない）');
+} else {
+  for (const label of ['STRENGTH', '強み', 'WEAK POINT', '弱点']) {
+    if (!p44ReportText.includes(label)) fail(`レーダーの隣に「${label}」がない`);
+  }
+  ok('レーダーの隣に強み・弱点が言葉で出ている（§10）');
+}
+
+// §11 グラフの読み方
+if (p44ReportText.includes('SEASON RECORD')) {
+  const trendRead = await page.locator('.sheet .trend-read').count();
+  const noRecord = p44ReportText.includes('まだ年度別成績が記録されていません');
+  if (trendRead === 0 && !noRecord) fail('成績グラフに読み方が添えられていない');
+  else ok(trendRead > 0 ? '成績グラフに ↑→↓ の読み方が添えられている' : '記録が無い年は捏造しない');
+}
+await shot('61-player-report');
+await page.locator('.sheet').getByRole('button', { name: '閉じる' }).first().click();
+await page.waitForTimeout(200);
+
+// --- §12・§13 球団レポート ---
+await page.getByRole('button', { name: /ホーム/ }).last().click();
+await page.waitForTimeout(200);
+await page.getByRole('button', { name: '球団経営を見る' }).click();
+await page.locator('.tabs button', { hasText: '分析' }).click();
+await page.waitForTimeout(300);
+const p44ClubReport = await page.locator('.screen').innerText();
+if ((await page.locator('.issue-detail').count()) === 0) {
+  ok('この球団には目立った課題が無い');
+} else {
+  for (const label of ['WHY', 'なぜ課題なのか']) {
+    if (!p44ClubReport.includes(label)) fail(`課題に「${label}」がない`);
+  }
+  ok('課題に「なぜ課題なのか」が添えられている（§12）');
+  const p44Numbers = await page.locator('.issue-detail-no').allInnerTexts();
+  if (p44Numbers[0] !== '01') fail(`課題の番号が 01 から始まっていない（${p44Numbers[0]}）`);
+  else ok(`課題に番号がついている（${p44Numbers.join(' / ')}）`);
+}
+if (p44ClubReport.includes('CONSIDER')) {
+  for (const label of ['検討できること', 'OPTIONS', 'COST', 'RISK', 'FREE AGENCY', 'TRADE', 'YOUTH', 'STAY']) {
+    if (!p44ClubReport.includes(label)) fail(`補強の検討に「${label}」がない`);
+  }
+  ok('補強の手だてが COST と RISK つきで4通り出ている（§13）');
+  if (!p44ClubReport.includes('どれを選んでも失うものがあります')) {
+    fail('「正解がある」ように見せてしまっている');
+  } else ok('正解を提示していないことが明示されている');
+}
+for (const word of ['おすすめ', '最適', 'AI分析']) {
+  if (p44ClubReport.includes(word)) fail(`球団レポートに「${word}」が出ている`);
+}
+ok('球団レポートに「おすすめ」「最適」「AI」を使っていない');
+await shot('62-club-report');
+
+// --- §5・§20 判断を記録する ---
+await page.locator('.tabs button', { hasText: '球団' }).click();
+await page.waitForTimeout(250);
+{
+  const beforeDecisions = (await readState()).decisions?.length ?? 0;
+  const current = (await readState()).clubs.phoenix.direction;
+  const target = current === 'WIN_NOW' ? '若手を育てる' : '優勝を狙う';
+  const p44Button = page.locator('.card .btn', { hasText: target }).first();
+  if (await p44Button.count()) {
+    await p44Button.click();
+    await page.waitForTimeout(700);
+    const afterState = await readState();
+    const afterDecisions = afterState.decisions?.length ?? 0;
+    if (afterDecisions !== beforeDecisions + 1) {
+      fail(`判断が記録されていない（${beforeDecisions} → ${afterDecisions}）`);
+    } else ok('球団方針の判断がGM日誌に記録された');
+    const p44Record = afterState.decisions[afterState.decisions.length - 1];
+    if (p44Record.kind !== 'DIRECTION') fail(`記録の種類が不正（${p44Record.kind}）`);
+    else ok(`記録の中身が正しい（${p44Record.title}：${p44Record.choice}）`);
+    // §5 一気に全部出さず、まず「記録した」ことだけを出す
+    const stamped = await page.locator('.decision-stamp').count();
+    if (stamped === 0) fail('判断を記録したことが画面に出ていない');
+    else ok('DECISION RECORDED が段階的に表示される');
+    if (!(await page.locator('.screen').innerText()).includes('判断を記録しました')) {
+      fail('判断の記録が日本語でも示されていない');
+    } else ok('英字と日本語の両方で示されている');
+
+    // 連打しても二重に記録しない
+    await p44Button.click().catch(() => {});
+    await page.waitForTimeout(400);
+    const twice = (await readState()).decisions.filter((d) => d.kind === 'DIRECTION').length;
+    if (twice > 1) fail(`同じ日に方針を選び直して記録が${twice}件に増えた`);
+    else ok('同じ日に決め直しても記録は1件のまま（二重記録しない）');
+  }
+}
+await shot('63-decision');
+
+// --- §18・§21 一日の流れとGM日誌 ---
+await page.locator('.nav').getByText('ホーム').click();
+await page.waitForTimeout(200);
+await page.getByRole('button', { name: 'GM日誌' }).click();
+await page.waitForTimeout(300);
+await page.locator('.tabs button', { hasText: 'GM日誌' }).click();
+await page.waitForTimeout(250);
+const p44Journal = await page.locator('.screen').innerText();
+if ((await page.locator('.journal-row').count()) === 0) {
+  fail('GM日誌に記録が出ていない');
+} else {
+  ok(`GM日誌に判断の記録が出ている（${await page.locator('.journal-row').count()}件）`);
+  if (!p44Journal.includes('REASON') || !p44Journal.includes('そのときの状況')) {
+    fail('GM日誌に「そのときの状況」が出ていない');
+  } else ok('「そのときどう判断したか」が残っている（§21）');
+  for (const word of ['正解', '失敗でした', '成功でした']) {
+    if (p44Journal.includes(word)) fail(`GM日誌に評価の言葉「${word}」が出ている`);
+  }
+  ok('結果の良し悪しを採点していない（§21）');
+}
+await shot('64-gm-journal');
+
+// 一日の流れ（§18）
+await page.locator('.tabs button', { hasText: 'ニュース' }).click();
+await page.waitForTimeout(250);
+const p44FlowText = await page.locator('.screen').innerText();
+if ((await page.locator('.flow-item').count()) === 0) {
+  ok('今日はまだ何も起きていない（無理に埋めない）');
+} else {
+  if (!p44FlowText.includes('TODAY') || !p44FlowText.includes('今日の球団')) {
+    fail('一日の流れに欄名が出ていない');
+  } else ok('「今日この球団で何が起きたか」が時系列で出ている（§18）');
+}
+
+// --- §14〜§17 試合前資料と試合後の講評 ---
+await page.locator('.nav').getByText('試合').click();
+await page.waitForTimeout(250);
+const p44GameText = await page.locator('.screen').innerText();
+for (const label of ['PRE-GAME BRIEF', '試合前資料', 'OPPONENT', 'STARTING PITCHER', 'TEAM FORM']) {
+  if (!p44GameText.includes(label)) fail(`試合画面に「${label}」がない`);
+}
+ok('試合前資料に対戦相手・先発・直近の成績が出ている（§14）');
+{
+  // 試合前資料に相手球団の選手名が漏れていないこと（§31）
+  const st = await readState();
+  const nextGame = st.schedule.find((g) => !g.played && (g.homeTeamId === 'phoenix' || g.awayTeamId === 'phoenix'));
+  if (nextGame) {
+    const opponentId = nextGame.homeTeamId === 'phoenix' ? nextGame.awayTeamId : nextGame.homeTeamId;
+    const briefBox = await page.locator('.card').first().innerText();
+    const leaked = st.players.filter((p) => p.teamId === opponentId).some((p) => briefBox.includes(p.name));
+    if (leaked) fail('試合前資料に相手球団の選手情報が出ている');
+    else ok('相手球団については公開されている成績しか出していない（§31）');
+  }
+}
+await shot('65-pre-game');
+
+const p44StartButton = page.getByRole('button', { name: '試合開始' });
+if (await p44StartButton.count()) {
+  await p44StartButton.click();
+  await page.locator('.linescore').waitFor();
+  const p44Skip = page.getByRole('button', { name: 'スキップ' });
+  if (await p44Skip.count()) {
+    await p44Skip.click();
+    await p44Skip.click().catch(() => {});
+    await page.waitForTimeout(300);
+  }
+  await page.waitForTimeout(500);
+  const p44Post = await page.locator('.screen').innerText();
+  for (const label of ['POST GAME', '試合結果', 'TEAM NOTE', 'チームの状況']) {
+    if (!p44Post.includes(label)) fail(`試合後の講評に「${label}」がない`);
+  }
+  ok('試合後に POST GAME の講評が出る（§16）');
+  if (!p44Post.includes('KEY MOMENTS') && !p44Post.includes('PLAYER NOTE')) {
+    fail('試合の流れも個人の記録も出ていない');
+  } else ok('試合の流れ・個人の記録が出ている');
+  const p44Moments = await page.locator('.post-moments li').count();
+  if (p44Moments > 3) fail(`試合の流れが${p44Moments}件（3件までのはず）`);
+  else ok(`試合の流れは${p44Moments}件（全打席実況にはしていない）`);
+  for (const word of ['復活', '間違いなく', '確実に']) {
+    if (p44Post.includes(word)) fail(`試合後の講評に断定「${word}」が出ている`);
+  }
+  ok('試合後の講評で断定していない（§17）');
+  await shot('66-post-game');
+}
+
+// --- §29 横スクロール0（PHASE 4.4 の追加分） ---
+for (const screen of ['ホーム', '試合', '選手', '順位']) {
+  await page.locator('.nav').getByText(screen).click();
+  await page.waitForTimeout(250);
+  const over = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  if (over > 2) fail(`${screen}画面が横にはみ出している（${over}px）`);
+}
+ok('PHASE 4.4 の画面でも横スクロールが出ない（390px）');
+
+// --- §28 reduced-motion でも情報量が減らない ---
+{
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.reload();
+  await page.getByRole('button', { name: '続きから' }).click();
+  await page.locator('.appbar h1').waitFor();
+  await page.waitForTimeout(300);
+  const reducedText = await page.locator('.screen').innerText();
+  for (const label of ['PRE-GAME BRIEF', '試合前資料']) {
+    if (!reducedText.includes(label)) fail(`reduced-motion で「${label}」が消えた`);
+  }
+  const reducedNotes = await page.locator('.gm-note').count();
+  if (reducedNotes > 3) fail('reduced-motion で案件が増えた');
+  else ok(`reduced-motion でも情報量が減らない（案件${reducedNotes}枚）`);
+  await shot('67-reduced-motion');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.reload();
+  await page.getByRole('button', { name: '続きから' }).click();
+  await page.locator('.appbar h1').waitFor();
+  await page.waitForTimeout(200);
+}
+
+// --- §33 セーブに判断記録が残る ---
+{
+  const p44Saved = await readState();
+  if (p44Saved.version !== 15) fail(`セーブのバージョンが15ではない（${p44Saved.version}）`);
+  else ok('セーブがv15になっている');
+  if (!Array.isArray(p44Saved.decisions)) fail('判断記録の入れ物が無い');
+  else ok(`判断記録が保存されている（${p44Saved.decisions.length}件）`);
+  const kb = Math.round(JSON.stringify(p44Saved).length / 1024);
+  ok(`セーブサイズ ${kb}KB`);
+}
 
 // リロード（アプリ再起動）
 const snapshot = await readState();

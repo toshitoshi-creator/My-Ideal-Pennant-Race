@@ -9,12 +9,7 @@ import { rankOfTeam, formatWinPct, winPct } from '../../domain/standings';
 import { RankBadge } from '../components/common';
 import { GrowthReportSheet } from '../components/GrowthReport';
 import { FinanceRows } from './ContractScreen';
-import {
-  formatMoney,
-  isExpiring,
-  remainingBudget,
-  teamPayroll,
-} from '../../domain/contract';
+import { isExpiring, teamPayroll } from '../../domain/contract';
 import { championshipCount } from '../../domain/history';
 import { recentNews, unreadCount } from '../../domain/news';
 import {
@@ -26,7 +21,9 @@ import {
   pendingEvents,
 } from '../../domain/club';
 import { NewsCard } from '../components/NewsCard';
-import { pendingOffersForPlayer } from '../../domain/trade';
+import { GmDeskNote } from '../components/GmDeskNote';
+import { buildGmDesk, type GmDeskLink } from '../../domain/gmDesk';
+import { buildPreGameBrief } from '../../domain/gameBrief';
 import {
   planSummary,
   targetLabels,
@@ -56,10 +53,8 @@ export function HomeScreen() {
   );
 
   const plan = state.teamPlans?.[team.id];
-  const tradeOffers = pendingOffersForPlayer(state);
   const finance = state.finances[team.id];
   const payroll = teamPayroll(state, team.id);
-  const remaining = remainingBudget(state, team.id);
   const expiringCount = state.players.filter(
     (p) => p.teamId === team.id && isExpiring(p),
   ).length;
@@ -75,38 +70,19 @@ export function HomeScreen() {
   const rank = rankOfTeam(state, team.id);
 
   /*
-   * PHASE 4.2: 並び順は「いま見るべき順」（§21）。
-   *   1 今日の状況  2 次の試合  3 GMが決めること  4 チーム状態  5 ニュース  6 資料
-   * 均等に並べるのではなく、上ほど大きく扱う。
+   * PHASE 4.4: 机の上に置く案件（§2・§4）。
+   *
+   * ここは「問題を見つけて知らせる」だけ。判断は一切自動実行しない。
+   * 同じ state からは必ず同じ案件が同じ順で出る（buildGmDesk は乱数を使わない）。
    */
-  const decisions: Array<{ tag: string; text: string; action?: () => void; label?: string }> = [];
-  if (state.fa) {
-    const listed = state.fa.listings.filter((l) => l.status !== 'SIGNED').length;
-    decisions.push({
-      tag: 'FA市場開催中',
-      text: `市場に${listed}人。提示中 ${state.fa.offers.filter((o) => o.teamId === team.id && o.status === 'PENDING').length}人`,
-      action: () => showFA(),
-      label: 'FA市場を見る',
-    });
-  }
-  if (tradeOffers.length > 0) {
-    decisions.push({
-      tag: 'TRADE',
-      text: `他球団からトレード提案が${tradeOffers.length}件届いています`,
-      action: () => setScreen('trade'),
-      label: 'トレードへ',
-    });
-  }
-  if (expiringCount > 0) {
-    decisions.push({ tag: 'CONTRACT', text: `今季で契約が切れる選手が${expiringCount}人います` });
-  }
-  if (remaining < 0) {
-    decisions.push({
-      tag: 'BUDGET',
-      text: `総年俸が年間予算（${formatMoney(finance.budget)}）を超えています`,
-    });
-  }
-  if (finance.cash < 0) decisions.push({ tag: 'BUDGET', text: '球団資金が赤字です' });
+  const desk = useMemo(() => buildGmDesk(state), [state]);
+  const brief = useMemo(() => buildPreGameBrief(state), [state]);
+
+  /** 案件の［決められる場所］から実際の画面へ移る。移るだけで、何も決めない */
+  const openLink = (link: GmDeskLink) => {
+    if (link === 'fa') showFA();
+    else setScreen(link);
+  };
 
   return (
     <div className="screen">
@@ -144,10 +120,10 @@ export function HomeScreen() {
         </div>
       </header>
 
-      {/* ── 2. 次の試合 ── いちばん面積を取る ── */}
+      {/* ── 2. 試合前資料 ── いちばん面積を取る（§14） ── */}
       <section className="next-game">
-        <Sec en="NEXT GAME" ja="次の試合" size="lead" />
-        {next && opponent ? (
+        <Sec en="PRE-GAME BRIEF" ja="試合前資料" size="lead" />
+        {next && opponent && brief ? (
           <>
             <div className="next-matchup">
               <span className="next-team">{team.shortName}</span>
@@ -155,18 +131,30 @@ export function HomeScreen() {
               <span className="next-team">{opponent.shortName}</span>
             </div>
             <div className="next-meta">
-              {formatDateJa(next.date)}・{next.homeTeamId === team.id ? 'ホーム' : 'ビジター'}
-              　{opponent.shortName} {state.records[opponent.id].wins}勝
-              {state.records[opponent.id].losses}敗
+              {formatDateJa(next.date)}・{brief.homeAway === 'HOME' ? 'ホーム' : 'ビジター'}
+              　{opponent.shortName} {brief.opponentRecord}
             </div>
             <div className="next-starter">
               <span className="label">先発</span>
               <span>
-                {starter
-                  ? `${starter.name}　${starter.pitching?.velocity ?? '-'}km/h`
-                  : '未設定'}
+                {starter ? `${starter.name}　${brief.starterNote}` : '未設定'}
               </span>
             </div>
+            <div className="next-starter">
+              <span className="label">TEAM FORM</span>
+              <span>{brief.teamForm}</span>
+            </div>
+            {brief.watch.length > 0 && (
+              <div className="brief-watch">
+                <span className="label">WATCH</span>
+                <span className="brief-watch-ja">今日の見どころ</span>
+                <ul className="brief-watch-list">
+                  {brief.watch.map((line, i) => (
+                    <li key={i}>{line}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </>
         ) : (
           <div className="muted" style={{ padding: '10px 0' }}>
@@ -203,20 +191,21 @@ export function HomeScreen() {
         </div>
       )}
 
-      {/* ── 3. GMが決めること ── */}
-      {decisions.length > 0 && (
+      {/* ── 3. GMの机 ── 今日の判断材料（§4） ── */}
+      {desk.length > 0 && (
         <div className="card">
-          <Sec en="GM DESK" ja="今日の判断" size="lead" />
-          {decisions.map((d, i) => (
-            <div key={i} className="decision">
-              <span className="decision-tag">{d.tag}</span>
-              <span className="decision-text">{d.text}</span>
-              {d.action && (
-                <button className="linky" onClick={d.action}>
-                  {d.label}
-                </button>
-              )}
-            </div>
+          <Sec en="GM NOTE" ja="今日の判断材料" size="lead" note={`${desk.length}件`} />
+          <p className="gm-desk-lead">
+            見つけた案件です。どれも自動では動きません。決めるのはGMであるあなたです。
+          </p>
+          {desk.map((item, i) => (
+            <GmDeskNote
+              key={item.id}
+              item={item}
+              index={i}
+              dateLabel={formatDateJa(state.date)}
+              onOpen={openLink}
+            />
           ))}
         </div>
       )}
@@ -309,6 +298,9 @@ export function HomeScreen() {
           </button>
           <button className="btn secondary" onClick={() => setScreen('trade')}>
             トレードを見る
+          </button>
+          <button className="btn secondary" onClick={() => setScreen('news')}>
+            GM日誌
           </button>
         </div>
       </div>

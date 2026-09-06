@@ -37,6 +37,8 @@ import { investigate } from '../domain/scouting';
 import type { ScoutCategory } from '../domain/types';
 import { Rng } from '../domain/rng';
 import { addDays } from '../domain/dates';
+import { recordDecision } from '../domain/decisions';
+import { formatSalary } from '../domain/contract';
 
 export type ScreenId =
   | 'home'
@@ -330,6 +332,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         years,
       });
       phase.completed = phase.pending.length === 0;
+      /*
+       * PHASE 4.4: 契約の判断はGM日誌に残す（§20）。
+       * 記録はゲームの進行にも乱数にも影響しない。
+       */
+      recordDecision(next, {
+        kind: 'CONTRACT',
+        key: playerId,
+        title: `${player.name}の契約更改`,
+        choice: `${formatSalary(salary)}・${years}年で提示（${
+          result.accepted ? '合意' : '不成立'
+        }）`,
+        situation: `${player.age}歳・${next.year}年オフの更改`,
+        playerIds: [playerId],
+      });
       commit(next);
       showToast(
         result.accepted
@@ -391,8 +407,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         showToast(result.message ?? 'この条件では成立しませんでした');
         return false;
       }
-      commit(next);
       const teamName = next.teams.find((t) => t.id === offer.fromTeamId)?.name ?? offer.fromTeamId;
+      recordDecision(next, {
+        kind: 'TRADE',
+        key: offer.id,
+        title: `${teamName} とのトレード`,
+        choice: '受け入れた',
+        situation: `出した ${offer.requestedPlayerIds.length}人 / 受け取った ${offer.offeredPlayerIds.length}人`,
+        playerIds: offer.offeredPlayerIds,
+      });
+      commit(next);
       showToast(`${teamName} とのトレードが成立しました`);
       return true;
     },
@@ -407,6 +431,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const offer = next.trade.offers.find((o) => o.id === offerId && o.status === 'PENDING');
       if (!offer) return;
       rejectTradeOffer(offer);
+      const fromName = next.teams.find((t) => t.id === offer.fromTeamId)?.name ?? offer.fromTeamId;
+      recordDecision(next, {
+        kind: 'TRADE',
+        key: offer.id,
+        title: `${fromName} からのトレード提案`,
+        choice: '断った',
+        situation: `求められた ${offer.requestedPlayerIds.length}人 / 提示された ${offer.offeredPlayerIds.length}人`,
+        playerIds: offer.requestedPlayerIds,
+      });
       commit(next);
       showToast('トレードを断りました');
     },
@@ -455,6 +488,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return false;
       }
       const player = next.freeAgents.find((p) => p.id === playerId);
+      // PHASE 4.4: FAの判断もGM日誌に残す（§20）
+      recordDecision(next, {
+        kind: 'FA',
+        key: playerId,
+        title: `${player?.name ?? '選手'} へのFA提示`,
+        choice: `${formatSalary(salary)}・${years}年で提示`,
+        situation: `${next.year}年オフのFA市場`,
+      });
       commit(next);
       showToast(`${player?.name ?? '選手'} に条件を提示しました`);
       return true;

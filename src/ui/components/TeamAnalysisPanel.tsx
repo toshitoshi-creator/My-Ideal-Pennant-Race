@@ -4,22 +4,23 @@
  */
 import { useMemo, useState } from 'react';
 import { Sec } from './Sec';
-import {
-  analyzeTeamForDisplay,
-  TEAM_STATUS_LABELS,
-  type TeamStatus,
-} from '../../domain/teamAnalysis';
+import { TEAM_STATUS_LABELS, type TeamStatus } from '../../domain/teamAnalysis';
+import { buildTeamReport, type ReinforcementPlan } from '../../domain/teamReport';
+import type { GmDeskLink } from '../../domain/gmDesk';
 import type { DepthSlot } from '../../domain/rosterAnalysis';
 import { useGame } from '../store';
 import { AxisBar, RadarChart, Stars } from './charts';
 import type { RadarAxis } from '../../domain/playerAnalysis';
 
+/*
+ * 状態の色。design.md のトークンだけを使う（生の16進数は書かない）。
+ * 色だけで良し悪しを表さないよう、必ずラベルの文字と一緒に出す（§22）。
+ */
 const STATUS_COLORS: Record<TeamStatus, string> = {
-  GOOD: 'var(--good)',
-  STABLE: 'var(--accent-2)',
-  CAUTION: 'var(--accent)',
-  // 危険でも赤一色にはしない（§14：過度な警告表示を避ける）
-  RISK: '#e07a7a',
+  GOOD: 'var(--grass)',
+  STABLE: 'var(--ink-2)',
+  CAUTION: 'var(--brass)',
+  RISK: 'var(--accent)',
 };
 
 const SLOT_LABELS: Record<DepthSlot, string> = {
@@ -30,10 +31,17 @@ const SLOT_LABELS: Record<DepthSlot, string> = {
 };
 
 export function TeamAnalysisPanel() {
-  const { state } = useGame();
+  const { state, setScreen, showFA } = useGame();
   const teamId = state.playerTeamId;
-  const analysis = useMemo(() => analyzeTeamForDisplay(state, teamId), [state, teamId]);
+  const report = useMemo(() => buildTeamReport(state, teamId), [state, teamId]);
+  const analysis = report.analysis;
   const [openPosition, setOpenPosition] = useState<string | null>(null);
+
+  /** 補強の選択肢から、実際に手を打てる画面へ移る。移るだけで何も決めない */
+  const openLink = (link: GmDeskLink) => {
+    if (link === 'fa') showFA();
+    else setScreen(link);
+  };
 
   // チームの軸をレーダーチャートに載せる（将来予測レンジは使わない）
   const radar: RadarAxis[] = analysis.axes.map((axis) => ({
@@ -48,7 +56,14 @@ export function TeamAnalysisPanel() {
       <div className="card">
         <Sec en="CLUB REPORT" ja="球団レポート" size="lead" />
         <div className="spread">
-          <span className="chip on" style={{ background: STATUS_COLORS[analysis.status], color: '#10151c' }}>
+          <span
+            className="chip on"
+            style={{
+              background: STATUS_COLORS[analysis.status],
+              borderColor: STATUS_COLORS[analysis.status],
+              color: 'var(--accent-ink)',
+            }}
+          >
             {TEAM_STATUS_LABELS[analysis.status]}
           </span>
           <span className="muted" style={{ fontSize: 12 }}>
@@ -75,21 +90,55 @@ export function TeamAnalysisPanel() {
         </div>
       </div>
 
+      {/* ── 現在の課題（§12）。番号を振り、なぜ課題なのかまで書く ── */}
       <div className="card">
-        <Sec en="AREAS TO WATCH" ja="現在の課題" />
-        {analysis.issues.length === 0 ? (
+        <Sec en="TEAM REPORT" ja="現在の課題" size="lead" />
+        {report.issues.length === 0 ? (
           <p className="muted">目立った課題はありません。</p>
         ) : (
-          <ol className="concern-list">
-            {analysis.issues.map((issue, i) => (
-              <li key={issue.id} className={`concern sev-${issue.severity}`}>
-                <span className="concern-no">{String(i + 1).padStart(2, '0')}</span>
-                <span className="concern-text">{issue.text}</span>
+          <ol className="issue-details">
+            {report.issues.map((issue) => (
+              <li key={issue.id} className={`issue-detail sev-${issue.severity}`}>
+                <div className="issue-detail-head">
+                  <span className="issue-detail-no">{issue.no}</span>
+                  <div className="issue-detail-name">
+                    <span className="label">{issue.en}</span>
+                    <span className="issue-detail-ja">{issue.ja}</span>
+                  </div>
+                </div>
+                <div className="issue-part">
+                  <span className="label">WHY</span>
+                  <span className="issue-part-ja">なぜ課題なのか</span>
+                  <p className="issue-text">{issue.why}</p>
+                </div>
+                {issue.data.length > 0 && (
+                  <dl className="issue-data">
+                    {issue.data.map((datum, i) => (
+                      <div key={i} className="issue-data-row">
+                        <dt>{datum.label}</dt>
+                        <dd>{datum.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
               </li>
             ))}
           </ol>
         )}
       </div>
+
+      {/* ── 補強の道すじ（§13）。正解は出さない ── */}
+      {report.plans.length > 0 && (
+        <div className="card">
+          <Sec en="CONSIDER" ja="検討できること" />
+          <p className="consider-lead">
+            どれを選んでも失うものがあります。ここでは決まりません。
+          </p>
+          {report.plans.map((plan) => (
+            <PlanBlock key={plan.id} plan={plan} onOpen={openLink} />
+          ))}
+        </div>
+      )}
 
       <div className="card">
         <Sec en="DEPTH CHART" ja="ポジション別の層" />
@@ -156,5 +205,64 @@ export function TeamAnalysisPanel() {
         </div>
       </div>
     </>
+  );
+}
+
+/** 補強ポイントひとつ（§13：WHY / DATA / OPTIONS / COST / RISK） */
+function PlanBlock({
+  plan,
+  onOpen,
+}: {
+  plan: ReinforcementPlan;
+  onOpen: (link: GmDeskLink) => void;
+}) {
+  return (
+    <section className="plan">
+      <div className="plan-head">
+        <span className="label">{plan.en}</span>
+        <span className="plan-ja">{plan.ja}</span>
+      </div>
+      <div className="issue-part">
+        <span className="label">WHY</span>
+        <span className="issue-part-ja">なぜ必要なのか</span>
+        <p className="issue-text">{plan.why}</p>
+      </div>
+      <dl className="issue-data">
+        {plan.data.map((datum, i) => (
+          <div key={i} className="issue-data-row">
+            <dt>{datum.label}</dt>
+            <dd>{datum.value}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="issue-part">
+        <span className="label">OPTIONS</span>
+        <span className="issue-part-ja">手だて</span>
+      </div>
+      {plan.options.map((option) => (
+        <div key={option.route} className="plan-option">
+          <div className="plan-option-head">
+            <span className="label">{option.en}</span>
+            <span className="plan-option-ja">{option.ja}</span>
+          </div>
+          <p className="plan-option-text">{option.merit}</p>
+          <div className="plan-tradeoff">
+            <div>
+              <span className="label">COST</span>
+              <span className="plan-tradeoff-text">{option.cost}</span>
+            </div>
+            <div>
+              <span className="label">RISK</span>
+              <span className="plan-tradeoff-text">{option.risk}</span>
+            </div>
+          </div>
+          {option.link && (
+            <button className="linky" onClick={() => onOpen(option.link!)}>
+              {option.ja}画面へ
+            </button>
+          )}
+        </div>
+      ))}
+    </section>
   );
 }

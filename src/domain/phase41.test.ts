@@ -1463,8 +1463,18 @@ describe('PHASE4.1 情報不足のとき', () => {
 /* ================= 既存システムが壊れていない ================= */
 
 describe('PHASE4.1 既存システムが壊れていない', () => {
-  it('セーブのバージョンは変えていない', () => {
-    expect(SAVE_VERSION).toBe(14);
+  it('PHASE 4.1 の分析はセーブ形式に何も足していない', () => {
+    /*
+     * PHASE 4.1 の時点では v14 だった。PHASE 4.4 でGMの判断記録を足したため v15 になっている。
+     * ここで確かめたいのは「4.1 の分析まわりが保存を必要としていない」ことなので、
+     * バージョン番号ではなく、分析が state に何も書き込まないことを直接見る。
+     */
+    expect(SAVE_VERSION).toBe(15);
+    const s = playSeason(newGame(10, 4201));
+    const snapshot = JSON.stringify(s);
+    for (const player of s.players.slice(0, 30)) analyzePlayer(s, player);
+    for (const team of s.teams) analyzeTeamForDisplay(s, team.id);
+    expect(JSON.stringify(s)).toBe(snapshot);
   });
 
   it('シーズンを最後まで進められる', () => {

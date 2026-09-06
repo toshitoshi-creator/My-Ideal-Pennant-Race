@@ -1077,8 +1077,19 @@ describe('PHASE4.0 セーブ', () => {
   });
 
   it('セーブバージョンが14になっている', () => {
-    expect(SAVE_VERSION).toBe(14);
+    // PHASE 4.4 でGMの判断記録を追加したため v15
+    expect(SAVE_VERSION).toBe(15);
     expect(newGame().version).toBe(SAVE_VERSION);
+    // v14 のセーブも読み込めて、このフェーズのデータが失われないこと
+    clearSave();
+    const old = structuredClone(newGame()) as unknown as Record<string, unknown>;
+    old.version = 14;
+    delete old.decisions;
+    saveGame(old as unknown as GameState);
+    const loaded = loadGame()!;
+    expect(loaded.version).toBe(SAVE_VERSION);
+    expect(loaded.players.length).toBe((old.players as unknown[]).length);
+    expect(Array.isArray(loaded.decisions)).toBe(true);
   });
 
   it('経営状態が保存・復元される', () => {

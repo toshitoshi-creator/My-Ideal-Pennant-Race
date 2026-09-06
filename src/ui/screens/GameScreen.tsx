@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import type { GameResult } from '../../domain/types';
 import { formatDateJa } from '../../domain/dates';
 import { nextGameForTeam } from '../../domain/schedule';
-import { nextStarterId } from '../../domain/setup';
 import { Sheet } from '../components/common';
 import { useCountUp, usePlayback } from '../anim';
+import { buildPreGameBrief, buildPostGameReport } from '../../domain/gameBrief';
 
 export function GameScreen() {
   const { state, lastResult, playNextGame } = useGame();
@@ -18,8 +18,7 @@ export function GameScreen() {
         (t) => t.id === (next.homeTeamId === team.id ? next.awayTeamId : next.homeTeamId),
       )!
     : null;
-  const starterId = nextStarterId(state.setups[team.id]);
-  const starter = state.players.find((p) => p.id === starterId);
+  const brief = useMemo(() => buildPreGameBrief(state), [state]);
 
   const playerResults = state.results
     .filter((r) => r.homeTeamId === team.id || r.awayTeamId === team.id)
@@ -32,20 +31,45 @@ export function GameScreen() {
 
   return (
     <div className="screen">
+      {/* ── 試合前資料（§14）。今日の試合に関係する情報だけを短く ── */}
       <div className="card">
-        <Sec en="NEXT GAME" ja="次の試合" size="lead" />
-        {next && opponent ? (
+        <Sec en="PRE-GAME BRIEF" ja="試合前資料" size="lead" />
+        {next && opponent && brief ? (
           <>
-            <div className="muted">{formatDateJa(next.date)}</div>
-            <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>
-              {next.homeTeamId === team.id
-                ? `${opponent.name} @ ${team.name}`
-                : `${team.name} @ ${opponent.name}`}
+            <div className="brief-line">
+              <span className="label">TODAY</span>
+              <span>{brief.dateLabel}</span>
             </div>
-            <div className="muted" style={{ marginBottom: 10 }}>
-              先発予定： {starter ? starter.name : '未設定'}
+            <div className="brief-line">
+              <span className="label">OPPONENT</span>
+              <span>
+                {brief.opponentName}
+                <span className="muted"> {brief.opponentRecord}</span>
+              </span>
             </div>
-            <button className="btn primary" onClick={() => playNextGame()}>
+            <div className="brief-line">
+              <span className="label">STARTING PITCHER</span>
+              <span>
+                {brief.starterName}
+                <span className="muted"> {brief.starterNote}</span>
+              </span>
+            </div>
+            <div className="brief-line">
+              <span className="label">TEAM FORM</span>
+              <span>{brief.teamForm}</span>
+            </div>
+            {brief.watch.length > 0 && (
+              <div className="brief-watch">
+                <span className="label">WATCH</span>
+                <span className="brief-watch-ja">今日の見どころ</span>
+                <ul className="brief-watch-list">
+                  {brief.watch.map((line, i) => (
+                    <li key={i}>{line}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <button className="btn primary" style={{ marginTop: 12 }} onClick={() => playNextGame()}>
               試合開始
             </button>
           </>
@@ -60,6 +84,7 @@ export function GameScreen() {
             <Sec en="SCOREBOOK" ja="試合結果" size="lead" />
             <GameResultView state={state} result={lastResult} />
           </div>
+          <PostGameSection result={lastResult} />
           <div className="card">
             <Sec en="PLAY BY PLAY" ja="簡易実況" size="sub" />
             <div className="commentary">
@@ -284,5 +309,62 @@ export function GameResultView({
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * PHASE 4.4 試合後の講評（§16・§17）。
+ *
+ * 新聞の試合評のように、決まった場面 → 個人 → チーム の3段に分ける。
+ * 「これで復活した」のような断定はしない。
+ */
+function PostGameSection({ result }: { result: GameResult }) {
+  const { state } = useGame();
+  const report = useMemo(() => buildPostGameReport(state, result), [state, result]);
+  return (
+    <div className="card">
+      <Sec en="POST GAME" ja="試合結果" size="lead" note={report.score} />
+      {report.keyMoments.length > 0 && (
+        <div className="post-block">
+          <span className="label">KEY MOMENTS</span>
+          <span className="post-ja">試合の流れ</span>
+          <ul className="post-moments">
+            {report.keyMoments.map((moment, i) => (
+              <li key={i}>
+                <span className="post-inning">{moment.inning}回</span>
+                <span className="post-moment-label">{moment.label}</span>
+                <span className="post-moment-text">{moment.text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {report.playerNotes.length > 0 && (
+        <div className="post-block">
+          <span className="label">PLAYER NOTE</span>
+          <span className="post-ja">個人の記録</span>
+          {report.playerNotes.map((note) => (
+            <div key={note.playerId} className="post-player">
+              <div className="post-player-head">
+                <span className="post-player-name">{note.name}</span>
+                <span className="post-player-today">{note.today}</span>
+              </div>
+              {note.before && (
+                <div className="post-player-before">
+                  <span className="label">BEFORE</span>
+                  <span>{note.before}</span>
+                </div>
+              )}
+              <p className="post-player-note">{note.note}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="post-block">
+        <span className="label">TEAM NOTE</span>
+        <span className="post-ja">チームの状況</span>
+        <p className="post-team">{report.teamNote}</p>
+      </div>
+    </div>
   );
 }

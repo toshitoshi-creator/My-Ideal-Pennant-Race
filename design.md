@@ -101,6 +101,60 @@ CLUB REPORT
 | トレード | TRADE DESK |
 | ドラフト | DRAFT ROOM |
 
+## 案件票（PHASE 4.4）
+
+GM が判断する案件は、角丸のカードではなく **左に罫を引いた回覧資料**として置く。
+1 枚目だけ罫を赤くし、余白を広く取る。2 枚目以降は静かに。机の上は最大 3 枚まで。
+
+```
+│ GM NOTE                        07.18
+│ 中継ぎ陣に疲労が蓄積しています
+│
+│ CURRENT SITUATION  いまの状況
+│ DATA               数字
+│ SCOUT NOTE         見方
+│ SHORT TERM / LONG TERM （1 枚目のみ）
+│ OPTIONS            決められる場所
+```
+
+* 案件は **問題を知らせるだけ**。押しても画面が移るだけで、何も決まらない
+* `OPTIONS` は必ず「実際に決められる画面」への導線。行き先の無い選択肢は置かない
+* 「おすすめ」「最適」「AI」「正解」は書かない。書くのは DATA / REASON / TRADEOFF / RISK
+
+追加する欄名（英字＋日本語のセットは §3 のまま）：
+
+| 画面の中身 | 欄名 |
+| --- | --- |
+| 今日の判断材料 | GM NOTE |
+| 案件ひとつ | CURRENT SITUATION / DATA / SCOUT NOTE / OPTIONS |
+| 短期と長期 | SHORT TERM / LONG TERM |
+| 判断を記録した | DECISION RECORDED |
+| 試合前 | PRE-GAME BRIEF |
+| 試合後 | POST GAME（KEY MOMENTS / PLAYER NOTE / TEAM NOTE） |
+| 選手の立ち位置 | PLAYER STATUS |
+| 成績と成長 | CURRENT PERFORMANCE / DEVELOPMENT / POTENTIAL OUTLOOK |
+| 強みと弱み | STRENGTH / WEAK POINT |
+| 球団の課題 | TEAM REPORT（WHY / DATA） |
+| 補強の検討 | CONSIDER（OPTIONS / COST / RISK） |
+| 一日の流れ | TODAY |
+| シーズンの記録 | SEASON TIMELINE |
+| 判断の記録 | GM JOURNAL |
+
+## 判断の見せ方（PHASE 4.4）
+
+決めた瞬間に結果・影響・数字を一度に出さない。
+
+```
+DECISION RECORDED   判断を記録しました
+     ↓ 260ms
+何を決めたか
+     ↓ 260ms
+次にどこを見るか
+```
+
+ゲームの状態はボタンを押した時点ですでに確定していて、
+この表示はその写しでしかない。飛ばしても・リロードしても結果は変わらない。
+
 ## 情報の並び順（PHASE 4.3）
 
 資料は **判断 → 根拠 → データ** の順に読ませる（§19）。

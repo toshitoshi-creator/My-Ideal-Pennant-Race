@@ -391,6 +391,44 @@ export interface GameState {
   teamPlans: Record<string, TeamAiPlan>;
   /** 経営プランを作った年（作り直しの判定に使う）。PHASE 3.6 */
   teamPlansYear: number | null;
+  /**
+   * GMの判断記録（古いものが前）。PHASE 4.4
+   *
+   * 残すのは球団の進み方が変わる判断だけで、画面の操作は残さない。
+   * ここに何が入っていてもゲームの進行・乱数・能力には影響しない。
+   */
+  decisions: DecisionRecord[];
+}
+
+/* ---------------- GMの判断記録：PHASE 4.4 ---------------- */
+
+/** 記録する判断の種類（§20 に挙がっているものだけ） */
+export type DecisionKind =
+  | 'DIRECTION'
+  | 'USAGE'
+  | 'EVENT'
+  | 'CONTRACT'
+  | 'TRADE'
+  | 'FA';
+
+/**
+ * GMが下したひとつの判断（PHASE 4.4）。
+ * 「そのときどう決めたか」の事実だけを持ち、評価も結果も持たない。
+ */
+export interface DecisionRecord {
+  /** 同じ日に同じ対象へ同じ種類の判断をすると同じIDになる */
+  id: string;
+  year: number;
+  date: string;
+  kind: DecisionKind;
+  /** 何についての判断か */
+  title: string;
+  /** 選んだ内容 */
+  choice: string;
+  /** そのとき球団がどういう状況だったか */
+  situation: string;
+  /** 関係する選手 */
+  playerIds: string[];
 }
 
 /** シーズン終了時の成長レポート（表示用） */

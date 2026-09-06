@@ -1033,9 +1033,19 @@ describe('PHASE3.8 セーブ', () => {
   });
 
   it('セーブバージョンが最新になっている', () => {
-    // PHASE 3.9 でニュースを追加したため v13
-    expect(SAVE_VERSION).toBe(14);
+    // PHASE 4.4 でGMの判断記録を追加したため v15
+    expect(SAVE_VERSION).toBe(15);
     expect(newGame().version).toBe(SAVE_VERSION);
+    // v14 のセーブも読み込めて、このフェーズのデータが失われないこと
+    clearSave();
+    const old = structuredClone(newGame()) as unknown as Record<string, unknown>;
+    old.version = 14;
+    delete old.decisions;
+    saveGame(old as unknown as GameState);
+    const loaded = loadGame()!;
+    expect(loaded.version).toBe(SAVE_VERSION);
+    expect(loaded.players.length).toBe((old.players as unknown[]).length);
+    expect(Array.isArray(loaded.decisions)).toBe(true);
   });
 
   it('v11のセーブを読み込める（ポストシーズンなしから始まる）', () => {
