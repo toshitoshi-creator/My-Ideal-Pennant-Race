@@ -312,35 +312,60 @@ if (/\d+\.\d+/.test(previewText)) fail('トレード画面に内部評価値が�
 else ok('公平度はラベルで表示され、内部の数値は出ない');
 await shot('22-trade-preview');
 
-// 提案する（相手が受けるまで組み合わせを変える）
+/*
+ * 提案する（相手が受けるまで組み合わせを変える）。
+ *
+ * 相手球団は1つだけだと、そのシードで先方が何も欲しがらない編成のときに
+ * 「UIからトレードを成立させられるか」を確かめられないまま落ちる。
+ * 確かめたい内容は同じまま、断られ続けたら次の球団にも当たるようにする。
+ */
 let tradeDone = false;
-const myButtons = myCard.locator('button[aria-label$="を選ぶ"]');
-const theirButtons = theirCard.locator('button[aria-label$="を選ぶ"]');
-const myCount = Math.min(8, await myButtons.count());
-const theirCount = Math.min(8, await theirButtons.count());
 const beforeTrade = await readState();
-outer: for (let i = 0; i < myCount; i++) {
-  for (let j = 0; j < theirCount; j++) {
-    // 選択をやり直す
-    for (const list of [myButtons, theirButtons]) {
-      const n = await list.count();
-      for (let k = 0; k < n; k++) {
-        const b = list.nth(k);
-        if ((await b.getAttribute('aria-pressed')) === 'true') await b.click();
+const partnerCandidates = tradeStart.teams.filter((t) => t.id !== 'phoenix').slice(0, 3);
+
+for (const partner of partnerCandidates) {
+  if (tradeDone) break;
+  if (partner.id !== partnerId) {
+    const pick = page
+      .locator('.card', { hasText: '球団を選ぶ' })
+      .getByRole('button', { name: partner.shortName });
+    if ((await pick.count()) === 0) break;
+    await pick.click();
+    await page.getByRole('heading', { name: 'トレード内容' }).waitFor();
+    await page.waitForTimeout(150);
+  }
+  const mine = page.locator('.card', { hasText: 'あなたが出す' });
+  const theirs = page.locator('.card', { hasText: `${partner.shortName} から受け取る` });
+  const myButtons = mine.locator('button[aria-label$="を選ぶ"]');
+  const theirButtons = theirs.locator('button[aria-label$="を選ぶ"]');
+  const myCount = Math.min(8, await myButtons.count());
+  const theirCount = Math.min(8, await theirButtons.count());
+
+  outer: for (let i = 0; i < myCount; i++) {
+    for (let j = 0; j < theirCount; j++) {
+      // 選択をやり直す
+      for (const list of [myButtons, theirButtons]) {
+        const n = await list.count();
+        for (let k = 0; k < n; k++) {
+          const b = list.nth(k);
+          if ((await b.getAttribute('aria-pressed')) === 'true') await b.click();
+        }
       }
-    }
-    await myButtons.nth(i).click();
-    await theirButtons.nth(j).click();
-    await page.waitForTimeout(120);
-    await page.getByRole('button', { name: 'この内容でトレードを提案する' }).click();
-    await page.waitForTimeout(350);
-    const after = await readState();
-    if (after.trade.history.length > beforeTrade.trade.history.length) {
-      const record = after.trade.history[after.trade.history.length - 1];
-      if (record.fromTeamId === 'phoenix' || record.toTeamId === 'phoenix') {
-        tradeDone = true;
-        ok(`トレードが成立した（${record.playerNamesFrom.join('・')} ⇄ ${record.playerNamesTo.join('・')}）`);
-        break outer;
+      await myButtons.nth(i).click();
+      await theirButtons.nth(j).click();
+      await page.waitForTimeout(120);
+      await page.getByRole('button', { name: 'この内容でトレードを提案する' }).click();
+      await page.waitForTimeout(350);
+      const after = await readState();
+      if (after.trade.history.length > beforeTrade.trade.history.length) {
+        const record = after.trade.history[after.trade.history.length - 1];
+        if (record.fromTeamId === 'phoenix' || record.toTeamId === 'phoenix') {
+          tradeDone = true;
+          ok(
+            `トレードが成立した（${partner.shortName}／${record.playerNamesFrom.join('・')} ⇄ ${record.playerNamesTo.join('・')}）`,
+          );
+          break outer;
+        }
       }
     }
   }
