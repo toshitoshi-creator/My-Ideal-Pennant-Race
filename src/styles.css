@@ -2939,3 +2939,27 @@ h3.sec {
 .report-rows {
   overflow-x: auto;
 }
+
+/* ---- 取り返しのつかない操作の確認（ブラウザのダイアログを使わない） ---- */
+
+.confirm-panel {
+  text-align: left;
+  margin: var(--space-xs) 0 var(--space-2xs);
+}
+
+.confirm-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+
+.confirm-ja {
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+}
+
+.confirm-text {
+  margin: var(--space-2xs) 0 var(--space-sm);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+}

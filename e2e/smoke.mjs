@@ -19,6 +19,22 @@ const page = await browser.newPage({
   isMobile: true,
   hasTouch: true,
 });
+/*
+ * ブラウザのダイアログ（confirm / alert / prompt）を使っていないことを見張る。
+ * 配布時は sandbox 付き iframe に入るため、allow-modals が無いとブラウザが
+ * これらを黙って無視して false を返し、「押しても何も起きないボタン」になる。
+ * ここでは呼び出しを記録しつつ、sandbox と同じく false を返す。
+ */
+await page.addInitScript(() => {
+  const calls = [];
+  window.__modalCalls = calls;
+  for (const name of ['confirm', 'alert', 'prompt']) {
+    window[name] = (message) => {
+      calls.push(`${name}: ${message}`);
+      return false;
+    };
+  }
+});
 page.on('pageerror', (e) => fail('ページ内エラー: ' + e.message));
 page.on('console', (m) => {
   if (m.type() === 'error') fail('コンソールエラー: ' + m.text());
@@ -2065,6 +2081,46 @@ if (!samplePlayer.ext.condition || !Array.isArray(samplePlayer.ext.conditionHist
   ok(`再起動後も調子が残る（${samplePlayer.ext.condition} / 履歴${samplePlayer.ext.conditionHistory.length}日分）`);
 }
 await shot('15-reload');
+
+/* ---- タイトル画面の確認は画面の中で行う（sandbox でも動くこと） ---- */
+await page.getByRole('button', { name: '保存して終了' }).click();
+await page.getByRole('button', { name: '続きから' }).waitFor();
+{
+  await page.getByRole('button', { name: '新規ゲーム' }).click();
+  const cancel = page.getByRole('button', { name: 'やめる' });
+  if ((await cancel.count()) === 0) {
+    fail('セーブがある状態で「新規ゲーム」を押しても確認が出ない');
+  } else {
+    ok('セーブがある状態の「新規ゲーム」は画面内で確認する');
+    await cancel.click();
+    await page.waitForTimeout(150);
+    if ((await page.getByRole('button', { name: '続きから' }).count()) === 0) {
+      fail('「やめる」を選んだのにセーブが失われた');
+    } else ok('「やめる」を選ぶとセーブは残る');
+  }
+
+  await page.getByRole('button', { name: 'セーブデータを削除' }).click();
+  const doDelete = page.getByRole('button', { name: '削除する' });
+  if ((await doDelete.count()) === 0) {
+    fail('「セーブデータを削除」を押しても確認が出ない');
+  } else {
+    await doDelete.click();
+    await page.waitForTimeout(300);
+    if ((await page.getByRole('button', { name: '続きから' }).count()) !== 0) {
+      fail('削除してもセーブが残っている');
+    } else ok('画面内の確認を経てセーブデータを削除できる');
+  }
+}
+
+// ブラウザのダイアログに頼っていないこと（sandbox では無視されるため）
+{
+  const modalCalls = await page.evaluate(() => window.__modalCalls ?? []);
+  if (modalCalls.length > 0) {
+    fail(`ブラウザのダイアログを使っている: ${modalCalls.join(' / ')}`);
+  } else {
+    ok('confirm / alert / prompt を一度も使っていない（iframe 配布でも動く）');
+  }
+}
 
 await browser.close();
 console.log(process.exitCode ? '\n=== 失敗あり ===' : '\n=== すべて成功 ===');

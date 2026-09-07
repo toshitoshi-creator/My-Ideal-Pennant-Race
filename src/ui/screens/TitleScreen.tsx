@@ -5,11 +5,15 @@ import { LEAGUES } from '../../domain/teams';
 import { SEASON_LENGTH_OPTIONS } from '../../domain/schedule';
 import type { SeasonLength } from '../../domain/types';
 
+/** 取り返しのつかない操作の確認（ブラウザのダイアログは使わない） */
+type Confirming = 'new' | 'delete' | null;
+
 export function TitleScreen() {
   const { startNewGame, continueGame, saveExists, deleteSave, showToast } = useStore();
   const [phase, setPhase] = useState<'title' | 'team' | 'season'>('title');
   const [teamId, setTeamId] = useState<string | null>(null);
   const [seasonLength, setSeasonLength] = useState<SeasonLength>(143);
+  const [confirming, setConfirming] = useState<Confirming>(null);
 
   if (phase === 'title') {
     return (
@@ -29,27 +33,63 @@ export function TitleScreen() {
         <button
           className={`btn ${saveExists ? '' : 'primary'}`}
           onClick={() => {
-            if (saveExists && !window.confirm('現在のセーブデータは消えます。新しく始めますか？')) {
+            // セーブが無ければ確認は要らない
+            if (!saveExists) {
+              setPhase('team');
               return;
             }
-            setPhase('team');
+            setConfirming('new');
           }}
         >
           新規ゲーム
         </button>
         {saveExists && (
-          <button
-            className="btn secondary"
-            onClick={() => {
-              if (window.confirm('セーブデータを削除しますか？')) {
-                deleteSave();
-                showToast('セーブデータを削除しました');
-              }
-            }}
-          >
+          <button className="btn secondary" onClick={() => setConfirming('delete')}>
             セーブデータを削除
           </button>
         )}
+
+        {/*
+          window.confirm() は使わない。
+          このゲームは単一HTMLとして iframe の中で配布されることがあり、
+          sandbox に allow-modals が無いとブラウザが confirm() を無視して
+          false を返す（ボタンが「押しても何も起きない」状態になる）。
+          確認は必ず画面の中で行う。
+        */}
+        {confirming && (
+          <section className="panel confirm-panel">
+            <div className="confirm-head">
+              <span className="label">CONFIRM</span>
+              <span className="confirm-ja">確認</span>
+            </div>
+            <p className="confirm-text">
+              {confirming === 'new'
+                ? 'いま保存されている球団のデータは消えます。新しく始めますか？'
+                : '保存されている球団のデータを削除します。元には戻せません。'}
+            </p>
+            <div className="btn-row">
+              <button
+                className="btn danger"
+                onClick={() => {
+                  if (confirming === 'new') {
+                    setConfirming(null);
+                    setPhase('team');
+                    return;
+                  }
+                  deleteSave();
+                  setConfirming(null);
+                  showToast('セーブデータを削除しました');
+                }}
+              >
+                {confirming === 'new' ? '新しく始める' : '削除する'}
+              </button>
+              <button className="btn secondary" onClick={() => setConfirming(null)}>
+                やめる
+              </button>
+            </div>
+          </section>
+        )}
+
         <div className="muted" style={{ textAlign: 'center', marginTop: 8 }}>
           監督兼GMとして、編成と采配でチームを勝利へ導こう。
         </div>
