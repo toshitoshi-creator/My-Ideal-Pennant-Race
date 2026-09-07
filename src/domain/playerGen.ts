@@ -8,13 +8,62 @@ import type { GrowthTendencyId, GrowthTypeId } from './growth';
 import type { SpecialAbilityEntry, SpecialAbilityId } from './specialAbilities';
 import { toDateString } from './dates';
 
-/** プレイヤー球団の基本構成：投手10・捕手3・内野7・外野5 = 25人 */
-export const DEFAULT_POSITION_PLAN: PositionId[] = [
-  ...(Array(10).fill('P') as PositionId[]),
-  'C', 'C', 'C',
-  'SS', '2B', '3B', '1B', 'SS', '2B', '3B',
-  'CF', 'LF', 'RF', 'CF', 'LF',
+/**
+ * 球団の基本構成。支配下70人枠（ROSTER_LIMIT）の内側に収まる 65人 を初期値とし、
+ * ドラフト・FA・トレードで数人ぶんの余地を残す。
+ *
+ * 内訳は日本のプロ野球の一般的な支配下構成に合わせた
+ * 投手30・捕手6・内野16・外野13 = 65人。
+ */
+export const ROSTER_COMPOSITION: ReadonlyArray<{ position: PositionId; count: number }> = [
+  { position: 'P', count: 30 },
+  { position: 'C', count: 6 },
+  { position: '1B', count: 3 },
+  { position: '2B', count: 4 },
+  { position: '3B', count: 4 },
+  { position: 'SS', count: 5 },
+  { position: 'LF', count: 4 },
+  { position: 'CF', count: 5 },
+  { position: 'RF', count: 4 },
 ];
+
+/**
+ * 構成を「厚さの順」に並べ直した配列を作る。
+ *
+ * 先頭ほど各ポジションの一番手、後ろほど控えになるよう、
+ * ポジションごとの k 人目を (k + 0.5) / 人数 の位置に置いて混ぜる。
+ * 乱数は使わないので、同じ構成なら常に同じ並びになる。
+ */
+export function buildPositionPlan(
+  composition: ReadonlyArray<{ position: PositionId; count: number }> = ROSTER_COMPOSITION,
+): PositionId[] {
+  const entries: Array<{ position: PositionId; depth: number; order: number }> = [];
+  composition.forEach((entry, order) => {
+    for (let k = 0; k < entry.count; k++) {
+      entries.push({ position: entry.position, depth: (k + 0.5) / entry.count, order });
+    }
+  });
+  entries.sort((a, b) => a.depth - b.depth || a.order - b.order);
+  return entries.map((entry) => entry.position);
+}
+
+/** プレイヤー球団の基本構成：投手30・捕手6・内野16・外野13 = 65人 */
+export const DEFAULT_POSITION_PLAN: PositionId[] = buildPositionPlan();
+
+/** 先発ローテーションに入る想定の投手の人数（この人数だけスタミナを高く作る） */
+export const ROTATION_SIZE = 6;
+
+/**
+ * 控えに回る選手の能力の落とし込み。
+ * 上位 3割はそのまま、そこから最下位に向かって緩やかに下げる。
+ * 65人ぜんぶを同じ水準で作ると、2軍が1軍と変わらない厚さになってしまう。
+ */
+export function depthPenalty(index: number, count: number): number {
+  if (count <= 1) return 0;
+  const ratio = index / (count - 1);
+  if (ratio <= 0.3) return 0;
+  return Math.round(((ratio - 0.3) / 0.7) * 16);
+}
 
 const SUB_POSITION_CANDIDATES: Record<PositionId, PositionId[]> = {
   P: [],
@@ -434,25 +483,32 @@ export function generateTeamPlayers(rng: Rng, options: GeneratePlayersOptions): 
   const starCount = options.starCount ?? 1;
   const [starMin, starMax] = options.starBonus ?? [12, 22];
   const used = new Set<number>();
+  // 主力は上位層から出す。65人の中から無作為に選ぶと、
+  // 2軍の底にだけ突出した選手がいる球団ができてしまう
+  const starPool = Math.max(1, Math.min(count, Math.round(count * 0.4)));
   const starIndexes = new Set<number>();
-  while (starIndexes.size < Math.min(starCount, count)) {
-    starIndexes.add(rng.int(0, count - 1));
+  while (starIndexes.size < Math.min(starCount, starPool)) {
+    starIndexes.add(rng.int(0, starPool - 1));
   }
 
   const players: Player[] = [];
+  let pitchers = 0;
   for (let i = 0; i < count; i++) {
     const mainPosition = plan[i % plan.length];
     const bonus = starIndexes.has(i) ? rng.int(starMin, starMax) : 0;
     // ベンチ寄りの選手は少しだけ能力を落とす
-    const depthPenalty = i >= 18 ? 4 : 0;
+    const penalty = depthPenalty(i, count);
+    const isPitcher = mainPosition === 'P';
+    if (isPitcher) pitchers++;
     players.push(
       createPlayer(rng, {
         teamId,
         mainPosition,
-        mean: strength + bonus - depthPenalty,
+        mean: strength + bonus - penalty,
         startYear,
         usedNumbers: used,
-        starterStamina: i < 5,
+        // 各球団の上位 ROTATION_SIZE 人の投手だけを先発型のスタミナで作る
+        starterStamina: isPitcher && pitchers <= ROTATION_SIZE,
       }),
     );
   }

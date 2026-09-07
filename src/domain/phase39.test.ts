@@ -1029,12 +1029,17 @@ describe('PHASE3.9 既存システムが壊れていない', () => {
 /* ================= 事実との整合 ================= */
 
 describe('PHASE3.9 ニュースと事実の一致', () => {
-  it('ニュースの選手が実在する（現役か歴史にいる）', () => {
+  it('ニュースの選手が実在する（現役・未所属・歴史のいずれか）', () => {
     const s = afterSeasons(4, 5701);
     const active = new Set(s.players.map((p) => p.id));
+    // 未所属（FA）の選手も現役。記録簿には1試合でも出場するまで載らない
+    const unsigned = new Set(s.freeAgents.map((p) => p.id));
     for (const item of s.news.items) {
       if (!item.playerId) continue;
-      const known = active.has(item.playerId) || Boolean(s.history.players[item.playerId]);
+      const known =
+        active.has(item.playerId) ||
+        unsigned.has(item.playerId) ||
+        Boolean(s.history.players[item.playerId]);
       expect(known).toBe(true);
     }
   });

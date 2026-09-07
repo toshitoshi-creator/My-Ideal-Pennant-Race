@@ -1383,7 +1383,11 @@ describe('PHASE3.8 既存システムが壊れていない', () => {
 
   it('殿堂入りが引き続き動く', () => {
     const s = afterSeasons(14, 5305, 10);
-    expect(Object.keys(s.history.players).length).toBeGreaterThan(s.players.length);
+    // 記録簿に載るのは1試合でも出場した選手だけ（支配下70人枠）。
+    // 引退・退団した選手が残り続けるので、出場歴のある現役より必ず多くなる。
+    const appeared = s.players.filter((p) => s.history.players[p.id]).length;
+    expect(appeared).toBeGreaterThan(0);
+    expect(Object.keys(s.history.players).length).toBeGreaterThan(appeared);
   });
 
   it('歴史の整合性が保たれる', () => {

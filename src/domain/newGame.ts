@@ -3,9 +3,9 @@ import { LEAGUES, TEAM_SEEDS, TEAMS, PLAYER_TEAM_STRENGTH } from './teams';
 import { Rng } from './rng';
 import { generateTeamPlayers, resetPlayerIdCounter } from './playerGen';
 import { buildAutoSetup } from './setup';
+import { rebuildFirstTeam } from './roster';
 import { generateSchedule, openingDate } from './schedule';
 import { emptySeasonStats } from './stats';
-import { overallRating } from './rating';
 import { createScoutingState } from './scouting';
 import { createContract, createTeamFinance, marketValue, refreshPayrolls } from './contract';
 import { tradeDeadline } from './trade';
@@ -32,9 +32,6 @@ import { ensureClubs, syncCpuDirections } from './club';
  */
 export const SAVE_VERSION = 15;
 export const START_YEAR = 2026;
-
-/** 1軍スタート人数（残りは 2軍スタート） */
-const INITIAL_FIRST_TEAM = 22;
 
 function emptyRecord(teamId: string): TeamRecord {
   return {
@@ -68,11 +65,7 @@ export function createNewGame(
       starCount: 2,
       starBonus: isPlayerTeam ? [7, 14] : [10, 19],
     });
-    // 総合評価の低い選手から 2軍スタート
-    const sorted = [...teamPlayers].sort((a, b) => overallRating(b) - overallRating(a));
-    sorted.forEach((p, i) => {
-      p.roster = i < INITIAL_FIRST_TEAM ? 'first' : 'second';
-    });
+    // 1軍・2軍の振り分けは、全球団ぶん揃えてから rebuildFirstTeam で行う
     players.push(...teamPlayers);
   }
 
@@ -132,6 +125,8 @@ export function createNewGame(
 
   for (const team of TEAMS) {
     const league = LEAGUES.find((l) => l.id === team.leagueId)!;
+    // 支配下65人のうち、開幕1軍に載せる選手を能力とポジションから決める
+    rebuildFirstTeam(state, team.id);
     const firstTeam = players.filter((p) => p.teamId === team.id && p.roster === 'first');
     state.setups[team.id] = buildAutoSetup(team.id, firstTeam, league.useDH);
     state.records[team.id] = emptyRecord(team.id);

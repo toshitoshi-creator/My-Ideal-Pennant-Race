@@ -50,6 +50,7 @@ import { evaluateProspectScouted } from './draft';
 import { overallRating } from './rating';
 import { clearSave, loadGame, migrate, saveGame } from './save';
 import type { GameState } from './types';
+import { TARGET_ROSTER_SIZE } from './types';
 
 const PLAYER_TEAM = 'phoenix';
 const CPU_TEAM = 'bluewave';
@@ -212,7 +213,7 @@ describe('PHASE3.6 戦力分析', () => {
   it('実際の球団を分析できる', () => {
     const s = newGame(30, 1101);
     const analysis = analyzeTeam(s, PLAYER_TEAM);
-    expect(analysis.rosterSize).toBe(25);
+    expect(analysis.rosterSize).toBe(TARGET_ROSTER_SIZE);
     expect(analysis.overall).toBeGreaterThan(20);
     expect(analysis.payroll).toBe(teamPayroll(s, PLAYER_TEAM));
     for (const key of POSITION_KEYS) {

@@ -20,7 +20,7 @@ import type {
   ScoutReport,
   Team,
 } from './types';
-import { ROSTER_LIMIT } from './types';
+import { ROSTER_LIMIT, TARGET_ROSTER_SIZE } from './types';
 import { Rng } from './rng';
 import { createPlayer } from './playerGen';
 import { overallRating } from './rating';
@@ -28,41 +28,47 @@ import { potentialLabel } from './growth';
 import { standingsForLeague } from './standings';
 import { scoutedEvaluation } from './scouting';
 import { generateDraftNews } from './news';
+import { canAddPlayer } from './roster';
 
 /** 1球団あたりの候補数（12球団なら 108人） */
 export const PROSPECTS_PER_TEAM = 9;
 /**
- * 各球団が目標とする保有人数。
+ * 各球団が目標とする保有人数（types.ts と共有）。
  *
- * ここが最低人数（MINIMUM_ROSTER = 24）に近すぎると、引退で空いた1枠を
+ * 支配下70人枠（ROSTER_LIMIT）の内側で、毎年きちんと入れ替えが起きるよう
+ * 数人ぶんの余地を残した人数にする。
+ * ここが最低人数（MINIMUM_ROSTER）に近すぎると、引退で空いた1枠を
  * 埋めるだけの「1人指名して終わり」のドラフトになってしまう。
- * 数人ぶんの余地を持たせて、毎年きちんと入れ替えが起きるようにする。
  */
-export const TARGET_ROSTER_SIZE = 27;
+export { TARGET_ROSTER_SIZE } from './types';
 /** ドラフトの最小巡数。人数が足りている年でもここまでは必ず行う */
 export const MIN_DRAFT_ROUNDS = 3;
 /** ドラフトの最大巡数 */
-export const MAX_DRAFT_ROUNDS = 6;
+export const MAX_DRAFT_ROUNDS = 7;
 
-/** 候補のポジション分布（実際のチーム構成に近づける） */
+/**
+ * 候補のポジション分布。
+ * 支配下65人の構成（投手30・捕手6・内野16・外野13）と同じ比率にしてある。
+ * ここがずれていると、毎年の指名で球団の投打の比率が少しずつ崩れていく。
+ */
 const PROSPECT_POSITIONS: Array<[PositionId, number]> = [
-  ['P', 0.4],
-  ['C', 0.1],
-  ['1B', 0.06],
-  ['2B', 0.08],
-  ['3B', 0.08],
-  ['SS', 0.09],
-  ['LF', 0.06],
-  ['CF', 0.07],
-  ['RF', 0.06],
+  ['P', 30 / 65],
+  ['C', 6 / 65],
+  ['1B', 3 / 65],
+  ['2B', 4 / 65],
+  ['3B', 4 / 65],
+  ['SS', 5 / 65],
+  ['LF', 4 / 65],
+  ['CF', 5 / 65],
+  ['RF', 4 / 65],
 ];
 
 /** 各ポジション群の標準的な保有人数（CPU の必要度判定に使う） */
 const POSITION_QUOTA: Record<'P' | 'C' | 'IF' | 'OF', number> = {
-  P: 10,
-  C: 3,
-  IF: 7,
-  OF: 5,
+  P: 30,
+  C: 6,
+  IF: 16,
+  OF: 13,
 };
 
 function positionGroupOf(position: PositionId): 'P' | 'C' | 'IF' | 'OF' {
@@ -201,12 +207,18 @@ export function createDraft(state: GameState, rng: Rng): DraftState | null {
   // 人数が足りている年でも最低3巡は行う（1巡目で終わらせない）
   const rounds = Math.max(MIN_DRAFT_ROUNDS, Math.min(MAX_DRAFT_ROUNDS, maxNeed));
   const prospects = generateProspects(rng, state.year, state.teams.length);
+  /*
+   * 支配下70人枠が埋まっている球団は指名順から外す。
+   * 1巡目は「枠が空いていなくても全球団が指名する」扱いなので、
+   * 指名順に残したままだと 70人を超えてしまう。
+   */
+  const order = draftOrder(state, rng).filter((teamId) => canAddPlayer(state, teamId));
 
   return {
     phase: 'scouting',
     year: state.year,
     prospects,
-    order: draftOrder(state, rng),
+    order,
     rounds,
     cursor: 0,
     picks: [],

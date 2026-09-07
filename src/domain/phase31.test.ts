@@ -282,9 +282,10 @@ describe('PHASE3.1 ドラフト', () => {
     const slot = currentPick(draft);
     expect(slot).not.toBeNull();
     expect(slot!.round).toBe(1);
-    // CPU の指名はプレイヤー球団の手番まで進んでいる
+    // CPU の指名はプレイヤー球団の手番まで進んでいる。
+    // 自球団が指名順の何番目かはシードで変わるので、その位置と一致することを見る
     expect(slot!.teamId).toBe(PLAYER_TEAM);
-    expect(draft.picks.length).toBeGreaterThan(0);
+    expect(draft.picks.length).toBe(draft.order.indexOf(PLAYER_TEAM));
     for (const pick of draft.picks) {
       expect(pick.round).toBeGreaterThanOrEqual(1);
       expect(pick.prospectId).not.toBeNull();
@@ -293,6 +294,10 @@ describe('PHASE3.1 ドラフト', () => {
 
   it('指名済みの選手は再指名できない', () => {
     const draft = state.draft!;
+    // 自球団が指名順の先頭だと、まだ誰も指名されていない。1人指名してから確かめる
+    if (!draft.prospects.some((p) => p.selectedBy)) {
+      expect(makePick(draft, availableProspects(draft)[0].id)).toBe(true);
+    }
     const taken = draft.prospects.find((p) => p.selectedBy)!;
     expect(makePick(draft, taken.id)).toBe(false);
     expect(makePick(draft, 'not-exist')).toBe(false);

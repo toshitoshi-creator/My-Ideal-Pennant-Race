@@ -1,6 +1,12 @@
-import type { GameState, Player, RosterLevel } from './types';
-import { FIRST_TEAM_LIMIT, ROSTER_CHANGE_LOCK_DAYS, ROSTER_LIMIT } from './types';
+import type { GameState, Player, PositionId, RosterLevel } from './types';
+import {
+  FIRST_TEAM_LIMIT,
+  OPENING_FIRST_TEAM,
+  ROSTER_CHANGE_LOCK_DAYS,
+  ROSTER_LIMIT,
+} from './types';
 import { addDays, diffDays } from './dates';
+import { overallRating } from './rating';
 
 /** 次に 1軍／2軍 を変更できる日（null なら制限なし） */
 export function nextChangeDate(player: Player): string | null {
@@ -108,7 +114,73 @@ export function teamPlayerCount(state: GameState, teamId: string): number {
   return state.players.filter((p) => p.teamId === teamId).length;
 }
 
-/** 保有選手上限に達していないか（PHASE 1 では選手が増える機能はまだない） */
+/**
+ * 支配下70人枠（ROSTER_LIMIT）に空きがあるか。
+ * ドラフト・FA・トレードの獲得はすべてここを通す。
+ */
 export function canAddPlayer(state: GameState, teamId: string): boolean {
   return teamPlayerCount(state, teamId) < ROSTER_LIMIT;
+}
+
+/**
+ * 開幕時に必ず1軍へ置くポジションと人数。
+ * 投手はローテーション＋救援ぶん、捕手は正・控えの2人、
+ * 野手は各ポジションに1人ずつ。ここを満たしてから、残りを能力順に埋める。
+ */
+const OPENING_QUOTA: ReadonlyArray<{ position: PositionId; count: number }> = [
+  { position: 'P', count: 12 },
+  { position: 'C', count: 2 },
+  { position: '1B', count: 1 },
+  { position: '2B', count: 1 },
+  { position: '3B', count: 1 },
+  { position: 'SS', count: 1 },
+  { position: 'LF', count: 1 },
+  { position: 'CF', count: 1 },
+  { position: 'RF', count: 1 },
+];
+
+/**
+ * 開幕1軍を組み直す（支配下70人枠に合わせた開幕登録）。
+ *
+ * 支配下が70人ある球団では、登録を放っておくと開幕1軍が引退・移籍のぶんだけ
+ * 痩せていき、伸びた若手がいつまでも2軍に埋もれてしまう。
+ * オフシーズンの終わりに、その時点の能力でポジションを満たしながら組み直す。
+ *
+ * 怪我人は1軍に入れない（シーズン中に復帰したら ensureFirstTeamViable / 昇格で戻る）。
+ * 乱数は使わないので、同じ状態からは常に同じ1軍になる。
+ */
+export function rebuildFirstTeam(state: GameState, teamId: string): void {
+  const roster = state.players.filter((p) => p.teamId === teamId);
+  const healthy = roster
+    .filter((p) => p.ext.injury === null)
+    .sort((a, b) => overallRating(b) - overallRating(a) || (a.id < b.id ? -1 : 1));
+  const target = Math.min(OPENING_FIRST_TEAM, FIRST_TEAM_LIMIT, healthy.length);
+
+  const selected = new Set<string>();
+  // まずポジションの穴を埋める
+  for (const quota of OPENING_QUOTA) {
+    let taken = 0;
+    for (const player of healthy) {
+      if (taken >= quota.count || selected.size >= target) break;
+      if (selected.has(player.id)) continue;
+      if (player.mainPosition !== quota.position) continue;
+      selected.add(player.id);
+      taken += 1;
+    }
+  }
+  // 残りは能力順
+  for (const player of healthy) {
+    if (selected.size >= target) break;
+    selected.add(player.id);
+  }
+
+  for (const player of roster) {
+    const to: RosterLevel = selected.has(player.id) ? 'first' : 'second';
+    if (player.roster !== to) {
+      player.roster = to;
+      // 開幕前の登録なので、7日間の変更制限は持ち越さない
+      player.lastRosterChangeDate = null;
+    }
+    if (to === 'first') player.ext.injuryDemotion = false;
+  }
 }

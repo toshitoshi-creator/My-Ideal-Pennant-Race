@@ -379,7 +379,9 @@ export function applySeasonGrowth(rng: Rng, input: GrowthInput): PlayerGrowthRes
     // 潜在能力を超えては成長しない（衰退方向には効かない）
     if (delta > 0) {
       const cap = key === 'velocity' ? scaleToVelocity(ext.potential) : ext.potential;
-      delta = before >= cap ? 0 : Math.min(delta, cap - before);
+      // 球速は km/h の整数で持つので、四捨五入で上限を跨がないよう切り下げた値を使う
+      const ceiling = key === 'velocity' ? Math.floor(cap) : cap;
+      delta = before >= ceiling ? 0 : Math.min(delta, ceiling - before);
     }
 
     const next = before + delta;

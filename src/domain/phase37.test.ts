@@ -324,10 +324,23 @@ describe('PHASE3.7 シーズンの確定', () => {
     expect(stats.pitching.outs).toBeGreaterThan(0);
   });
 
-  it('全選手に歴史ができる', () => {
+  it('出場した選手すべてに歴史ができる', () => {
     const s = afterSeasons(1, 1107);
-    const count = Object.keys(s.history.players).length;
-    expect(count).toBeGreaterThanOrEqual(300);
+    // 記録簿に載るのは1試合でも出場した選手だけ（支配下70人枠）。
+    // 各球団のスタメン（DHなしのリーグは野手8人）と先発ローテーション5人は
+    // 必ず出場しているので、球団ごとに最低でもその人数の成績が残る。
+    const year = s.history.seasons[s.history.seasons.length - 1].year;
+    for (const team of s.teams) {
+      const rows = Object.values(s.history.players).filter((h) =>
+        h.seasons.some((r) => r.year === year && r.teamId === team.id && (r.b || r.p)),
+      );
+      expect(rows.filter((h) => !h.isPitcher).length).toBeGreaterThanOrEqual(8);
+      expect(rows.filter((h) => h.isPitcher).length).toBeGreaterThanOrEqual(5);
+    }
+    // 記録簿にいる選手は全員、出場した記録を持っている
+    for (const entry of Object.values(s.history.players)) {
+      expect(entry.seasons.some((r) => r.b || r.p)).toBe(true);
+    }
   });
 
   it('年ごとの記録は昇順に並ぶ', () => {
@@ -762,7 +775,10 @@ describe('PHASE3.7 引退した選手', () => {
     const s = afterSeasons(14, 1707);
     // state.retiredPlayers は500件で打ち切られるが、歴史は打ち切らない
     expect(retiredHistories(s.history).length).toBeGreaterThan(0);
-    expect(Object.keys(s.history.players).length).toBeGreaterThan(s.players.length);
+    // 記録簿に載るのは1試合でも出場した選手だけ（支配下70人枠）
+    const appeared = s.players.filter((p) => s.history.players[p.id]).length;
+    expect(appeared).toBeGreaterThan(0);
+    expect(Object.keys(s.history.players).length).toBeGreaterThan(appeared);
   });
 });
 
@@ -1188,9 +1204,17 @@ describe('PHASE3.7 長期の整合性', () => {
     expect(a.history.events.length).toBe(b.history.events.length);
   });
 
-  it('歴史の選手数は現役より多くなる', () => {
+  it('記録簿には、出場歴のある現役より多くの選手が残る', () => {
     const s = afterSeasons(10, 2108);
-    expect(Object.keys(s.history.players).length).toBeGreaterThan(s.players.length);
+    // 記録簿に載るのは1試合でも出場した選手だけ（支配下70人枠）。
+    // 引退・退団した選手が残り続けるので、出場歴のある現役より必ず多くなる。
+    const appeared = s.players.filter((p) => s.history.players[p.id]).length;
+    expect(appeared).toBeGreaterThan(0);
+    expect(Object.keys(s.history.players).length).toBeGreaterThan(appeared);
+    // 出場のない選手は記録簿に載らない
+    for (const entry of Object.values(s.history.players)) {
+      expect(entry.seasons.some((row) => row.b || row.p)).toBe(true);
+    }
   });
 
   it('保存サイズが実用的な範囲に収まる', () => {

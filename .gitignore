@@ -4,3 +4,5 @@ dist/
 *.local
 test-results/
 e2e/shots/
+scratch/
+*.jsonl

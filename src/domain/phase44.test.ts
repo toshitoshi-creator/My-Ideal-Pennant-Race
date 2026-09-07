@@ -56,6 +56,8 @@ import { syncCpuDirections } from './club';
 import { migrateV14ToV15 } from './migrate';
 import { migrate } from './save';
 import { analyzePlayer } from './playerAnalysis';
+import { MINIMUM_ROSTER, marketValue } from './contract';
+import { ROSTER_LIMIT } from './types';
 import { overallRating } from './rating';
 import { emptyBatting, emptyPitching } from './stats';
 import { staggerDelay, easeOutCubic } from '../ui/anim';
@@ -765,7 +767,15 @@ describe('PHASE 4.4 選手評価の妥当さ（§37）', () => {
 
   it('年俸の負担は評価に入る', () => {
     const state = newGame();
-    const player = myPlayers(state).find((p) => !p.isPitcher)!;
+    // 市場価値の一番高い野手で見る。2軍の底の選手だと、
+    // どちらの年俸でも「割高」に振り切って差が出ない
+    const player = myPlayers(state)
+      .filter((p) => !p.isPitcher)
+      .sort(
+        (a, b) =>
+          marketValue(b, state.stats[b.id], state.year) -
+          marketValue(a, state.stats[a.id], state.year),
+      )[0]!;
     player.ext.contract = { salary: 50, totalYears: 2, yearsRemaining: 1, signedYear: 2026 };
     const cheap = analyzePlayer(state, player).contractValue;
     player.ext.contract = { salary: 1400, totalYears: 2, yearsRemaining: 1, signedYear: 2026 };
@@ -1745,8 +1755,9 @@ describe('ドラフト会議', () => {
     }
     const counts = s.teams.map((t) => rosterCount(s, t.id));
     for (const count of counts) {
-      expect(count).toBeGreaterThanOrEqual(24);
-      expect(count).toBeLessThanOrEqual(40);
+      // 支配下70人枠の内側で、最低人数も割らない
+      expect(count).toBeGreaterThanOrEqual(MINIMUM_ROSTER);
+      expect(count).toBeLessThanOrEqual(ROSTER_LIMIT);
     }
     expect(validateState(s)).toEqual([]);
   });

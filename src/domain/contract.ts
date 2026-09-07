@@ -13,6 +13,7 @@ import type {
   PlayerSeasonStats,
   TeamFinance,
 } from './types';
+import { TARGET_ROSTER_SIZE } from './types';
 import { Rng } from './rng';
 import { overallRating } from './rating';
 
@@ -21,12 +22,19 @@ export const MIN_SALARY = 15;
 /** 年俸の上限（15億円）。青天井にしないための歯止め */
 export const MAX_SALARY = 1500;
 
-/** 球団が保有する最低人数。これを割らないように契約・FAを調整する */
-export const MINIMUM_ROSTER = 24;
+/**
+ * 球団が保有する最低人数。これを割らないように契約・FAを調整する。
+ * 支配下70人枠に対して、1軍・2軍の両方を回せる下限として置く。
+ */
+export const MINIMUM_ROSTER = 55;
 
-/** 1軍を組むために最低限必要な野手・投手の人数 */
-export const MIN_FIELDERS = 11;
-export const MIN_PITCHERS = 8;
+/** 1軍・2軍を組むために最低限必要な野手・投手の人数 */
+export const MIN_FIELDERS = 24;
+export const MIN_PITCHERS = 20;
+
+/** 「同じ枠に十分な戦力がいる（＝余剰）」と見なす、自分より上の人数 */
+export const SURPLUS_DEPTH_PITCHER = 18;
+export const SURPLUS_DEPTH_FIELDER = 4;
 
 /**
  * 予算超過を理由に契約を見送るときに、一時的に割ってよい人数。
@@ -459,8 +467,14 @@ export function isSurplusAtPosition(state: GameState, teamId: string, player: Pl
     if (!player.isPitcher && p.mainPosition !== player.mainPosition) return false;
     return overallRating(p) >= overall;
   }).length;
-  // 投手はローテ＋救援で枠が広いので、余剰と見なす人数も多くする
-  return player.isPitcher ? better >= 6 : better >= 2;
+  /*
+   * 「後ろが詰まっている」と見なす人数。支配下65人の構成に合わせてある。
+   * 投手は30人・ローテ＋救援で枠が広いので、余剰と見なす人数も多くする。
+   * 野手は同じポジションに3〜5人なので、4人が上にいたら余剰とみなす。
+   * ここが小さすぎると、ほぼ全員が「余剰」になり、
+   * 年俸の高い主力から先に手放してしまう。
+   */
+  return player.isPitcher ? better >= SURPLUS_DEPTH_PITCHER : better >= SURPLUS_DEPTH_FIELDER;
 }
 
 /** 1球団分の契約更改（CPU用。プレイヤー球団の自動処理にも使う） */
@@ -556,9 +570,13 @@ export function renewTeamContracts(
   let spent = committed;
   let renewed = 0;
   let released = 0;
-  // 余剰を理由に手放すのは1オフに2人まで。
-  // 上限がないとロスターが増えるほど放出も増え、FA市場に選手が溜まり続けてしまう。
-  const maxSurplusReleases = 2;
+  /*
+   * 余剰を理由に手放す人数。
+   * 支配下枠は毎年ドラフトで埋まっていくので、目標人数（TARGET_ROSTER_SIZE）を
+   * 超えているぶんは必ず整理できるようにする。目標ちょうどなら2人まで。
+   * 上限をなくすとロスターが多い球団ほど放出も増え、FA市場に選手が溜まり続けてしまう。
+   */
+  const maxSurplusReleases = 2 + Math.max(0, roster.length - TARGET_ROSTER_SIZE);
   let surplusReleases = 0;
 
   for (const entry of ranked) {

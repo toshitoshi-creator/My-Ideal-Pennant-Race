@@ -659,16 +659,25 @@ export function finalizeSeason(state: GameState): SeasonHistory | null {
   }
 
   for (const player of state.players) {
+    const byTeam = teamStats[player.id] ?? {};
+    const teamIds = Object.keys(byTeam).sort();
     let entry = history.players[player.id];
+    /*
+     * 記録簿に載せるのは「1試合でも出場したことがある選手」だけ。
+     * 支配下は70人あり、その半分以上は1年を通して2軍で過ごす。
+     * 出場のない在籍記録まで全員ぶん残すと、30年で保存データが数MB膨らみ、
+     * 端末の保存容量を使い切ってしまう。
+     * 一度でも出場した選手は、その後 出場が無かった年（怪我など）も
+     * 在籍記録として1行残す。
+     */
     if (!entry) {
+      if (teamIds.length === 0) continue;
       entry = newPlayerHistory(player, year);
       history.players[player.id] = entry;
     }
     // 名前・守備位置は最新のものに合わせる（改名はしないが将来のため）
     entry.name = player.name;
 
-    const byTeam = teamStats[player.id] ?? {};
-    const teamIds = Object.keys(byTeam).sort();
     const rows: PlayerSeasonHistoryEntry[] =
       teamIds.length > 0
         ? teamIds.map((teamId) => ({ year, teamId, ...splitStats(byTeam[teamId]) }))

@@ -807,8 +807,18 @@ export interface GameNotice {
 
 /** 1軍登録の上限 */
 export const FIRST_TEAM_LIMIT = 31;
-/** 球団の保有選手上限 */
+/** 球団の保有選手上限（支配下枠） */
 export const ROSTER_LIMIT = 70;
+/**
+ * 各球団が目標とする保有人数。
+ * 支配下70人枠の内側に、ドラフト・FA・トレードのための余地を数人ぶん残す。
+ */
+export const TARGET_ROSTER_SIZE = 65;
+/**
+ * 開幕時に1軍へ登録する人数。
+ * FIRST_TEAM_LIMIT との差は、シーズン中の怪我の穴埋めに使う。
+ */
+export const OPENING_FIRST_TEAM = 28;
 /** 1軍／2軍を変更したあと再変更できるまでの日数 */
 export const ROSTER_CHANGE_LOCK_DAYS = 7;
 /** 延長は 12 回まで（それ以降は引き分け） */

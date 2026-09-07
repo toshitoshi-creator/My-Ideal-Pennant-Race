@@ -521,7 +521,13 @@ describe('PHASE3.3 CPUの契約更改', () => {
     for (const player of roster) {
       if (player.ext.contract) player.ext.contract.yearsRemaining = 0;
     }
-    s.finances[teamId].budget = 400;
+    /*
+     * 予算は総年俸の8割。支配下65人ぶんの年俸に対する「絞るが飢えさせない」水準。
+     * 400固定だと8割減の飢餓状態になり、
+     * 年俸の高い主力から手放すのが正しい判断になってしまうため、
+     * 「主力を優先して残すか」を確かめられない。
+     */
+    s.finances[teamId].budget = Math.round(teamPayroll(s, teamId) * 0.8);
     renewTeamContracts(s, teamId, new Rng(3));
 
     const kept = roster.filter((p) => p.ext.contract);

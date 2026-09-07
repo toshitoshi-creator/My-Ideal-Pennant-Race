@@ -23,8 +23,11 @@ import type {
   GameState,
   Player,
   PlayerSeasonStats,
+  RetiredPlayerRecord,
   Team,
 } from './types';
+import { ROSTER_LIMIT, TARGET_ROSTER_SIZE } from './types';
+import { canAddPlayer } from './roster';
 import { Rng, seedFrom } from './rng';
 import { overallRating } from './rating';
 import { emptySeasonStats } from './stats';
@@ -32,6 +35,8 @@ import {
   MAX_SALARY,
   MIN_SALARY,
   MINIMUM_ROSTER,
+  MIN_FIELDERS,
+  MIN_PITCHERS,
   createContract,
   lastKnownSalary,
   leagueSalaryLevel,
@@ -43,6 +48,7 @@ import { generateFaNews } from './news';
 
 /** ユーザーが同時に出せるオファーの上限 */
 export const MAX_USER_OFFERS = 8;
+
 
 /** ロスターの最低人数（PHASE 3.3 と同じ値を使う） */
 export { MINIMUM_ROSTER } from './contract';
@@ -215,6 +221,7 @@ export type OfferError =
   | 'limit'
   | 'salary-range'
   | 'years-range'
+  | 'roster-limit'
   | 'budget';
 
 export interface OfferResult {
@@ -234,6 +241,7 @@ const OFFER_MESSAGES: Record<OfferError, string> = {
   limit: `同時に提示できるFA契約は${MAX_USER_OFFERS}人までです`,
   'salary-range': '提示できる年俸の範囲を外れています',
   'years-range': 'その選手の年齢では結べない契約年数です',
+  'roster-limit': `保有選手が支配下${ROSTER_LIMIT}人枠に達しています`,
   budget: '球団の資金では提示できません',
 };
 
@@ -276,6 +284,9 @@ export function makeFAOffer(
   if (listing.status === 'SIGNED') return fail('already-signed');
 
   if (offersByTeam(fa, teamId).some((o) => o.playerId === playerId)) return fail('duplicate');
+
+  // 支配下70人枠。埋まっている球団は提示そのものができない
+  if (!canAddPlayer(state, teamId)) return fail('roster-limit');
 
   const maxOffers = options.maxOffers ?? MAX_USER_OFFERS;
   if (offersByTeam(fa, teamId).length >= maxOffers) return fail('limit');
@@ -391,12 +402,15 @@ export function roleScore(state: GameState, teamId: string, player: Player): num
   return 0.24;
 }
 
-/** ロスターに余裕があるか（人数が少ない球団ほど出番がある） */
+/**
+ * ロスターに余裕があるか（人数が少ない球団ほど出番がある）。
+ * 最低人数なら 1.0、支配下70人枠が埋まっていれば 0.2 で、その間は直線。
+ */
 export function opportunityScore(state: GameState, teamId: string): number {
   const size = state.players.filter((p) => p.teamId === teamId).length;
   if (size <= MINIMUM_ROSTER) return 1;
-  if (size >= 40) return 0.2;
-  return clamp01(1 - (size - MINIMUM_ROSTER) / 20);
+  if (size >= ROSTER_LIMIT) return 0.2;
+  return clamp01(1 - ((size - MINIMUM_ROSTER) / (ROSTER_LIMIT - MINIMUM_ROSTER)) * 0.8);
 }
 
 /** 提示年俸の評価。希望額の60%で0、120%で1になる */
@@ -489,9 +503,10 @@ function analyzeNeed(state: GameState, team: Team): TeamNeed {
     // 1人ぶんの余裕まで不足に数えると、契約更改後に24人ちょうどになる
     // 全球団が毎年「不足」となり、市場のFAが必ず全員決まってしまう。
     rosterShortage: Math.max(0, MINIMUM_ROSTER - roster.length),
-    depthRoom: Math.max(0, 28 - roster.length),
-    fielderShortage: Math.max(0, 13 - fielders),
-    pitcherShortage: Math.max(0, 9 - pitchers),
+    // 支配下の目標人数（65人）まではまだ枠がある、という見方をする
+    depthRoom: Math.max(0, TARGET_ROSTER_SIZE - roster.length),
+    fielderShortage: Math.max(0, MIN_FIELDERS - fielders),
+    pitcherShortage: Math.max(0, MIN_PITCHERS - pitchers),
     headroom,
     budget: finance?.budget ?? 900,
     eagerness: clamp01(0.4 + (0.5 - strength) * 0.5 + cashFactor * 0.3),
@@ -779,6 +794,8 @@ export function resolveFreeAgency(state: GameState): FAResolution {
       // 極端に安いオファーは通らない
       if (entry.offer.salary < listing.minimumSalary) continue;
       if (entry.score.total < threshold) continue;
+      // 支配下70人枠が埋まっている球団は、この offseason ではもう獲れない
+      if (!canAddPlayer(state, entry.offer.teamId)) continue;
       // 予算を超える契約はその球団が結べない
       if (committedOf(entry.offer.teamId) + entry.offer.salary > budgetCeiling(state, entry.offer.teamId)) {
         continue;
@@ -825,15 +842,15 @@ export function resolveFreeAgency(state: GameState): FAResolution {
 }
 
 /**
- * ロスターが24人を割っている球団を、残っているFA選手で埋める。
- * FA市場が空なら何もしない（新しい選手は作らない）。
+ * ロスターが MINIMUM_ROSTER を割っている球団を、残っているFA選手で埋める。
+ * 支配下70人枠は超えない。FA市場が空なら何もしない（新しい選手は作らない）。
  */
 export function fillMinimumRosters(state: GameState, signings: FASignRecord[]): void {
   const fa = state.fa;
   for (const team of state.teams) {
     let size = state.players.filter((p) => p.teamId === team.id).length;
     let guard = 0;
-    while (size < MINIMUM_ROSTER && state.freeAgents.length > 0 && guard++ < 60) {
+    while (size < MINIMUM_ROSTER && size < ROSTER_LIMIT && state.freeAgents.length > 0 && guard++ < 60) {
       // 安い選手から順に確保する
       const contested = (id: string) =>
         fa ? offersForPlayer(fa, id).length : 0;
@@ -923,6 +940,46 @@ export function estimatedOverallRange(
 }
 
 /* ---------------- 読み込み時の修復 ---------------- */
+
+/** 契約先が決まらないまま何年過ぎたら現役を退くか */
+export const UNSIGNED_RETIREMENT_YEARS = 2;
+
+/**
+ * 契約先が決まらないままのFA選手を1つ歳を取らせ、
+ * 決まらない年が続いた選手は現役を退く。
+ *
+ * FA選手は state.players に入っていないため、シーズンの成長処理で歳を取らない。
+ * ここで面倒を見ないと、支配下枠から外れた選手が同じ年齢のまま市場に溜まり続ける。
+ * 引退の判定に乱数は使わない（決まらなかった年数だけで決める）。
+ */
+export function ageAndRetireFreeAgents(state: GameState): RetiredPlayerRecord[] {
+  if (!Array.isArray(state.freeAgents)) {
+    state.freeAgents = [];
+    return [];
+  }
+  const retirements: RetiredPlayerRecord[] = [];
+  const remaining: Player[] = [];
+  for (const player of state.freeAgents) {
+    player.age += 1;
+    if (unsignedYears(player) < UNSIGNED_RETIREMENT_YEARS) {
+      remaining.push(player);
+      continue;
+    }
+    const debutYear = player.ext.debutYear ?? state.year;
+    retirements.push({
+      playerId: player.id,
+      name: player.name,
+      teamId: '',
+      age: player.age,
+      years: Math.max(1, state.year - debutYear + 1),
+      finalOverall: overallRating(player),
+      mainPosition: player.mainPosition,
+      retiredAt: state.year,
+    });
+  }
+  state.freeAgents = remaining;
+  return retirements;
+}
 
 /**
  * 壊れた状態を安全側に直す。

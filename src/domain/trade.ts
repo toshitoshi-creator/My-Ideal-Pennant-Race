@@ -21,6 +21,7 @@ import type {
   TradeState,
   TradeTrait,
 } from './types';
+import { ROSTER_LIMIT } from './types';
 import { Rng, seedFrom } from './rng';
 import { overallRating } from './rating';
 import { positionGroup } from './positions';
@@ -67,7 +68,7 @@ export const PAYROLL_CEILING_RATIO = 1.12;
 
 /**
  * トレード後に保たなければならない保有人数。
- * 24人（リーグの最低人数）ちょうどまで削ると、その後の契約更改や怪我で
+ * リーグの最低人数ちょうどまで削ると、その後の契約更改や怪我で
  * 身動きが取れなくなるため、1人ぶんの余裕を必ず残す。
  */
 export const MIN_ROSTER_AFTER_TRADE = MINIMUM_ROSTER + 1;
@@ -449,6 +450,7 @@ export type TradeError =
   | 'not-tradable'
   | 'wrong-team'
   | 'roster'
+  | 'roster-limit'
   | 'position-minimum'
   | 'payroll'
   | 'trade-limit';
@@ -470,6 +472,7 @@ const ERROR_MESSAGES: Record<TradeError, string> = {
   'not-tradable': 'トレードできない選手が含まれています',
   'wrong-team': '選手の所属球団が正しくありません',
   roster: `トレード後に保有選手が${MIN_ROSTER_AFTER_TRADE}人を下回ります`,
+  'roster-limit': `トレード後に保有選手が支配下${ROSTER_LIMIT}人枠を超えます`,
   'position-minimum': 'トレード後に1軍を組める人数を確保できません',
   payroll: 'トレード後に総年俸が予算を超えます',
   'trade-limit': '今シーズンのトレード上限に達しています',
@@ -497,6 +500,8 @@ function checkTeamAfterTrade(
   const after = [...roster.filter((p) => !outIds.has(p.id)), ...incoming];
 
   if (after.length < MIN_ROSTER_AFTER_TRADE) return 'roster';
+  // 支配下70人枠。人数が増える側のトレードはここで止める
+  if (after.length > ROSTER_LIMIT) return 'roster-limit';
   const fielders = after.filter((p) => !p.isPitcher).length;
   const pitchers = after.filter((p) => p.isPitcher).length;
   if (fielders < MIN_FIELDERS || pitchers < MIN_PITCHERS) return 'position-minimum';

@@ -62,8 +62,8 @@ const readState = () => page.evaluate(() => JSON.parse(localStorage.getItem('mip
 let state = await readState();
 if (!state) fail('セーブデータが作られていない');
 else ok(`セーブ作成 (seed ${state.seed} / ${state.players.length}選手 / 開始日 ${state.date})`);
-if (state.players.filter((p) => p.teamId === 'phoenix').length !== 25) fail('選手が25人ではない');
-else ok('プレイヤー球団に25人の選手がいる');
+if (state.players.filter((p) => p.teamId === 'phoenix').length !== 65) fail('選手が65人ではない');
+else ok('プレイヤー球団に65人の選手がいる（支配下70人枠の内側）');
 
 // 選手一覧 → 詳細
 await page.getByRole('button', { name: /選手/ }).last().click();
@@ -421,8 +421,13 @@ else ok('トレード後に総年俸が再計算されている');
 const minRosterAfterTrade = Math.min(
   ...afterTrade.teams.map((t) => afterTrade.players.filter((p) => p.teamId === t.id).length),
 );
-if (minRosterAfterTrade < 24) fail(`トレード後にロスターが${minRosterAfterTrade}人`);
-else ok(`トレード後も全球団が24人以上（最少${minRosterAfterTrade}人）`);
+if (minRosterAfterTrade < 55) fail(`トレード後にロスターが${minRosterAfterTrade}人`);
+else ok(`トレード後も全球団が55人以上（最少${minRosterAfterTrade}人）`);
+const maxRosterAfterTrade = Math.max(
+  ...afterTrade.teams.map((t) => afterTrade.players.filter((p) => p.teamId === t.id).length),
+);
+if (maxRosterAfterTrade > 70) fail(`トレード後にロスターが${maxRosterAfterTrade}人（支配下70人枠を超えた）`);
+else ok(`トレード後も全球団が支配下70人枠の内側（最多${maxRosterAfterTrade}人）`);
 
 // トレード履歴
 const historyText = await page.locator('.card', { hasText: 'トレード履歴' }).innerText();
@@ -779,7 +784,7 @@ else ok(`CPU球団も独自に調査している（関東ブルーウェーブ $
 // ドラフト会議を開始する
 await page.getByRole('button', { name: 'ドラフト会議を始める' }).click();
 // CPU球団の指名が終わるのを待つ。
-// 自球団に指名権がない年（保有25人で補充が不要な年）もあるので、
+// 自球団に指名権がない年（支配下枠が埋まっていて補充が不要な年）もあるので、
 // 「指名待ち」か「ドラフト終了」のどちらかになるまで待つ。
 await Promise.race([
   page
@@ -950,7 +955,7 @@ else ok('FA市場が始まると契約更改には戻れない');
 const goneFromRoster = rosterBeforeFA.filter(
   (id) => !faStart.players.some((p) => p.id === id),
 );
-// 最低人数(24人)を割る場合は引き止められるため、退団が0人になることもある
+// 最低人数(55人)を割る場合は引き止められるため、退団が0人になることもある
 if (goneFromRoster.length > 0) {
   for (const id of goneFromRoster) {
     if (!faStart.freeAgents.some((p) => p.id === id)) fail('退団した選手がFA市場にいない');
@@ -1145,8 +1150,13 @@ if (nextSeason.freeAgents.some((p) => nextSeason.players.some((q) => q.id === p.
 const minRoster = Math.min(
   ...nextSeason.teams.map((t) => nextSeason.players.filter((p) => p.teamId === t.id).length),
 );
-if (minRoster < 24) fail(`ロスターが24人を割っている（${minRoster}人）`);
-else ok(`全球団が24人以上のロスターを保っている（最少${minRoster}人）`);
+if (minRoster < 55) fail(`ロスターが55人を割っている（${minRoster}人）`);
+else ok(`全球団が55人以上のロスターを保っている（最少${minRoster}人）`);
+const maxRoster = Math.max(
+  ...nextSeason.teams.map((t) => nextSeason.players.filter((p) => p.teamId === t.id).length),
+);
+if (maxRoster > 70) fail(`支配下70人枠を超えた球団がある（${maxRoster}人）`);
+else ok(`全球団が支配下70人枠の内側（最多${maxRoster}人）`);
 const changed = nextSeason.players.filter(
   (p) => abilitiesBefore.has(p.id) && p.batting.contact + p.batting.power !== abilitiesBefore.get(p.id),
 );

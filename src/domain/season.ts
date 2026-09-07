@@ -35,6 +35,7 @@ import {
   tickContracts,
 } from './contract';
 import {
+  ageAndRetireFreeAgents,
   resolveFreeAgency,
   runCpuFAOffers,
   startFreeAgency,
@@ -59,6 +60,7 @@ import {
 } from './club';
 import { repairAllSetups } from './engine';
 import { ensureFirstTeamViable } from './daily';
+import { rebuildFirstTeam } from './roster';
 
 /** 1軍・2軍の出場経験を 0〜1 に正規化する */
 function experienceOf(state: GameState, player: Player): {
@@ -202,10 +204,18 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
   state.players = remaining;
   refreshPayrolls(state);
 
+  /*
+   * ---- 支配下枠から外れたまま契約先が決まらなかった選手も現役を退く ----
+   * 面倒を見ないと、同じ年齢のままFA市場に選手が溜まり続けてしまう。
+   * どの球団にも所属していない選手なので、ニュースにはしない（記録には残す）。
+   */
+  const unsignedRetirements = ageAndRetireFreeAgents(state);
+  const allRetirements = [...retirements, ...unsignedRetirements];
+
   // ---- PHASE 3.7: 引退した選手の歴史を確定し、殿堂入りを判定する ----
   const inducted = recordRetirements(
     state,
-    retirements.map((r) => ({ playerId: r.playerId, finalOverall: r.finalOverall })),
+    allRetirements.map((r) => ({ playerId: r.playerId, finalOverall: r.finalOverall })),
   );
   for (const entry of inducted) {
     state.notices.push({
@@ -215,21 +225,36 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
     });
   }
 
-  state.retiredPlayers.push(...retirements);
+  state.retiredPlayers.push(...allRetirements);
   if (state.retiredPlayers.length > RETIRED_RECORD_LIMIT) {
     state.retiredPlayers.splice(0, state.retiredPlayers.length - RETIRED_RECORD_LIMIT);
+  }
+  /*
+   * 1試合も出場しないまま去った選手は、現役にも記録簿にもいなくなる。
+   * 過去のドラフト・FAのニュースが「もう誰でもない選手」を指したままになるので、
+   * その選手を指す記事をここで取り除く。
+   */
+  const vanished = new Set(
+    allRetirements
+      .filter((r) => !state.history?.players?.[r.playerId])
+      .map((r) => r.playerId),
+  );
+  if (vanished.size > 0 && state.news) {
+    state.news.items = state.news.items.filter(
+      (item) => !item.playerId || !vanished.has(item.playerId),
+    );
   }
   // PHASE 3.9: 引退をニュースにする（通算成績は歴史から取る。理由は作らない）
   for (const record of retirements) {
     const history = state.history?.players?.[record.playerId];
-    let career = '';
-    if (history) {
-      const b = history.career.batting;
-      const p = history.career.pitching;
-      career = p.games > b.games
+    // 1試合も出場しないまま退いた選手は記録簿に載らないので、ニュースにもしない
+    if (!history) continue;
+    const b = history.career.batting;
+    const p = history.career.pitching;
+    const career =
+      p.games > b.games
         ? `通算${p.wins}勝${p.losses}敗、${p.strikeouts}奪三振。`
         : `通算${b.hits}安打、${b.homeRuns}本塁打。`;
-    }
     generateRetirementNews(state, record, career);
   }
 
@@ -526,8 +551,10 @@ export function completeOffseason(state: GameState): Player[] {
   // PHASE 3.5: トレード期間を新シーズンぶん作り直す（履歴は残る）
   resetTradeSeason(state);
 
-  // 新人加入・引退を反映してロスターとオーダーを整える
+  // 新人加入・引退を反映してロスターとオーダーを整える。
+  // 支配下70人のうち誰を開幕1軍に載せるかは、その時点の能力で組み直す
   for (const team of state.teams) {
+    rebuildFirstTeam(state, team.id);
     ensureFirstTeamViable(state, team.id);
   }
   repairAllSetups(state);

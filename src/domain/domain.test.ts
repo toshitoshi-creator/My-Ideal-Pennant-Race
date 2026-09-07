@@ -18,7 +18,7 @@ import { addDays } from './dates';
 import { generateSchedule } from './schedule';
 import { buildAutoSetup, validateLineup, nextStarterId } from './setup';
 import type { GameState, Player } from './types';
-import { FIRST_TEAM_LIMIT, ROSTER_LIMIT } from './types';
+import { FIRST_TEAM_LIMIT, ROSTER_LIMIT, TARGET_ROSTER_SIZE } from './types';
 
 const PLAYER_TEAM = 'phoenix';
 
@@ -45,22 +45,23 @@ describe('STEP3 選手データ', () => {
   const state = newGame();
   const playerTeam = state.players.filter((p) => p.teamId === PLAYER_TEAM);
 
-  it('プレイヤー球団は25人', () => {
-    expect(playerTeam).toHaveLength(25);
+  it('プレイヤー球団は65人（支配下70人枠の内側）', () => {
+    expect(playerTeam).toHaveLength(TARGET_ROSTER_SIZE);
+    expect(playerTeam.length).toBeLessThanOrEqual(ROSTER_LIMIT);
   });
 
-  it('投手10・捕手3・内野7・外野5の構成', () => {
+  it('投手30・捕手6・内野16・外野13の構成', () => {
     const count = (pred: (p: Player) => boolean) => playerTeam.filter(pred).length;
-    expect(count((p) => p.mainPosition === 'P')).toBe(10);
-    expect(count((p) => p.mainPosition === 'C')).toBe(3);
-    expect(count((p) => ['1B', '2B', '3B', 'SS'].includes(p.mainPosition))).toBe(7);
-    expect(count((p) => ['LF', 'CF', 'RF'].includes(p.mainPosition))).toBe(5);
+    expect(count((p) => p.mainPosition === 'P')).toBe(30);
+    expect(count((p) => p.mainPosition === 'C')).toBe(6);
+    expect(count((p) => ['1B', '2B', '3B', 'SS'].includes(p.mainPosition))).toBe(16);
+    expect(count((p) => ['LF', 'CF', 'RF'].includes(p.mainPosition))).toBe(13);
   });
 
   it('全選手のIDが一意（同姓同名でも別ID）', () => {
     const ids = new Set(state.players.map((p) => p.id));
     expect(ids.size).toBe(state.players.length);
-    expect(state.players.length).toBe(12 * 25);
+    expect(state.players.length).toBe(12 * TARGET_ROSTER_SIZE);
   });
 
   it('選手は1つの球団にしか所属しない', () => {
@@ -221,30 +222,24 @@ describe('STEP6/STEP14 1軍・2軍と7日間制限', () => {
   });
 
   it('1軍は31人まで。32人目は登録できない', () => {
-    // まず全員2軍に落としてから、制限を無視して1軍を31人にする
+    // まず全員2軍に落としてから、上限の31人まで1軍に上げる
     for (const p of state.players.filter((p) => p.teamId === PLAYER_TEAM)) {
       p.roster = 'second';
       p.lastRosterChangeDate = null;
     }
     const roster = state.players.filter((p) => p.teamId === PLAYER_TEAM);
-    // 25人しかいないので上限まで登録できることを確認しつつ、上限判定をテスト
-    for (const p of roster) {
+    // 支配下は65人あるので、1軍の上限より多く控えている
+    expect(roster.length).toBeGreaterThan(FIRST_TEAM_LIMIT);
+    for (const p of roster.slice(0, FIRST_TEAM_LIMIT)) {
       expect(checkRosterChange(state, p.id, 'first').allowed).toBe(true);
       applyRosterChange(state, p.id, 'first');
       p.lastRosterChangeDate = null;
     }
-    expect(firstTeamCount(state, PLAYER_TEAM)).toBe(25);
-
-    // 31人まで埋めた状態を作る（他球団の選手を移籍させずに複製せず、直接ロスターを操作）
-    const extra = state.players.filter((p) => p.teamId === PLAYER_TEAM);
-    while (firstTeamCount(state, PLAYER_TEAM) < FIRST_TEAM_LIMIT) {
-      const clone: Player = { ...extra[0], id: `${extra[0].id}-x${firstTeamCount(state, PLAYER_TEAM)}`, roster: 'first' };
-      state.players.push(clone);
-    }
     expect(firstTeamCount(state, PLAYER_TEAM)).toBe(FIRST_TEAM_LIMIT);
 
-    const bench: Player = { ...extra[0], id: 'bench-extra', roster: 'second', lastRosterChangeDate: null };
-    state.players.push(bench);
+    // 32人目は上限で断られる
+    const bench = roster[FIRST_TEAM_LIMIT];
+    bench.lastRosterChangeDate = null;
     const check = checkRosterChange(state, bench.id, 'first');
     expect(check.allowed).toBe(false);
     expect(check.reason).toContain('31');
