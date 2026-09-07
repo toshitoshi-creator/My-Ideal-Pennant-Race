@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Sec } from '../components/Sec';
 import { useGame } from '../store';
+import { teamVisual } from '../../domain/visuals';
+import { TeamMark } from '../components/visuals/TeamVisuals';
 import type { Player, Team, TradeOffer } from '../../domain/types';
 import { POSITION_LABELS, POSITION_SHORT, positionGroup } from '../../domain/positions';
 import { overallRating, teamPower } from '../../domain/rating';
@@ -700,11 +702,15 @@ function TradeHistoryCard() {
               <div className="muted" style={{ fontSize: 12 }}>
                 {record.year}年 {record.date}
               </div>
-              {/* PHASE 4.1: OUT が離れて IN が入ってくるように見せる（CSS のみ） */}
+              {/*
+                PHASE 4.1: OUT が離れて IN が入ってくるように見せる（CSS のみ）。
+                PHASE 4.5: どの球団との入れ替わりかを球団章でも示す（§23）。
+              */}
               <div className={`trade-out`} style={{ fontSize: 13 }}>
                 <span className="chip" style={{ marginRight: 6 }}>
                   OUT
                 </span>
+                {from && <TeamMarkInline teamId={from.id} name={from.name} />}
                 {from?.shortName ?? record.fromTeamId} {record.playerNamesFrom.join('・')} →{' '}
                 {to?.shortName ?? record.toTeamId}
               </div>
@@ -712,6 +718,7 @@ function TradeHistoryCard() {
                 <span className="chip on" style={{ marginRight: 6 }}>
                   IN
                 </span>
+                {to && <TeamMarkInline teamId={to.id} name={to.name} />}
                 {to?.shortName ?? record.toTeamId} {record.playerNamesTo.join('・')} →{' '}
                 {from?.shortName ?? record.fromTeamId}
               </div>
@@ -729,5 +736,18 @@ function Row({ label, value }: { label: string; value: string }) {
       <span className="muted">{label}</span>
       <span style={{ fontWeight: 700 }}>{value}</span>
     </div>
+  );
+}
+
+
+/** 行の中に小さく置く球団章（§23） */
+function TeamMarkInline({ teamId, name }: { teamId: string; name: string }) {
+  const { state } = useGame();
+  const team = state.teams.find((t) => t.id === teamId);
+  if (!team) return null;
+  return (
+    <span className="mark-inline">
+      <TeamMark visual={teamVisual(team)} name={name} size={16} />
+    </span>
   );
 }

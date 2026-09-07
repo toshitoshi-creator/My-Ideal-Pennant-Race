@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Player } from '../../domain/types';
 import { useGame } from '../store';
 import { AbilityBar, KeyValue, RankBadge, Sheet, Tabs } from './common';
@@ -29,6 +29,9 @@ import { injuryText } from '../../domain/injury';
 import { specialAbilityDef } from '../../domain/specialAbilities';
 import { effectiveBreakdown } from '../../domain/effective';
 import { contractStatus, formatSalary, marketValue } from '../../domain/contract';
+import { playerVisual, retiredVisual, MOOD_CAPTIONS, MOOD_LABELS } from '../../domain/visuals';
+import { PlayerPortrait } from './visuals/PlayerPortrait';
+import { useFirstVisit, useReducedMotion } from '../anim';
 
 type DetailTab = 'info' | 'analysis';
 
@@ -59,34 +62,41 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
 
   return (
     <Sheet title={player.name} onClose={onClose}>
-      {/* 選手名鑑の見出し（PHASE 4.2）。箱に入れず、罫線で区切る */}
+      {/*
+        選手名鑑の見出し（PHASE 4.2 → 4.5）。箱に入れず、罫線で区切る。
+        PHASE 4.5: 資料写真を左に置き、名前・年齢・総合は同じ高さに並べる。
+        写真で数字を押し下げないこと（§9）。
+      */}
       <header className="profile">
         <div className="label profile-kicker">PLAYER REPORT</div>
         <div className="profile-top">
-          <span className="profile-no">{player.uniformNumber}</span>
+          <PlayerPhoto player={player} />
           <div className="profile-id">
-            <div className="profile-name">{player.name}</div>
+            <div className="profile-name">
+              <span className="profile-no">{player.uniformNumber}</span>
+              {player.name}
+            </div>
             <div className="profile-meta">
               {POSITION_LABELS[player.mainPosition]}・{player.age}歳・
               {player.throws === 'R' ? '右' : '左'}投
               {player.bats === 'R' ? '右' : '左'}打
+            </div>
+            <div className="profile-foot">
+              <span>{team.name}</span>
+              <span className={player.roster === 'first' ? 'roster-1st' : 'roster-2nd'}>
+                {player.roster === 'first' ? '1軍' : '2軍'}
+              </span>
+              {lockDays > 0 && (
+                <span className="roster-lock">
+                  登録変更まで{lockDays}日（{formatDateJa(nextChangeDate(player)!)}〜）
+                </span>
+              )}
             </div>
           </div>
           <div className="profile-rank">
             <span className="label">総合</span>
             <RankBadge value={overallRating(player)} />
           </div>
-        </div>
-        <div className="profile-foot">
-          <span>{team.name}</span>
-          <span className={player.roster === 'first' ? 'roster-1st' : 'roster-2nd'}>
-            {player.roster === 'first' ? '1軍' : '2軍'}
-          </span>
-          {lockDays > 0 && (
-            <span className="roster-lock">
-              登録変更まで{lockDays}日（{formatDateJa(nextChangeDate(player)!)}〜）
-            </span>
-          )}
         </div>
       </header>
 
@@ -471,4 +481,43 @@ function ContractPanel({ player }: { player: Player }) {
       </div>
     </>
   );
+}
+
+
+/**
+ * PHASE 4.5 選手の資料写真（§6・§9）。
+ *
+ * 顔は playerId から決まるので、名鑑・分析・ニュースのどこで見ても同じ人になる。
+ * 状態（好調・不振・離脱・新人・ベテラン）は「空気」だけを変え、
+ * 能力や評価には一切影響しない（§10・§27）。
+ */
+function PlayerPhoto({ player }: { player: Player }) {
+  const { state } = useGame();
+  const reduced = useReducedMotion();
+  const first = useFirstVisit(`photo:${player.id}`);
+  const visual = useMemo(() => playerVisual(state, player), [state, player]);
+  const team = state.teams.find((t) => t.id === player.teamId);
+  const caption = MOOD_CAPTIONS[visual.mood];
+
+  return (
+    <figure className={`player-photo${first && !reduced ? ' photo-in' : ''}`}>
+      <PlayerPortrait
+        visual={visual}
+        name={player.name}
+        size="md"
+        teamColor={team?.color}
+      />
+      {/* 写真だけで伝えない。状態は必ず文字でも添える（§44） */}
+      <figcaption className="photo-caption">
+        <span className="label">{caption.en}</span>
+        <span className="photo-caption-ja">{MOOD_LABELS[visual.mood]}</span>
+      </figcaption>
+    </figure>
+  );
+}
+
+/** 引退した選手の一枚（帽子を脱いだ資料写真）。§25 */
+export function RetiredPortrait({ player, name }: { player: Player; name: string }) {
+  const visual = useMemo(() => retiredVisual(player), [player]);
+  return <PlayerPortrait visual={visual} name={name} size="md" />;
 }

@@ -6,6 +6,10 @@ import { RankBadge } from './common';
 import { daysUntilChangeable } from '../../domain/roster';
 import { CONDITION_ICONS, CONDITION_LABELS } from '../../domain/condition';
 import { daysUntilReturn } from '../../domain/injury';
+import { playerFace, playerMood } from '../../domain/visuals';
+import { PlayerPortrait } from './visuals/PlayerPortrait';
+import { useGame } from '../store';
+import { useMemo } from 'react';
 
 export function PlayerCard({
   player,
@@ -31,6 +35,8 @@ export function PlayerCard({
 
   return (
     <button className="player-card" onClick={onClick} disabled={!onClick}>
+      {/* PHASE 4.5: 一覧でも顔が出る。詳細と同じ顔になる（§7） */}
+      <RowPortrait player={player} />
       <span className="pos">{POSITION_SHORT[player.mainPosition]}</span>
       <span className="grow">
         <span className="row" style={{ gap: 6 }}>
@@ -78,4 +84,27 @@ function conditionColor(player: Player): string {
     default:
       return 'var(--text-dim)';
   }
+}
+
+
+/**
+ * 一覧に並ぶ小さな顔（§6）。
+ * 詳細画面と同じ playerId から作るので、必ず同じ人物になる。
+ */
+function RowPortrait({ player }: { player: Player }) {
+  const { state } = useGame();
+  const team = state?.teams.find((t) => t.id === player.teamId);
+  const visual = useMemo(
+    () => ({ ...playerFace(player), mood: state ? playerMood(state, player) : ('STEADY' as const) }),
+    [player, state],
+  );
+  return (
+    <PlayerPortrait
+      visual={visual}
+      name={player.name}
+      size="sm"
+      teamColor={team?.color}
+      className="row-portrait"
+    />
+  );
 }

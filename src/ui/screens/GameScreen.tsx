@@ -7,6 +7,18 @@ import { nextGameForTeam } from '../../domain/schedule';
 import { Sheet } from '../components/common';
 import { useCountUp, usePlayback } from '../anim';
 import { buildPreGameBrief, buildPostGameReport } from '../../domain/gameBrief';
+import {
+  teamVisual,
+  stadiumMoodForDate,
+  gameVisualEvents,
+  playerVisual,
+  EVENT_LABELS,
+  EVENT_RANK,
+} from '../../domain/visuals';
+import { StadiumScene, TeamMark } from '../components/visuals/TeamVisuals';
+import { EventScene } from '../components/visuals/EventScene';
+import { PlayerPortrait } from '../components/visuals/PlayerPortrait';
+import { useFirstVisit, useReducedMotion } from '../anim';
 
 export function GameScreen() {
   const { state, lastResult, playNextGame } = useGame();
@@ -36,6 +48,8 @@ export function GameScreen() {
         <Sec en="PRE-GAME BRIEF" ja="試合前資料" size="lead" />
         {next && opponent && brief ? (
           <>
+            {/* PHASE 4.5: 球場 → 球団 → 対戦 の順に見せてから資料に入る（§14） */}
+            <PreGameStage opponentId={opponent.id} homeAway={brief.homeAway} date={next.date} />
             <div className="brief-line">
               <span className="label">TODAY</span>
               <span>{brief.dateLabel}</span>
@@ -324,6 +338,9 @@ function PostGameSection({ result }: { result: GameResult }) {
   return (
     <div className="card">
       <Sec en="POST GAME" ja="試合の講評" size="lead" note={report.score} />
+      {/* PHASE 4.5: 勝敗で空気を変える（§19・§48）。色ではなく絵と余白で表す */}
+      <PostGameStage result={result} resultLabel={report.resultLabel} />
+      <GameEventPlates result={result} />
       {report.keyMoments.length > 0 && (
         <div className="post-block">
           <span className="label">KEY MOMENTS</span>
@@ -366,5 +383,180 @@ function PostGameSection({ result }: { result: GameResult }) {
         <p className="post-team">{report.teamNote}</p>
       </div>
     </div>
+  );
+}
+
+
+/**
+ * PHASE 4.5 試合前の舞台（§14）。
+ * 球場 → 球団 → 対戦 の順に置く。一気に出さない。
+ */
+function PreGameStage({
+  opponentId,
+  homeAway,
+  date,
+}: {
+  opponentId: string;
+  homeAway: 'HOME' | 'AWAY';
+  date: string;
+}) {
+  const { state } = useGame();
+  const reduced = useReducedMotion();
+  const first = useFirstVisit(`pregame:${date}`);
+  const team = state.teams.find((t) => t.id === state.playerTeamId)!;
+  const opponent = state.teams.find((t) => t.id === opponentId)!;
+  // 本拠地は「ホームの球団」のもの
+  const hostId = homeAway === 'HOME' ? team.id : opponent.id;
+  const host = state.teams.find((t) => t.id === hostId)!;
+  const visual = useMemo(() => teamVisual(host), [host]);
+  const mine = useMemo(() => teamVisual(team), [team]);
+  const theirs = useMemo(() => teamVisual(opponent), [opponent]);
+  const mood = stadiumMoodForDate(date);
+
+  return (
+    <div className={first && !reduced ? 'photo-in' : undefined}>
+      <StadiumScene visual={visual} name={visual.stadiumName} mood={mood} height={104} />
+      <div className="stadium-caption">
+        <span className="label">{homeAway === 'HOME' ? 'HOME' : 'AWAY'}</span>
+        <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>
+          {visual.stadiumName}
+        </span>
+      </div>
+      <div className={`matchup${first && !reduced ? ' photo-in-late' : ''}`}>
+        <div className="matchup-side">
+          <TeamMark visual={mine} name={team.name} size={30} />
+          <span>{team.shortName}</span>
+        </div>
+        <span className="matchup-vs">vs</span>
+        <div className="matchup-side">
+          <TeamMark visual={theirs} name={opponent.name} size={30} />
+          <span>{opponent.shortName}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 試合後の一枚。勝てば球場、負ければスコアブックの静けさ（§19・§48） */
+function PostGameStage({
+  result,
+  resultLabel,
+}: {
+  result: GameResult;
+  resultLabel: 'WIN' | 'LOSS' | 'DRAW';
+}) {
+  const { state } = useGame();
+  const reduced = useReducedMotion();
+  const first = useFirstVisit(`postgame:${result.id}`);
+  const teamId = state.playerTeamId;
+  const hostId = result.homeTeamId;
+  const host = state.teams.find((t) => t.id === hostId);
+  const visual = useMemo(() => (host ? teamVisual(host) : null), [host]);
+  if (!visual || !host) return null;
+  // 勝った日は満員、負けた日は静かな球場。天候ではなく空気の描き分け
+  const mood = resultLabel === 'WIN' ? 'PACKED' : resultLabel === 'LOSS' ? 'QUIET' : 'DAY';
+
+  return (
+    <div className={first && !reduced ? 'photo-in' : undefined}>
+      <StadiumScene visual={visual} name={visual.stadiumName} mood={mood} height={92} />
+      <div className="stadium-caption">
+        <span className="label">
+          {resultLabel === 'WIN' ? 'AFTER THE WIN' : resultLabel === 'LOSS' ? 'AFTER THE LOSS' : 'DRAWN GAME'}
+        </span>
+        <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>
+          {teamId === result.winnerTeamId
+            ? '勝った日の球場'
+            : result.winnerTeamId
+              ? '負けた日の球場'
+              : '引き分けた日の球場'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * PHASE 4.5 試合の出来事を紙面にする（§15・§17・§18）。
+ * 実際に記録された出来事だけを、重い順に最大2つ。通常の試合では何も出ない。
+ */
+function GameEventPlates({ result }: { result: GameResult }) {
+  const { state } = useGame();
+  const reduced = useReducedMotion();
+  const events = useMemo(() => gameVisualEvents(state, result), [state, result]);
+  const team = state.teams.find((t) => t.id === state.playerTeamId);
+  const shown = events.filter((e) => EVENT_RANK[e.kind] !== 'B').slice(0, 2);
+  if (shown.length === 0) return null;
+
+  return (
+    <>
+      {shown.map((event) => {
+        const player = event.playerId
+          ? state.players.find((p) => p.id === event.playerId)
+          : undefined;
+        const label = EVENT_LABELS[event.kind];
+        return (
+          <EventPlate
+            key={`${result.id}:${event.kind}`}
+            id={`${result.id}:${event.kind}`}
+            reduced={reduced}
+            rank={EVENT_RANK[event.kind]}
+            en={label.en}
+            ja={label.ja}
+            inning={event.inning}
+            text={event.text}
+            teamColor={team?.color}
+            kind={event.kind}
+            player={player}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+function EventPlate({
+  id,
+  reduced,
+  rank,
+  en,
+  ja,
+  inning,
+  text,
+  teamColor,
+  kind,
+  player,
+}: {
+  id: string;
+  reduced: boolean;
+  rank: 'S' | 'A' | 'B';
+  en: string;
+  ja: string;
+  inning: number | null;
+  text: string;
+  teamColor?: string;
+  kind: Parameters<typeof EventScene>[0]['kind'];
+  player?: import('../../domain/types').Player;
+}) {
+  const { state } = useGame();
+  const first = useFirstVisit(`plate:${id}`);
+  const visual = useMemo(
+    () => (player ? playerVisual(state, player) : null),
+    [state, player],
+  );
+  return (
+    <section className={`event-plate rank-${rank.toLowerCase()}${first && !reduced ? ' photo-in' : ''}`}>
+      <div className="event-plate-head">
+        <span className="label">{en}</span>
+        <span className="event-plate-ja">{ja}</span>
+        {inning !== null && <span className="event-plate-inning">{inning}回</span>}
+      </div>
+      <EventScene kind={kind} teamColor={teamColor} height={rank === 'S' ? 104 : 84} />
+      <div className="event-plate-figure">
+        {visual && player && (
+          <PlayerPortrait visual={visual} name={player.name} size="sm" teamColor={teamColor} />
+        )}
+        <p className="event-plate-text">{text}</p>
+      </div>
+    </section>
   );
 }

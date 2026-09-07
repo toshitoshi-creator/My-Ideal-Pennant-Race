@@ -3,6 +3,8 @@ import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import type { DraftProspect, ScoutCategory, ScoutReport } from '../../domain/types';
 import { availableProspects, currentPick } from '../../domain/draft';
+import { prospectVisual } from '../../domain/visuals';
+import { PlayerPortrait } from '../components/visuals/PlayerPortrait';
 import { RevealRows } from '../components/Reveal';
 import { POSITION_LABELS, POSITION_SHORT } from '../../domain/positions';
 import {
@@ -184,6 +186,12 @@ export function DraftScreen() {
                 <div key={`${pick.round}-${pick.pick}`} className="spread" style={{ padding: '6px 0' }}>
                   <span>
                     <strong style={{ color: 'var(--accent)' }}>{pick.round}巡目</strong>{' '}
+                    <PlayerPortrait
+                      visual={prospectVisual(prospect.player)}
+                      name={prospect.player.name}
+                      size="sm"
+                      className="row-portrait"
+                    />
                     {prospect.player.name}
                   </span>
                   <span className="muted">
@@ -259,7 +267,14 @@ export function DraftScreen() {
       {confirming && (
         <Sheet title="指名の確認" onClose={() => setConfirming(null)}>
           <div className="card">
-            <div style={{ fontSize: 17, fontWeight: 800 }}>{confirming.player.name}</div>
+            <div className="draft-confirm">
+              <PlayerPortrait
+                visual={prospectVisual(confirming.player)}
+                name={confirming.player.name}
+                size="md"
+              />
+              <div style={{ fontSize: 17, fontWeight: 800 }}>{confirming.player.name}</div>
+            </div>
             <div className="muted">
               {POSITION_LABELS[confirming.player.mainPosition]} / {confirming.player.age}歳 /{' '}
               推定能力 {abilityRangeText(reports.get(confirming.id)!)}

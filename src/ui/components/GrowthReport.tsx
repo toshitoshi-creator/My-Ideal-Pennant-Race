@@ -1,6 +1,9 @@
-import type { GrowthReport } from '../../domain/types';
+import { useMemo } from 'react';
+import type { GrowthReport, RetiredPlayerRecord } from '../../domain/types';
 import { Sheet } from './common';
 import { rankOf } from '../../domain/rank';
+import { faceFromId } from '../../domain/visuals';
+import { PlayerPortrait } from './visuals/PlayerPortrait';
 
 /**
  * シーズン終了時の成長・衰退の演出（PHASE 2）。
@@ -23,12 +26,7 @@ export function GrowthReportSheet({
         <div className="card" style={{ borderColor: 'var(--line)' }}>
           <h2>今季かぎりで引退</h2>
           {report.retirements.map((entry) => (
-            <div key={entry.playerId} style={{ padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
-              <div style={{ fontSize: 16, fontWeight: 800 }}>{entry.name}</div>
-              <div className="muted">
-                {entry.age}歳 / 在籍{entry.years}年 / 最終総合 {entry.finalOverall}
-              </div>
-            </div>
+            <RetirementRow key={entry.playerId} entry={entry} />
           ))}
           <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
             長い間おつかれさまでした。
@@ -132,6 +130,29 @@ function PlayerGrowth({
           {entry.name}選手の能力が低下しました。
         </div>
       )}
+    </div>
+  );
+}
+
+
+/**
+ * PHASE 4.5 引退の一枚（§25）。
+ *
+ * 現役時代と同じ顔を、帽子を脱いだ形で置く。
+ * 記録は GrowthReport にあるものだけを出し、存在しない実績は書かない。
+ */
+function RetirementRow({ entry }: { entry: RetiredPlayerRecord }) {
+  const visual = useMemo(() => faceFromId(entry.playerId, entry.age), [entry]);
+  return (
+    <div className="retire-row">
+      <PlayerPortrait visual={visual} name={entry.name} size="sm" />
+      <div className="grow">
+        <div style={{ fontSize: 16, fontWeight: 800 }}>{entry.name}</div>
+        <div className="muted">
+          {entry.age}歳 / 在籍{entry.years}年 / 最終総合 {entry.finalOverall}
+        </div>
+      </div>
+      <span className="label">RETIRED</span>
     </div>
   );
 }

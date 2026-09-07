@@ -75,6 +75,20 @@
 
   --radius: 3px;
   --nav-h: 56px;
+
+  /* PHASE 4.5 資料写真の色。紙とインクの世界に収まる範囲だけを使う（§28） */
+  --skin-1: oklch(87.0% 0.020 62);
+  --skin-2: oklch(80.0% 0.026 55);
+  --skin-3: oklch(71.0% 0.030 48);
+  --skin-4: oklch(61.0% 0.030 44);
+  --hair-1: oklch(30.0% 0.014 265);
+  --hair-2: oklch(38.0% 0.030 60);
+  --hair-3: oklch(52.0% 0.026 70);
+  --photo-bg: oklch(91.0% 0.011 85);
+  --sky-day: oklch(89.0% 0.024 230);
+  --sky-night: oklch(40.0% 0.036 255);
+  --grass-field: oklch(62.0% 0.070 145);
+  --dirt-field: oklch(72.0% 0.055 62);
 }
 
 * {
@@ -1527,6 +1541,13 @@ h3.sec {
   gap: var(--space-sm);
 }
 
+/* PHASE 4.5: 見出しに写真が入ったので、名前の行に背番号を寄せる */
+.profile-name .profile-no {
+  font-size: var(--text-lg);
+  margin-right: var(--space-xs);
+  vertical-align: 2px;
+}
+
 .profile-no {
   flex: 0 0 auto;
   font-size: 27px;
@@ -2962,4 +2983,522 @@ h3.sec {
   margin: var(--space-2xs) 0 var(--space-sm);
   font-size: var(--text-sm);
   line-height: 1.7;
+}
+
+/* ================= PHASE 4.5 資料写真・球場・出来事 ================= */
+
+/*
+ * 画像は「箱」に入れない（§29）。角丸カードにせず、紙面の写真として置く。
+ * 枠は付けず、下に細い罫を引いて「資料に貼られた写真」に見せる。
+ */
+
+.portrait {
+  display: block;
+  background: var(--photo-bg);
+}
+
+.portrait-paper {
+  fill: var(--photo-bg);
+}
+
+.portrait-line {
+  stroke: var(--ink);
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.portrait-stroke {
+  stroke: var(--ink-2);
+  stroke-width: 1.2;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.portrait-eye {
+  fill: var(--ink);
+}
+
+.portrait-jersey {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.portrait-silhouette {
+  fill: var(--rule-2);
+}
+
+/* 状態で「濃さ」だけを変える。色で良し悪しを表さない（§48） */
+.portrait-slump,
+.portrait-injured {
+  filter: saturate(0.55);
+}
+
+.portrait-retired {
+  filter: saturate(0.3);
+}
+
+/* ---- 選手名鑑の見出し写真 ---- */
+
+.player-photo {
+  flex: 0 0 auto;
+  margin: 0;
+  width: 96px;
+}
+
+.photo-caption {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 3px;
+  padding-top: 3px;
+  border-top: 1px solid var(--rule);
+  line-height: 1.35;
+}
+
+.photo-caption-ja {
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+}
+
+/* 一覧に並ぶ小さな顔 */
+.row-portrait {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--rule);
+}
+
+/* ---- 球団章・ユニフォーム ---- */
+
+.team-mark {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.team-uniform {
+  display: block;
+}
+
+.uniform-number {
+  font-family: var(--font-body);
+  font-size: 17px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.team-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0;
+}
+
+.team-identity-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.team-identity-name {
+  font-weight: 800;
+  font-size: var(--text-md);
+}
+
+/* ---- 球場 ---- */
+
+.stadium {
+  display: block;
+  width: 100%;
+}
+
+.sky-day {
+  fill: var(--sky-day);
+}
+
+.sky-night {
+  fill: var(--sky-night);
+}
+
+.stadium-stand {
+  fill: var(--paper-3);
+  stroke: var(--ink-2);
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.stadium-roof {
+  fill: var(--paper-2);
+  stroke: var(--ink-2);
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.stadium-line {
+  stroke: var(--ink-2);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.light-on {
+  fill: var(--brass);
+}
+
+.light-off {
+  fill: var(--paper-3);
+  stroke: var(--ink-3);
+  stroke-width: 0.6;
+}
+
+.crowd circle {
+  fill: var(--ink-2);
+  opacity: 0.5;
+}
+
+.stadium-night .crowd circle,
+.stadium-postseason .crowd circle {
+  fill: var(--paper-2);
+  opacity: 0.55;
+}
+
+.field-grass {
+  fill: var(--grass-field);
+}
+
+.field-dirt {
+  fill: var(--dirt-field);
+}
+
+.field-base {
+  fill: var(--paper);
+  stroke: var(--ink-2);
+  stroke-width: 0.6;
+}
+
+.stadium-caption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  padding-top: var(--space-2xs);
+  border-top: 1px solid var(--rule);
+  margin-bottom: var(--space-xs);
+}
+
+/* ---- 出来事の絵 ---- */
+
+.event-scene {
+  display: block;
+  width: 100%;
+}
+
+.event-paper {
+  fill: var(--photo-bg);
+}
+
+.ball {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.ball-path {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 1.4;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.fence {
+  stroke: var(--ink-2);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.figure-line {
+  stroke: var(--ink);
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.bat,
+.bat-swing {
+  stroke: var(--brass);
+  stroke-width: 2.6;
+  fill: none;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.mound {
+  stroke: var(--dirt-field);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.flow-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.flow-line.dim {
+  stroke: var(--ink-3);
+  stroke-width: 1.4;
+}
+
+.board {
+  fill: var(--paper-2);
+  stroke: var(--ink-2);
+  stroke-width: 0.8;
+}
+
+.board-line {
+  stroke: var(--rule-2);
+  stroke-width: 0.8;
+}
+
+.zero-row circle {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.halftone circle {
+  fill: var(--ink);
+  opacity: 0.05;
+}
+
+/* ---- 出来事の紙面 ---- */
+
+.event-plate {
+  padding: var(--space-xs) 0 var(--space-sm);
+  border-top: 2px solid var(--ink);
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: var(--space-sm);
+}
+
+.event-plate-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-2xs);
+}
+
+.event-plate-ja {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.event-plate-inning {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.event-plate-text {
+  margin: var(--space-2xs) 0 0;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+/* Sランクの出来事だけ、見出しを大きく扱う（§47） */
+.event-plate.rank-s .event-plate-ja {
+  font-size: 25px;
+}
+
+/* ---- 画像の出現（§30：絵 → 文字 → 数字 の順） ---- */
+
+@keyframes photo-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.photo-in {
+  animation: photo-in 320ms var(--ease-out) both;
+}
+
+.photo-in-late {
+  animation: photo-in 320ms var(--ease-out) 140ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photo-in,
+  .photo-in-late {
+    animation: none !important;
+  }
+}
+
+/* ---- 対戦カード（試合前） ---- */
+
+.matchup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: var(--space-xs);
+}
+
+.matchup-side {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  font-weight: 800;
+  font-size: var(--text-md);
+}
+
+.matchup-vs {
+  font-size: var(--text-label);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--ink-3);
+  text-transform: uppercase;
+}
+
+/* ---- 出来事の紙面の図と文 ---- */
+
+.event-plate-figure {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  margin-top: var(--space-2xs);
+}
+
+.event-plate-figure .portrait {
+  flex: 0 0 auto;
+}
+
+.event-plate-figure .event-plate-text {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+
+
+/* ---- ニュースに添える絵（§20） ---- */
+
+.news-visual {
+  margin: 0 0 var(--space-xs);
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-xs);
+}
+
+.news-visual figcaption {
+  padding-bottom: 2px;
+}
+
+.news-visual-wide {
+  display: block;
+}
+
+.news-visual-wide figcaption {
+  display: block;
+  padding-top: 3px;
+  border-top: 1px solid var(--rule);
+}
+
+/* 速報の絵は大きく、通常は控えめに（§20） */
+.news-lead .news-visual {
+  margin-bottom: var(--space-sm);
+}
+
+
+/* ---- 優勝の紙面（§26） ---- */
+
+.champion-plate {
+  margin-top: var(--space-sm);
+  padding: var(--space-xs) 0 var(--space-sm);
+  border-top: 1px solid var(--rule-2);
+  border-bottom: 1px solid var(--rule);
+}
+
+.champion-plate.champion-japan {
+  border-top: 3px solid var(--ink);
+  border-bottom: 2px solid var(--ink);
+}
+
+.champion-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.champion-year {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.champion-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: var(--space-2xs) 0 var(--space-xs);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.champion-japan .champion-title {
+  font-size: 25px;
+  color: var(--brass);
+}
+
+/* ---- ドラフトの指名確認 ---- */
+
+.draft-confirm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-2xs);
+}
+
+
+/* ---- 引退の行（§25） ---- */
+
+.retire-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.retire-row .label {
+  flex: 0 0 auto;
+}
+
+
+/* ---- 行の中の球団章 ---- */
+
+.mark-inline {
+  display: inline-block;
+  vertical-align: -3px;
+  margin-right: 3px;
+}
+
+/* 机の頭・対戦カードに置いた球団章 */
+.desk-team {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.next-team {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
 }

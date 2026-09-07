@@ -11,6 +11,9 @@ import type { DepthSlot } from '../../domain/rosterAnalysis';
 import { useGame } from '../store';
 import { AxisBar, RadarChart, Stars } from './charts';
 import type { RadarAxis } from '../../domain/playerAnalysis';
+import { teamVisual, stadiumMoodForDate } from '../../domain/visuals';
+import { TeamMark, TeamUniform, StadiumScene } from './visuals/TeamVisuals';
+import { useFirstVisit, useReducedMotion } from '../anim';
 
 /*
  * 状態の色。design.md のトークンだけを使う（生の16進数は書かない）。
@@ -55,6 +58,8 @@ export function TeamAnalysisPanel() {
     <>
       <div className="card">
         <Sec en="CLUB REPORT" ja="球団レポート" size="lead" />
+        {/* PHASE 4.5: 球団の姿を先に見せてから、状態と課題に入る（§11） */}
+        <ClubIdentity teamId={teamId} />
         <div className="spread">
           <span
             className="chip on"
@@ -264,5 +269,43 @@ function PlanBlock({
         </div>
       ))}
     </section>
+  );
+}
+
+
+/**
+ * PHASE 4.5 球団の姿（§11・§12）。
+ * 球団章・ユニフォーム・本拠地。実在球団のものは使わず、teamId から組み立てる（§35）。
+ */
+function ClubIdentity({ teamId }: { teamId: string }) {
+  const { state } = useGame();
+  const reduced = useReducedMotion();
+  const first = useFirstVisit(`club:${teamId}`);
+  const team = state.teams.find((t) => t.id === teamId);
+  const visual = useMemo(() => (team ? teamVisual(team) : null), [team]);
+  if (!team || !visual) return null;
+  const mood = stadiumMoodForDate(state.date);
+
+  return (
+    <div className={first && !reduced ? 'photo-in' : undefined}>
+      <div className="team-identity">
+        <TeamMark visual={visual} name={team.name} size={40} />
+        <div className="team-identity-body">
+          <div className="team-identity-name">{team.name}</div>
+          <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>
+            本拠地 {visual.stadiumName}
+          </div>
+        </div>
+        <TeamUniform visual={visual} name={team.name} size={52} />
+      </div>
+      <StadiumScene visual={visual} name={visual.stadiumName} mood={mood} height={104} />
+      {/* 絵だけで伝えない（§44） */}
+      <div className="stadium-caption">
+        <span className="label">HOME GROUND</span>
+        <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>
+          {visual.stadiumName}
+        </span>
+      </div>
+    </div>
   );
 }

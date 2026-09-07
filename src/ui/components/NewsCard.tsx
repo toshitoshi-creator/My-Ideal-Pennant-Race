@@ -3,6 +3,7 @@ import { CATEGORY_LABELS } from '../../domain/news';
 import { formatDateJa } from '../../domain/dates';
 import type { NewsCategory, NewsItem } from '../../domain/types';
 import { staggerDelay, useFirstVisit, useReducedMotion } from '../anim';
+import { NewsVisual } from './visuals/NewsVisual';
 
 /** 少しだけ強調してよいニュース（§20） */
 const EMPHASISED = new Set<NewsCategory>([
@@ -64,6 +65,7 @@ export function NewsCard({
         {team && <span className="news-team">{team.shortName}</span>}
         {isNew && <span className="news-new">NEW</span>}
       </div>
+      <NewsVisual item={item} tier={tier} />
       <h3 className="news-title">
         {item.playerId && onSelectPlayer ? (
           <button className="linky" onClick={() => onSelectPlayer(item.playerId!)}>

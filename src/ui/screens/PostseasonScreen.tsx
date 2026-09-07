@@ -1,4 +1,6 @@
 import { useGame } from '../store';
+import { teamVisual } from '../../domain/visuals';
+import { StadiumScene, TeamMark } from '../components/visuals/TeamVisuals';
 import { Sec } from '../components/Sec';
 import {
   STAGE_LABELS,
@@ -51,27 +53,14 @@ export function PostseasonScreen() {
         <h2>{state.year}年 ポストシーズン</h2>
         <div style={{ fontSize: 18, fontWeight: 800 }}>{phaseLabel(postseason.phase)}</div>
         {/* PHASE 4.1: 日本一だけ特別な演出にする（毎回派手にはしない） */}
-        {champion && (
-          <div className="banner japan pop-in" style={{ marginTop: 10 }}>
-            <div style={{ fontSize: 13, letterSpacing: '0.16em', color: 'var(--text-dim)' }}>
-              JAPAN SERIES CHAMPION
-            </div>
-            🏆 {state.year}年 日本一　{teamName(champion)}
-          </div>
-        )}
+        {champion && <ChampionPlate teamId={champion} kind="JAPAN" />}
         {champion === myTeam && (
           <div className="muted" style={{ marginTop: 6, textAlign: 'center' }}>
             おめでとうございます。日本一です。
           </div>
         )}
-        {!champion && leagueWinners.length > 0 && (
-          <div className="banner league pop-in" style={{ marginTop: 10 }}>
-            <div style={{ fontSize: 12, letterSpacing: '0.16em', color: 'var(--text-dim)' }}>
-              LEAGUE CHAMPION
-            </div>
-            {leagueWinners.map((id) => teamName(id)).join('　/　')}
-          </div>
-        )}
+        {!champion &&
+          leagueWinners.map((id) => <ChampionPlate key={id} teamId={id} kind="LEAGUE" />)}
       </div>
 
       <div className="card">
@@ -204,5 +193,44 @@ function SeriesCard({ series }: { series: SeriesState }) {
         </div>
       )}
     </div>
+  );
+}
+
+
+/**
+ * PHASE 4.5 優勝の紙面（§26）。
+ *
+ * 紙吹雪もネオンも出さない。新聞の一面と球団の記念写真として置く。
+ * 日本一とリーグ優勝は、罫の太さと球場の空気で差をつける。
+ */
+function ChampionPlate({ teamId, kind }: { teamId: string; kind: 'JAPAN' | 'LEAGUE' }) {
+  const { state } = useGame();
+  const team = state.teams.find((t) => t.id === teamId);
+  if (!team) return null;
+  const visual = teamVisual(team);
+  const japan = kind === 'JAPAN';
+  return (
+    <section className={`champion-plate${japan ? ' champion-japan' : ''}`}>
+      <div className="champion-head">
+        <span className="label">{japan ? 'JAPAN SERIES CHAMPION' : 'LEAGUE CHAMPION'}</span>
+        <span className="champion-year">{state.year}</span>
+      </div>
+      <div className="champion-title">
+        <TeamMark visual={visual} name={team.name} size={japan ? 42 : 32} />
+        <span>{team.name}</span>
+      </div>
+      <StadiumScene
+        visual={visual}
+        name={visual.stadiumName}
+        mood="CHAMPION"
+        height={japan ? 110 : 84}
+      />
+      <div className="stadium-caption">
+        <span className="label">{japan ? 'JAPAN CHAMPIONS' : 'PENNANT WINNERS'}</span>
+        <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>
+          {japan ? `${state.year}年 日本一` : `${state.year}年 リーグ優勝`}
+        </span>
+      </div>
+    </section>
   );
 }

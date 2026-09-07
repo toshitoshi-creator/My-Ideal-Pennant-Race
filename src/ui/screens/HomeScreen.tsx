@@ -24,6 +24,8 @@ import { NewsCard } from '../components/NewsCard';
 import { GmDeskNote } from '../components/GmDeskNote';
 import { buildGmDesk, type GmDeskLink } from '../../domain/gmDesk';
 import { buildPreGameBrief } from '../../domain/gameBrief';
+import { teamVisual, stadiumMoodForDate } from '../../domain/visuals';
+import { TeamMark, StadiumScene } from '../components/visuals/TeamVisuals';
 import {
   planSummary,
   targetLabels,
@@ -92,7 +94,9 @@ export function HomeScreen() {
           <span className="label">{state.year} SEASON</span>
           <span className="label">{league.name}</span>
         </div>
+        {/* PHASE 4.5: 机の上に球団の資料が置かれている（§13）。カードは増やさない */}
         <h2 className="desk-team" style={{ borderBottomColor: team.color }}>
+          <TeamMark visual={teamVisual(team)} name={team.name} size={28} />
           {team.name}
         </h2>
         <div className="desk-line">
@@ -125,10 +129,22 @@ export function HomeScreen() {
         <Sec en="PRE-GAME BRIEF" ja="試合前資料" size="lead" />
         {next && opponent && brief ? (
           <>
+            <StadiumScene
+              visual={teamVisual(brief.homeAway === 'HOME' ? team : opponent)}
+              name={teamVisual(brief.homeAway === 'HOME' ? team : opponent).stadiumName}
+              mood={stadiumMoodForDate(next.date)}
+              height={92}
+            />
             <div className="next-matchup">
-              <span className="next-team">{team.shortName}</span>
+              <span className="next-team">
+                <TeamMark visual={teamVisual(team)} name={team.name} size={22} />
+                {team.shortName}
+              </span>
               <span className="next-vs">vs</span>
-              <span className="next-team">{opponent.shortName}</span>
+              <span className="next-team">
+                <TeamMark visual={teamVisual(opponent)} name={opponent.name} size={22} />
+                {opponent.shortName}
+              </span>
             </div>
             <div className="next-meta">
               {formatDateJa(next.date)}・{brief.homeAway === 'HOME' ? 'ホーム' : 'ビジター'}
