@@ -52,6 +52,7 @@ import {
   rosterCount,
 } from './draft';
 import { startOffseason, completeOffseason } from './season';
+import { syncCpuDirections } from './club';
 import { migrateV14ToV15 } from './migrate';
 import { migrate } from './save';
 import { analyzePlayer } from './playerAnalysis';
@@ -1748,5 +1749,64 @@ describe('ドラフト会議', () => {
       expect(count).toBeLessThanOrEqual(40);
     }
     expect(validateState(s)).toEqual([]);
+  });
+});
+
+
+/* ================================================================
+ * 11. ドラフトを直したときに表に出た、元からあった2つのずれ
+ * ============================================================== */
+
+describe('オフシーズンの順序', () => {
+  it('新人の契約年数が入団した時点で減っていない', () => {
+    // 契約年数を進める処理より後に新人を加えないと、今季を1試合も戦っていない
+    // 下位指名の新人が「入団した時点で残り1年」になってしまう
+    let s = createNewGame(PLAYER_TEAM, 30, 4242);
+    for (let i = 0; i < 2; i++) {
+      s = playSeason(s);
+      s = cloneState(s);
+      startOffseason(s);
+      completeOffseason(s);
+    }
+    const rookies = s.players.filter((p) => p.ext.debutYear === s.year);
+    expect(rookies.length).toBeGreaterThan(0);
+    for (const rookie of rookies) {
+      expect(rookie.ext.contract).not.toBeNull();
+      // 新人契約は最短でも2年。入団直後に1年へ減っていてはいけない
+      expect(rookie.ext.contract!.yearsRemaining).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('下位指名の新人でも契約年数が残っている', () => {
+    let s = createNewGame(PLAYER_TEAM, 30, 111);
+    s = playSeason(s);
+    s = cloneState(s);
+    startOffseason(s);
+    const draft = s.draft!;
+    completeOffseason(s);
+    const late = draft.picks.filter((p) => p.round >= 4);
+    expect(late.length).toBeGreaterThan(0);
+    for (const pick of late) {
+      const prospect = draft.prospects.find((x) => x.id === pick.prospectId)!;
+      const rookie = s.players.find((p) => p.id === prospect.player.id);
+      if (!rookie) continue; // 戦力外になった場合は対象外
+      expect(rookie.ext.contract!.yearsRemaining).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('シーズン開始時点でCPUの方針がルールと食い違わない', () => {
+    // 方針はオフシーズンの入口でも決めるが、その後ドラフト・FA・戦力外で
+    // 戦力が動く。動いたあとに取り直していないと古い方針のまま開幕してしまう
+    for (const seed of [4206, 111, 222]) {
+      let s = createNewGame(PLAYER_TEAM, 30, seed);
+      for (let i = 0; i < 2; i++) {
+        s = playSeason(s);
+        s = cloneState(s);
+        startNextSeason(s);
+      }
+      const before = s.teams.map((t) => s.clubs[t.id].direction);
+      syncCpuDirections(s);
+      expect(s.teams.map((t) => s.clubs[t.id].direction)).toEqual(before);
+    }
   });
 });

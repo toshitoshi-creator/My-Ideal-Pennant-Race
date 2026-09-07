@@ -312,6 +312,16 @@ export function startContractPhase(state: GameState): Player[] {
   const rng = new Rng(state.rngState);
 
   const rookies = draft ? finishDraft(state, state.teams) : [];
+
+  /*
+   * 契約年数を1年進める（1シーズンに1回だけ）。
+   *
+   * 新人を加える前に行う。あとで行うと、今季をまだ1試合も戦っていない新人の
+   * 契約年数まで一緒に減ってしまい、2年契約の下位指名選手が
+   * 「入団した時点で残り1年」という状態でシーズンを迎えてしまう。
+   */
+  const renewalTargets = tickContracts(state).length;
+
   for (const rookie of rookies) {
     // 新人は自動的に新人契約を結ぶ（無契約でシーズンに入らない）
     const pick = draft?.picks.find((p) => {
@@ -327,9 +337,6 @@ export function startContractPhase(state: GameState): Player[] {
 
   // PHASE 3.6: ドラフトの結果を補強ポイントに反映する
   refreshNeedsAfterDraft(state);
-
-  // 契約年数を1年進める（1シーズンに1回だけ）
-  const renewalTargets = tickContracts(state).length;
   state.lastOffseason = {
     year: state.year,
     retired: state.retiredPlayers.filter((r) => r.retiredAt === state.year).length,
@@ -441,6 +448,16 @@ export function completeOffseason(state: GameState): Player[] {
   const released = faUnsigned - listedBefore;
 
   state.fa = null;
+  /*
+   * PHASE 4.0: CPUの方針を、確定したロスターで取り直す。
+   *
+   * 方針は startOffseason でも決めているが、その時点ではドラフト・契約更改・
+   * FA・戦力外がまだ済んでいない。戦力が動いたあとに取り直さないと、
+   * 「リーグ平均より戦力が薄いのに再建になっていない」といった食い違いが
+   * 残ったままシーズンが始まる（トレード画面には相手の方針を出している）。
+   * 同じ入力からは同じ結果になるので、二度呼んでも何も変わらない。
+   */
+  syncCpuDirections(state);
   state.lastOffseason = {
     year: state.year,
     retired: state.retiredPlayers.filter((r) => r.retiredAt === state.year).length,
