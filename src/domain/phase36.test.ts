@@ -757,10 +757,21 @@ describe('PHASE3.6 施策の連携', () => {
   });
 
   it('トレードの成立がプランに記録される', () => {
-    let s = newGame(30, 1702);
-    for (let i = 0; i < 25; i++) s = advanceDay(s).state;
-    const trades = s.teams.map((t) => s.teamPlans[t.id]?.log.tradesDone ?? 0);
-    expect(trades.some((n) => n > 0)).toBe(true);
+    // トレードは1シーズンに数件しか起きず、1件も起きないシードもある。
+    // 成立したシードを探して、両球団のプランに記録が残ることを確かめる。
+    let checked = false;
+    for (const seed of [1702, 1704, 999, 12345, 4242]) {
+      let s = newGame(30, seed);
+      for (let i = 0; i < 60 && !s.seasonFinished; i++) s = advanceDay(s).state;
+      if (s.trade.history.length === 0) continue;
+      const trades = s.teams.map((t) => s.teamPlans[t.id]?.log.tradesDone ?? 0);
+      expect(trades.some((n) => n > 0)).toBe(true);
+      // 1件のトレードは、出した側と受けた側の両方に記録される
+      expect(trades.reduce((a, b) => a + b, 0)).toBe(s.trade.history.length * 2);
+      checked = true;
+      break;
+    }
+    expect(checked).toBe(true);
   });
 
   it('補強ポイントが埋まった枠は必要度が下がったままになる', () => {

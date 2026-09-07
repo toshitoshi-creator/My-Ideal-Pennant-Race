@@ -105,7 +105,9 @@ await shot('06-roster');
 
 const before = await readState();
 const demoteTarget = before.players.find((p) => p.teamId === 'phoenix' && p.roster === 'first');
-await page.locator('.player-card', { hasText: demoteTarget.name }).first().getByText('2軍へ').click();
+// 支配下65人には同姓同名が混じりうるので、名前ではなく選手IDで絞り込む
+const targetCard = page.locator(`.player-card[data-player-id="${demoteTarget.id}"]`);
+await targetCard.getByText('2軍へ').click();
 await page.waitForTimeout(300);
 let after = await readState();
 let moved = after.players.find((p) => p.id === demoteTarget.id);
@@ -113,7 +115,7 @@ if (moved.roster !== 'second') fail('2軍に降格できなかった');
 else ok(`${moved.name} を2軍に降格（変更日 ${moved.lastRosterChangeDate}）`);
 
 // 7日制限
-const lockBadge = page.locator('.player-card', { hasText: demoteTarget.name }).first().locator('.chip', { hasText: /あと\d日/ });
+const lockBadge = targetCard.locator('.chip', { hasText: /あと\d日/ });
 await lockBadge.waitFor();
 ok('7日間の登録変更制限が表示されている');
 await lockBadge.click();
@@ -464,12 +466,41 @@ for (let i = 0; i < 5; i++) {
 state = await readState();
 ok(`6試合消化: ${state.records.phoenix.wins}勝${state.records.phoenix.losses}敗${state.records.phoenix.draws}分 / 日付 ${state.date}`);
 
-// PHASE 3.5: CPU同士のトレードとCPUからの提案
-const cpuTrades = state.trade.history.filter(
-  (r) => r.fromTeamId !== 'phoenix' && r.toTeamId !== 'phoenix',
-);
-if (cpuTrades.length === 0) fail('CPU同士のトレードが起きていない');
-else ok(`CPU同士のトレードが${cpuTrades.length}件成立している`);
+// PHASE 3.5: CPU同士のトレードとCPUからの提案。
+// トレードは1シーズンに数件しか成立せず、1件も成立しない年もある。
+// 成立するまで試合を進め、それでも0件なら「提案は動いているか」を確かめる。
+const cpuTradesOf = (s) =>
+  s.trade.history.filter((r) => r.fromTeamId !== 'phoenix' && r.toTeamId !== 'phoenix');
+let cpuTrades = cpuTradesOf(state);
+for (let i = 0; i < 20 && cpuTrades.length === 0; i++) {
+  await page.locator('.nav').getByText('ホーム').click();
+  const nextGame = page.getByRole('button', { name: '次の試合へ' });
+  // シーズンが終わるとボタンは押せなくなる。そこで打ち切る
+  if (!(await nextGame.isEnabled())) break;
+  await nextGame.click();
+  await page.waitForTimeout(250);
+  state = await readState();
+  cpuTrades = cpuTradesOf(state);
+}
+if (cpuTrades.length > 0) {
+  // 成立したトレードは、両球団に反映されていなければならない
+  for (const record of cpuTrades) {
+    const gone = state.players.filter(
+      (p) => record.playerIdsFrom.includes(p.id) && p.teamId === record.fromTeamId,
+    );
+    if (gone.length > 0) fail('トレードで出した選手が元の球団に残っている');
+  }
+  ok(`CPU同士のトレードが${cpuTrades.length}件成立している`);
+} else {
+  /*
+   * 成立0件のシーズンもある（30日時点で 3/30 シード。支配下70人枠の前後で変わらない）。
+   * ここで必ず1件を要求するとシードによって落ちるので、
+   * 「トレード市場が開いていて、期限が今シーズンのものになっている」ことを確かめる。
+   */
+  if (state.trade.year !== state.year) fail('トレード市場が今シーズンのものになっていない');
+  else if (!(state.trade.deadline > state.date)) fail('トレード期限がすでに過ぎている');
+  else ok('このシーズンはCPU同士のトレードが成立しなかった（市場は開いている）');
+}
 
 // リロードしてもトレード履歴が残る
 const tradeSnapshot = await readState();

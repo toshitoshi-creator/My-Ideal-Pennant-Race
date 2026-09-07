@@ -34,7 +34,13 @@ export function PlayerCard({
       )} 走力${rankOf(player.batting.speed)} 守備${rankOf(defenseRating(player))}`;
 
   return (
-    <button className="player-card" onClick={onClick} disabled={!onClick}>
+    <button
+      className="player-card"
+      // 同姓同名でも1人に絞り込めるようにしておく（E2E から使う）
+      data-player-id={player.id}
+      onClick={onClick}
+      disabled={!onClick}
+    >
       {/* PHASE 4.5: 一覧でも顔が出る。詳細と同じ顔になる（§7） */}
       <RowPortrait player={player} />
       <span className="pos">{POSITION_SHORT[player.mainPosition]}</span>

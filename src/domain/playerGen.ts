@@ -382,6 +382,8 @@ export interface CreatePlayerOptions {
   startYear?: number;
   /** 背番号の重複を避けるための集合 */
   usedNumbers?: Set<number>;
+  /** 同姓同名を避けるための集合（すでに使った氏名） */
+  usedNames?: Set<string>;
   /** 先発候補としてスタミナを高めにする */
   starterStamina?: boolean;
   /** 潜在能力の上乗せ（伸びしろの大きい選手を作るとき） */
@@ -392,8 +394,22 @@ export function createPlayer(rng: Rng, options: CreatePlayerOptions): Player {
   const { teamId, mainPosition, mean } = options;
   const startYear = options.startYear ?? 2026;
   const used = options.usedNumbers ?? new Set<number>();
-  const [surname, surnameKana] = rng.pick(SURNAMES);
-  const [given, givenKana] = rng.pick(GIVEN_NAMES);
+  /*
+   * 同姓同名は避ける。支配下は70人まであるので、
+   * 同じ球団に同じ名前が2人いると、GMが誰の話なのか分からなくなる。
+   * 何度か引き直しても重なるときは、そのまま使う（無限には回さない）。
+   */
+  const usedNames = options.usedNames;
+  let surname = '';
+  let surnameKana = '';
+  let given = '';
+  let givenKana = '';
+  for (let attempt = 0; attempt < 12; attempt++) {
+    [surname, surnameKana] = rng.pick(SURNAMES);
+    [given, givenKana] = rng.pick(GIVEN_NAMES);
+    if (!usedNames || !usedNames.has(`${surname} ${given}`)) break;
+  }
+  usedNames?.add(`${surname} ${given}`);
   const isPitcher = mainPosition === 'P';
 
   const subPositions: PositionId[] = [];
@@ -483,6 +499,7 @@ export function generateTeamPlayers(rng: Rng, options: GeneratePlayersOptions): 
   const starCount = options.starCount ?? 1;
   const [starMin, starMax] = options.starBonus ?? [12, 22];
   const used = new Set<number>();
+  const usedNames = new Set<string>();
   // 主力は上位層から出す。65人の中から無作為に選ぶと、
   // 2軍の底にだけ突出した選手がいる球団ができてしまう
   const starPool = Math.max(1, Math.min(count, Math.round(count * 0.4)));
@@ -507,6 +524,7 @@ export function generateTeamPlayers(rng: Rng, options: GeneratePlayersOptions): 
         mean: strength + bonus - penalty,
         startYear,
         usedNumbers: used,
+        usedNames,
         // 各球団の上位 ROTATION_SIZE 人の投手だけを先発型のスタミナで作る
         starterStamina: isPitcher && pitchers <= ROTATION_SIZE,
       }),

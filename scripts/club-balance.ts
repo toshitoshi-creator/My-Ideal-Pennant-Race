@@ -46,6 +46,8 @@ interface SeedResult {
   failures: string[];
   age: number[];
   overall: number[];
+  /** 1軍登録選手の平均総合 */
+  firstOverall: number[];
   rookieOverall: number[];
   retirements: number[];
   draftees: number[];
@@ -77,6 +79,7 @@ function emptyResult(seed: number, direction: ClubDirection): SeedResult {
     failures: [],
     age: [],
     overall: [],
+    firstOverall: [],
     rookieOverall: [],
     retirements: [],
     draftees: [],
@@ -137,6 +140,11 @@ function runSeed(seed: number, direction: ClubDirection): SeedResult {
     const roster = state.players;
     result.age.push(avg(roster.map((p) => p.age)));
     result.overall.push(avg(roster.map((p) => overallRating(p))));
+    // 支配下70人のうち、実際に試合に出る1軍の水準。
+    // 保有選手の平均は2軍の厚みに引っ張られるので、別に見る
+    result.firstOverall.push(
+      avg(roster.filter((p) => p.roster === 'first').map((p) => overallRating(p))),
+    );
     result.salary.push(avg(roster.map((p) => (p.ext.contract?.salary ?? 0))));
 
     const rookies = roster.filter((p) => p.ext.debutYear === state.year);
@@ -271,7 +279,13 @@ console.log(`=== PHASE 4.0 球団経営の検証（${SEASONS}シーズン × ${r
 const flat = (pick: (r: SeedResult) => number[]) => results.flatMap(pick);
 const meanAge = avg(flat((r) => r.age));
 const meanOverall = avg(flat((r) => r.overall));
-console.log(`平均年齢 ${r1(meanAge)}歳 / 平均総合 ${r1(meanOverall)}`);
+const meanFirstOverall = avg(flat((r) => r.firstOverall ?? []));
+console.log(
+  `平均年齢 ${r1(meanAge)}歳 / 平均総合 ${r1(meanOverall)}（支配下65人）` +
+    (Number.isFinite(meanFirstOverall) && meanFirstOverall > 0
+      ? ` / 1軍の平均総合 ${r1(meanFirstOverall)}`
+      : ''),
+);
 console.log(
   `新人の平均総合 ${r1(avg(flat((r) => r.rookieOverall)))} / ` +
     `若手(23歳以下)の年間成長 ${r2(avg(flat((r) => r.youngGrowth)))}`,
@@ -375,7 +389,16 @@ const check = (okCond: boolean, msg: string) => {
   if (!okCond) problems.push(msg);
 };
 check(meanAge >= 26 && meanAge <= 29, `平均年齢が範囲外（${r1(meanAge)}）`);
-check(meanOverall >= 39 && meanOverall <= 41, `平均総合が範囲外（${r1(meanOverall)}）`);
+/*
+ * 支配下70人枠にしたぶん、保有選手の平均は2軍の厚みに引っ張られて下がる。
+ * 実際に試合に出る1軍の水準（39〜41だった従来のロスター平均に相当）と、
+ * 支配下全体の水準を、それぞれ別の幅で見る。
+ */
+check(meanOverall >= 34 && meanOverall <= 38, `支配下の平均総合が範囲外（${r1(meanOverall)}）`);
+check(
+  meanFirstOverall >= 40 && meanFirstOverall <= 44,
+  `1軍の平均総合が範囲外（${r1(meanFirstOverall)}）`,
+);
 check(facilityAvg <= MAX_FACILITY_LEVEL, `施設の平均Lvが上限を超えている（${r2(facilityAvg)}）`);
 check(Math.abs(corr) < 0.95, `球団評価が勝率を予測しすぎている（相関${r2(corr)}）`);
 check(
