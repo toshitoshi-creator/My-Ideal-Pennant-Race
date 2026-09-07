@@ -296,7 +296,7 @@ function ProgressBar({ value }: { value: number }) {
         width: 44,
         height: 6,
         borderRadius: 3,
-        background: '#202a37',
+        background: 'var(--paper-3)',
         overflow: 'hidden',
         verticalAlign: 'middle',
       }}
@@ -515,8 +515,9 @@ function ProspectDetail({
                 className="chip"
                 style={{
                   padding: '10px 12px',
-                  background: done || !affordable ? '#2b3646' : 'var(--accent)',
-                  color: done || !affordable ? 'var(--text-dim)' : '#241a00',
+                  background: done || !affordable ? 'var(--paper-2)' : 'var(--accent)',
+                  borderColor: done || !affordable ? 'var(--rule)' : 'var(--accent)',
+                  color: done || !affordable ? 'var(--ink-3)' : 'var(--accent-ink)',
                 }}
                 disabled={done || !affordable}
                 onClick={() => scout(prospect.id, category as ScoutCategory)}

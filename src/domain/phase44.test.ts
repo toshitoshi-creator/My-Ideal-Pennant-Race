@@ -44,6 +44,14 @@ import {
   recentDecisions,
   recordDecision,
 } from './decisions';
+import {
+  MAX_DRAFT_ROUNDS,
+  MIN_DRAFT_ROUNDS,
+  TARGET_ROSTER_SIZE,
+  currentPick,
+  rosterCount,
+} from './draft';
+import { startOffseason, completeOffseason } from './season';
 import { migrateV14ToV15 } from './migrate';
 import { migrate } from './save';
 import { analyzePlayer } from './playerAnalysis';
@@ -1604,5 +1612,141 @@ describe('PHASE 4.4 既存の仕組み', () => {
     expect(sb.records).toEqual(sa.records);
     expect(sb.results.length).toBe(sa.results.length);
     expect(sb.stats).toEqual(sa.stats);
+  });
+});
+
+
+/* ================================================================
+ * 10. ドラフト会議が1巡で終わらないこと
+ *
+ * 巡数を「目標人数までの不足数」だけで決めていたため、引退が少ない年は
+ * 1巡で終わり、しかも不足0の球団は1巡目からまったく指名できなかった。
+ * ============================================================== */
+
+describe('ドラフト会議', () => {
+  /** その年のオフシーズンを進めて、実施されたドラフトを返す */
+  function runDraft(state: GameState) {
+    startOffseason(state);
+    const draft = state.draft!;
+    completeOffseason(state);
+    return draft;
+  }
+
+  function afterDraft(seed: number, years: number) {
+    let s = createNewGame(PLAYER_TEAM, 30, seed);
+    let draft = null as ReturnType<typeof runDraft> | null;
+    for (let i = 0; i < years; i++) {
+      s = playSeason(s);
+      s = cloneState(s);
+      draft = runDraft(s);
+    }
+    return { state: s, draft: draft! };
+  }
+
+  it('必ず3巡以上ある（1巡で終わらない）', () => {
+    for (const seed of [111, 222, 333]) {
+      for (const years of [1, 2, 3]) {
+        const { draft } = afterDraft(seed, years);
+        expect(draft.rounds).toBeGreaterThanOrEqual(MIN_DRAFT_ROUNDS);
+        expect(draft.rounds).toBeLessThanOrEqual(MAX_DRAFT_ROUNDS);
+      }
+    }
+  });
+
+  it('1巡目は12球団すべてが指名する', () => {
+    for (const seed of [111, 222, 333]) {
+      for (const years of [1, 2, 3]) {
+        const { state, draft } = afterDraft(seed, years);
+        const round1 = draft.picks.filter((p) => p.round === 1);
+        expect(new Set(round1.map((p) => p.teamId)).size).toBe(state.teams.length);
+      }
+    }
+  });
+
+  it('どの球団も最低1人は指名できる', () => {
+    for (const seed of [111, 222, 333]) {
+      const { state, draft } = afterDraft(seed, 2);
+      for (const team of state.teams) {
+        expect(draft.picks.filter((p) => p.teamId === team.id).length).toBeGreaterThanOrEqual(1);
+      }
+    }
+  });
+
+  it('同じ指名枠を二重に使わない（他球団の順番を食わない）', () => {
+    for (const seed of [111, 222, 333]) {
+      const { draft } = afterDraft(seed, 2);
+      const slots = draft.picks.map((p) => `${p.round}-${p.pick}`);
+      expect(new Set(slots).size).toBe(slots.length);
+    }
+  });
+
+  it('同じ球団が1巡のなかで2回指名しない', () => {
+    for (const seed of [111, 222, 333]) {
+      const { draft } = afterDraft(seed, 2);
+      const byRound = new Map<number, string[]>();
+      for (const pick of draft.picks) {
+        const list = byRound.get(pick.round) ?? [];
+        list.push(pick.teamId);
+        byRound.set(pick.round, list);
+      }
+      for (const [, teams] of byRound) {
+        expect(new Set(teams).size).toBe(teams.length);
+      }
+    }
+  });
+
+  it('指名順は巡・番の昇順に進む', () => {
+    const { draft } = afterDraft(222, 2);
+    for (let i = 1; i < draft.picks.length; i++) {
+      const prev = draft.picks[i - 1];
+      const now = draft.picks[i];
+      expect(now.round > prev.round || (now.round === prev.round && now.pick > prev.pick)).toBe(true);
+    }
+  });
+
+  it('2巡目以降は目標人数に達した球団が見送る', () => {
+    const { state, draft } = afterDraft(111, 2);
+    for (const pick of draft.picks) {
+      if (pick.round === 1) continue;
+      // 見送りの判定に使う目標人数を大きく超えて取り続けることはない
+      expect(rosterCount(state, pick.teamId)).toBeLessThanOrEqual(
+        TARGET_ROSTER_SIZE + draft.rounds,
+      );
+    }
+  });
+
+  it('全部の枠を使い切ると currentPick が null になる', () => {
+    const { draft } = afterDraft(333, 1);
+    expect(currentPick(draft)).toBeNull();
+    expect(draft.completed).toBe(true);
+  });
+
+  it('候補の数が指名枠より多く、指名は候補の範囲に収まる', () => {
+    const { draft } = afterDraft(111, 1);
+    expect(draft.prospects.length).toBeGreaterThan(draft.picks.length);
+    for (const pick of draft.picks) {
+      expect(draft.prospects.some((p) => p.id === pick.prospectId)).toBe(true);
+    }
+  });
+
+  it('指名された候補が二重に指名されていない', () => {
+    const { draft } = afterDraft(222, 2);
+    const ids = draft.picks.map((p) => p.prospectId);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('30年回しても保有人数が膨らみ続けない', () => {
+    let s = createNewGame(PLAYER_TEAM, 10, 4242);
+    for (let i = 0; i < 30; i++) {
+      s = playSeason(s);
+      s = cloneState(s);
+      runDraft(s);
+    }
+    const counts = s.teams.map((t) => rosterCount(s, t.id));
+    for (const count of counts) {
+      expect(count).toBeGreaterThanOrEqual(24);
+      expect(count).toBeLessThanOrEqual(40);
+    }
+    expect(validateState(s)).toEqual([]);
   });
 });

@@ -31,8 +31,16 @@ import { generateDraftNews } from './news';
 
 /** 1球団あたりの候補数（12球団なら 108人） */
 export const PROSPECTS_PER_TEAM = 9;
-/** 各球団が目標とする保有人数 */
-export const TARGET_ROSTER_SIZE = 25;
+/**
+ * 各球団が目標とする保有人数。
+ *
+ * ここが最低人数（MINIMUM_ROSTER = 24）に近すぎると、引退で空いた1枠を
+ * 埋めるだけの「1人指名して終わり」のドラフトになってしまう。
+ * 数人ぶんの余地を持たせて、毎年きちんと入れ替えが起きるようにする。
+ */
+export const TARGET_ROSTER_SIZE = 27;
+/** ドラフトの最小巡数。人数が足りている年でもここまでは必ず行う */
+export const MIN_DRAFT_ROUNDS = 3;
 /** ドラフトの最大巡数 */
 export const MAX_DRAFT_ROUNDS = 6;
 
@@ -190,7 +198,8 @@ export function createDraft(state: GameState, rng: Rng): DraftState | null {
 
   const needs = rosterNeeds(state);
   const maxNeed = Math.max(0, ...Object.values(needs));
-  const rounds = Math.max(1, Math.min(MAX_DRAFT_ROUNDS, maxNeed));
+  // 人数が足りている年でも最低3巡は行う（1巡目で終わらせない）
+  const rounds = Math.max(MIN_DRAFT_ROUNDS, Math.min(MAX_DRAFT_ROUNDS, maxNeed));
   const prospects = generateProspects(rng, state.year, state.teams.length);
 
   return {
@@ -206,22 +215,42 @@ export function createDraft(state: GameState, rng: Rng): DraftState | null {
   };
 }
 
+/**
+ * 指名枠を順に見ていく。
+ *
+ * 枠は「巡 → 指名順」の順に並んでいて、1巡目は全球団が必ず指名する。
+ * 2巡目以降は、目標人数に達した球団だけが見送る。
+ * （1巡目まで見送らせると、引退が少ない年にドラフトそのものが成立しない）
+ */
+function slotAt(draft: DraftState, index: number): { round: number; pick: number; teamId: string } {
+  const teamCount = draft.order.length;
+  return {
+    round: Math.floor(index / teamCount) + 1,
+    pick: (index % teamCount) + 1,
+    teamId: draft.order[index % teamCount],
+  };
+}
+
+/** cursor 以降で、実際に指名が行われる最初の枠の番号。無ければ -1 */
+function nextSlotIndex(draft: DraftState): number {
+  const total = draft.rounds * draft.order.length;
+  for (let index = draft.cursor; index < total; index++) {
+    const slot = slotAt(draft, index);
+    // 1巡目は全球団が指名する
+    if (slot.round === 1) return index;
+    // 2巡目以降は、まだ枠が空いている球団だけ
+    if ((draft.needs[slot.teamId] ?? 0) > 0) return index;
+  }
+  return -1;
+}
+
 /** 次に指名する球団（ドラフトが終わっていれば null） */
 export function currentPick(
   draft: DraftState,
 ): { round: number; pick: number; teamId: string } | null {
   if (draft.completed) return null;
-  const teamCount = draft.order.length;
-  const total = draft.rounds * teamCount;
-  for (let index = draft.cursor; index < total; index++) {
-    const round = Math.floor(index / teamCount) + 1;
-    const pickInRound = (index % teamCount) + 1;
-    const teamId = draft.order[index % teamCount];
-    // 必要人数を満たした球団は指名しない
-    if ((draft.needs[teamId] ?? 0) <= 0) continue;
-    return { round, pick: pickInRound, teamId };
-  }
-  return null;
+  const index = nextSlotIndex(draft);
+  return index < 0 ? null : slotAt(draft, index);
 }
 
 /** まだ指名されていない候補 */
@@ -265,6 +294,13 @@ function applyPick(
   prospect: DraftProspect,
   slot: { round: number; pick: number; teamId: string },
 ): void {
+  /*
+   * いま使う枠の番号は、needs を減らす前に控えておく。
+   * 減らしたあとに調べ直すと、その球団が枠を使い切った場合に
+   * 「次の枠」を指してしまい、他球団の指名順を1つ飛ばしてしまう。
+   */
+  const used = nextSlotIndex(draft);
+
   prospect.selectedBy = slot.teamId;
   prospect.selectedRound = slot.round;
   prospect.selectedPick = slot.pick;
@@ -275,7 +311,8 @@ function applyPick(
     prospectId: prospect.id,
   });
   draft.needs[slot.teamId] = Math.max(0, (draft.needs[slot.teamId] ?? 0) - 1);
-  draft.cursor += 1;
+  // cursor は「いま使った枠の次」に進める（単純な +1 だと見送った枠のぶんがずれる）
+  draft.cursor = used < 0 ? draft.cursor + 1 : used + 1;
   if (!currentPick(draft)) draft.completed = true;
 }
 
