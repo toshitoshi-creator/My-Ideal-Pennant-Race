@@ -4,8 +4,7 @@ import { useGame } from '../store';
 import { CountUp, RevealRows } from '../components/Reveal';
 import type { FAMarketPlayer, Player } from '../../domain/types';
 import { POSITION_LABELS, POSITION_SHORT } from '../../domain/positions';
-import { prospectVisual } from '../../domain/visuals';
-import { PlayerPortrait } from '../components/visuals/PlayerPortrait';
+import { PlayerPortrait } from '../components/PlayerPortrait';
 import { average, formatAverage, formatEra, formatInnings } from '../../domain/stats';
 import {
   MAX_USER_OFFERS,
@@ -310,12 +309,7 @@ function FACard({
   return (
     <button className="player-card" onClick={onOpen} aria-label={`${player.name} に条件を提示する`}>
       {/* PHASE 4.5: FA市場でも顔が出る。所属が変わっても同じ顔（§7・§22） */}
-      <PlayerPortrait
-        visual={prospectVisual(player)}
-        name={player.name}
-        size="sm"
-        className="row-portrait"
-      />
+      <PlayerPortrait player={player} size="small" showCap={false} className="portrait-row" />
       <span className="pos">{POSITION_SHORT[player.mainPosition]}</span>
       <span className="grow">
         <span className="row" style={{ gap: 6 }}>

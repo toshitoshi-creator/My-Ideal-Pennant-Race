@@ -6,9 +6,9 @@
  */
 import { useMemo } from 'react';
 import type { NewsItem } from '../../../domain/types';
-import { newsVisualKind, playerVisual, teamVisual } from '../../../domain/visuals';
+import { newsVisualKind, teamVisual } from '../../../domain/visuals';
 import { useGame } from '../../store';
-import { PlayerPortrait } from './PlayerPortrait';
+import { PlayerPortrait } from '../PlayerPortrait';
 import { StadiumScene } from './TeamVisuals';
 
 const KIND_LABELS: Record<string, { en: string; ja: string }> = {
@@ -42,9 +42,8 @@ export function NewsVisual({ item, tier }: { item: NewsItem; tier: 'lead' | 'nor
     return (
       <figure className={`news-visual news-visual-${tier}`}>
         <PlayerPortrait
-          visual={playerVisual(state, player)}
-          name={player.name}
-          size={tier === 'lead' ? 'md' : 'sm'}
+          player={player}
+          size={tier === 'lead' ? 'medium' : 'small'}
           teamColor={team?.color}
         />
         <figcaption className="label">{label.en}</figcaption>

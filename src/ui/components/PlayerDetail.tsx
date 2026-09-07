@@ -29,8 +29,8 @@ import { injuryText } from '../../domain/injury';
 import { specialAbilityDef } from '../../domain/specialAbilities';
 import { effectiveBreakdown } from '../../domain/effective';
 import { contractStatus, formatSalary, marketValue } from '../../domain/contract';
-import { playerVisual, retiredVisual, MOOD_CAPTIONS, MOOD_LABELS } from '../../domain/visuals';
-import { PlayerPortrait } from './visuals/PlayerPortrait';
+import { expressionOf, EXPRESSION_LABELS } from '../../domain/playerAppearance';
+import { PlayerPortraitById, PlayerPortraitLarge } from './PlayerPortrait';
 import { useFirstVisit, useReducedMotion } from '../anim';
 
 type DetailTab = 'info' | 'analysis';
@@ -495,29 +495,39 @@ function PlayerPhoto({ player }: { player: Player }) {
   const { state } = useGame();
   const reduced = useReducedMotion();
   const first = useFirstVisit(`photo:${player.id}`);
-  const visual = useMemo(() => playerVisual(state, player), [state, player]);
   const team = state.teams.find((t) => t.id === player.teamId);
-  const caption = MOOD_CAPTIONS[visual.mood];
+  const expression = useMemo(() => expressionOf(state, player), [state, player]);
 
   return (
-    <figure className={`player-photo${first && !reduced ? ' photo-in' : ''}`}>
-      <PlayerPortrait
-        visual={visual}
-        name={player.name}
-        size="md"
+    <figure className="player-photo">
+      <PlayerPortraitLarge
+        player={player}
         teamColor={team?.color}
+        animate={first && !reduced}
       />
-      {/* 写真だけで伝えない。状態は必ず文字でも添える（§44） */}
+      {/* 画像だけで伝えない。いまの状態は必ず文字でも添える（§36） */}
       <figcaption className="photo-caption">
-        <span className="label">{caption.en}</span>
-        <span className="photo-caption-ja">{MOOD_LABELS[visual.mood]}</span>
+        <span className="label">{expression.toUpperCase()}</span>
+        <span className="photo-caption-ja">{EXPRESSION_LABELS[expression]}</span>
       </figcaption>
     </figure>
   );
 }
 
-/** 引退した選手の一枚（帽子を脱いだ資料写真）。§25 */
+/**
+ * 引退した選手の一枚（帽子を脱いだ姿）。§45
+ * 現役時代と同じ Appearance Profile に、年齢の変化だけを重ねる。
+ */
 export function RetiredPortrait({ player, name }: { player: Player; name: string }) {
-  const visual = useMemo(() => retiredVisual(player), [player]);
-  return <PlayerPortrait visual={visual} name={name} size="md" />;
+  return (
+    <PlayerPortraitById
+      playerId={player.id}
+      name={name}
+      age={player.age}
+      isPitcher={player.isPitcher}
+      size="medium"
+      showCap={false}
+      expression="neutral"
+    />
+  );
 }

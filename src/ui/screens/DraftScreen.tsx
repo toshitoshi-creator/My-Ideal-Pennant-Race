@@ -3,8 +3,7 @@ import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import type { DraftProspect, ScoutCategory, ScoutReport } from '../../domain/types';
 import { availableProspects, currentPick } from '../../domain/draft';
-import { prospectVisual } from '../../domain/visuals';
-import { PlayerPortrait } from '../components/visuals/PlayerPortrait';
+import { PlayerPortrait, PlayerPortraitHero } from '../components/PlayerPortrait';
 import { RevealRows } from '../components/Reveal';
 import { POSITION_LABELS, POSITION_SHORT } from '../../domain/positions';
 import {
@@ -187,10 +186,10 @@ export function DraftScreen() {
                   <span>
                     <strong style={{ color: 'var(--accent)' }}>{pick.round}巡目</strong>{' '}
                     <PlayerPortrait
-                      visual={prospectVisual(prospect.player)}
-                      name={prospect.player.name}
-                      size="sm"
-                      className="row-portrait"
+                      player={prospect.player}
+                      size="small"
+                      expression="focused"
+                      className="portrait-row"
                     />
                     {prospect.player.name}
                   </span>
@@ -268,10 +267,12 @@ export function DraftScreen() {
         <Sheet title="指名の確認" onClose={() => setConfirming(null)}>
           <div className="card">
             <div className="draft-confirm">
-              <PlayerPortrait
-                visual={prospectVisual(confirming.player)}
-                name={confirming.player.name}
-                size="md"
+              {/* §42 指名の見せ場。ここだけ Portrait Reveal を使う */}
+              <PlayerPortraitHero
+                player={confirming.player}
+                expression="focused"
+                pose="pose_standing"
+                animate
               />
               <div style={{ fontSize: 17, fontWeight: 800 }}>{confirming.player.name}</div>
             </div>

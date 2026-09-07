@@ -11,13 +11,12 @@ import {
   teamVisual,
   stadiumMoodForDate,
   gameVisualEvents,
-  playerVisual,
   EVENT_LABELS,
   EVENT_RANK,
 } from '../../domain/visuals';
 import { StadiumScene, TeamMark } from '../components/visuals/TeamVisuals';
 import { EventScene } from '../components/visuals/EventScene';
-import { PlayerPortrait } from '../components/visuals/PlayerPortrait';
+import { PlayerPortrait } from '../components/PlayerPortrait';
 import { useFirstVisit, useReducedMotion } from '../anim';
 
 export function GameScreen() {
@@ -537,12 +536,7 @@ function EventPlate({
   kind: Parameters<typeof EventScene>[0]['kind'];
   player?: import('../../domain/types').Player;
 }) {
-  const { state } = useGame();
   const first = useFirstVisit(`plate:${id}`);
-  const visual = useMemo(
-    () => (player ? playerVisual(state, player) : null),
-    [state, player],
-  );
   return (
     <section className={`event-plate rank-${rank.toLowerCase()}${first && !reduced ? ' photo-in' : ''}`}>
       <div className="event-plate-head">
@@ -552,9 +546,7 @@ function EventPlate({
       </div>
       <EventScene kind={kind} teamColor={teamColor} height={rank === 'S' ? 104 : 84} />
       <div className="event-plate-figure">
-        {visual && player && (
-          <PlayerPortrait visual={visual} name={player.name} size="sm" teamColor={teamColor} />
-        )}
+        {player && <PlayerPortrait player={player} size="small" teamColor={teamColor} />}
         <p className="event-plate-text">{text}</p>
       </div>
     </section>

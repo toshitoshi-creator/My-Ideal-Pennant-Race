@@ -6,10 +6,8 @@ import { RankBadge } from './common';
 import { daysUntilChangeable } from '../../domain/roster';
 import { CONDITION_ICONS, CONDITION_LABELS } from '../../domain/condition';
 import { daysUntilReturn } from '../../domain/injury';
-import { playerFace, playerMood } from '../../domain/visuals';
-import { PlayerPortrait } from './visuals/PlayerPortrait';
+import { PlayerPortraitSmall } from './PlayerPortrait';
 import { useGame } from '../store';
-import { useMemo } from 'react';
 
 export function PlayerCard({
   player,
@@ -99,18 +97,8 @@ function conditionColor(player: Player): string {
  */
 function RowPortrait({ player }: { player: Player }) {
   const { state } = useGame();
-  const team = state?.teams.find((t) => t.id === player.teamId);
-  const visual = useMemo(
-    () => ({ ...playerFace(player), mood: state ? playerMood(state, player) : ('STEADY' as const) }),
-    [player, state],
-  );
+  const team = state.teams.find((t) => t.id === player.teamId);
   return (
-    <PlayerPortrait
-      visual={visual}
-      name={player.name}
-      size="sm"
-      teamColor={team?.color}
-      className="row-portrait"
-    />
+    <PlayerPortraitSmall player={player} teamColor={team?.color} className="portrait-row" />
   );
 }

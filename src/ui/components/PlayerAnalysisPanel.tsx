@@ -10,6 +10,7 @@ import {
   USAGE_ADVICE_LABELS,
 } from '../../domain/playerAnalysis';
 import { buildPlayerReport } from '../../domain/playerReport';
+import { PlayerPortrait } from './PlayerPortrait';
 import { formatAverage } from '../../domain/stats';
 import { useGame } from '../store';
 import { RadarChart, Stars, TrendChart } from './charts';
@@ -66,8 +67,18 @@ export function PlayerAnalysisPanel({ player }: { player: Player }) {
       {/* ── 結論 ── */}
       <section className={`verdict verdict-${tone[analysis.recommendation]}`}>
         <Sec en="GM RECOMMENDATION" ja="扱いの助言" size="lead" />
-        <div className="verdict-name">{verdict}</div>
-        <p className="verdict-reason">{analysis.recommendationReason}</p>
+        {/*
+          PHASE 4.5 §17: 助言の横に人物像を置く。
+          絵は分析結果を説明するものではなく、
+          「誰の話をしているのか」を思い出しやすくするために置く。
+        */}
+        <div className="verdict-head">
+          <PlayerPortrait player={player} size="medium" />
+          <div className="verdict-head-text">
+            <div className="verdict-name">{verdict}</div>
+            <p className="verdict-reason">{analysis.recommendationReason}</p>
+          </div>
+        </div>
         {analysis.reasons.length > 0 && (
           <div className="tally">
             <div className="label tally-head">

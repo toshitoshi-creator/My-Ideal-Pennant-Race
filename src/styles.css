@@ -77,13 +77,41 @@
   --nav-h: 56px;
 
   /* PHASE 4.5 資料写真の色。紙とインクの世界に収まる範囲だけを使う（§28） */
-  --skin-1: oklch(87.0% 0.020 62);
-  --skin-2: oklch(80.0% 0.026 55);
-  --skin-3: oklch(71.0% 0.030 48);
-  --skin-4: oklch(61.0% 0.030 44);
-  --hair-1: oklch(30.0% 0.014 265);
-  --hair-2: oklch(38.0% 0.030 60);
-  --hair-3: oklch(52.0% 0.026 70);
+  /* ---- PHASE 4.5 肌（8段階）。自然な範囲にとどめ、色だけで別人にしない ---- */
+  --skin-1: oklch(91.0% 0.016 68);
+  --skin-2: oklch(88.0% 0.020 64);
+  --skin-3: oklch(85.0% 0.024 60);
+  --skin-4: oklch(81.5% 0.028 56);
+  --skin-5: oklch(78.0% 0.031 52);
+  --skin-6: oklch(74.0% 0.034 49);
+  --skin-7: oklch(69.0% 0.036 46);
+  --skin-8: oklch(63.0% 0.036 44);
+  --skin-1-d: oklch(85.0% 0.022 66);
+  --skin-2-d: oklch(82.0% 0.026 62);
+  --skin-3-d: oklch(79.0% 0.030 58);
+  --skin-4-d: oklch(75.5% 0.034 54);
+  --skin-5-d: oklch(72.0% 0.037 50);
+  --skin-6-d: oklch(68.0% 0.040 47);
+  --skin-7-d: oklch(63.0% 0.042 45);
+  --skin-8-d: oklch(57.0% 0.042 43);
+
+  /* ---- PHASE 4.5 髪（8色）。派手な非現実色は使わない ---- */
+  --hair-1: oklch(26.0% 0.012 265);
+  --hair-2: oklch(32.0% 0.018 285);
+  --hair-3: oklch(34.0% 0.030 60);
+  --hair-4: oklch(42.0% 0.038 62);
+  --hair-5: oklch(52.0% 0.040 68);
+  --hair-6: oklch(58.0% 0.012 265);
+  --hair-7: oklch(70.0% 0.008 265);
+  --hair-8: oklch(84.0% 0.005 265);
+  --hair-1-d: oklch(18.0% 0.010 265);
+  --hair-2-d: oklch(23.0% 0.016 285);
+  --hair-3-d: oklch(25.0% 0.026 60);
+  --hair-4-d: oklch(32.0% 0.034 62);
+  --hair-5-d: oklch(41.0% 0.036 68);
+  --hair-6-d: oklch(47.0% 0.010 265);
+  --hair-7-d: oklch(59.0% 0.007 265);
+  --hair-8-d: oklch(72.0% 0.005 265);
   --photo-bg: oklch(91.0% 0.011 85);
   --sky-day: oklch(89.0% 0.024 230);
   --sky-night: oklch(40.0% 0.036 255);
@@ -3043,7 +3071,13 @@ h3.sec {
 .player-photo {
   flex: 0 0 auto;
   margin: 0;
-  width: 96px;
+  width: 116px;
+}
+
+.player-photo .portrait {
+  width: 116px;
+  height: auto;
+  box-shadow: 0 0 0 1px var(--paper-edge);
 }
 
 .photo-caption {
@@ -3500,4 +3534,273 @@ h3.sec {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2xs);
+}
+
+/* ================= PHASE 4.5 選手の肖像 =================
+   線幅に階層を持たせる。外形はやや太く、内部のディテールは細く。
+   すべての部品で同じ階層を使い、組み合わせても画風がそろう（§4・§48）。 */
+
+.portrait {
+  display: block;
+  background: var(--photo-bg);
+  /* 表示範囲の外へはみ出させない。行の高さが崩れる */
+  overflow: hidden;
+}
+
+.pt-paper {
+  fill: var(--photo-bg);
+}
+
+/* 外形線 */
+.pt-line {
+  stroke: var(--ink);
+  stroke-width: 3;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* 内部のディテール（外形より細い） */
+.pt-lid,
+.pt-nose-bridge,
+.pt-nose-tip,
+.pt-nose-wing,
+.pt-ear-inner,
+.pt-jaw-line {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.pt-nose-bridge {
+  stroke-width: 1.7;
+  opacity: 0.6;
+}
+
+.pt-ear-inner {
+  stroke-width: 1.6;
+  opacity: 0.6;
+}
+
+.pt-jaw-line {
+  stroke-width: 2.2;
+  opacity: 0.5;
+}
+
+.pt-eye-white {
+  fill: var(--paper);
+  stroke: none;
+}
+
+.pt-lid {
+  stroke: var(--ink);
+  stroke-width: 2.6;
+}
+
+.pt-eye-closed {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 3;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.pt-iris {
+  fill: var(--ink);
+}
+
+.pt-iris-light {
+  fill: var(--paper);
+  opacity: 0.85;
+}
+
+.pt-mouth-line {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.9;
+}
+
+.pt-mouth-open {
+  fill: var(--ink);
+  opacity: 0.82;
+}
+
+.pt-teeth {
+  fill: var(--paper);
+}
+
+.pt-age-lines path {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  opacity: 0.45;
+  vector-effect: non-scaling-stroke;
+}
+
+.pt-jersey {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 3;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.pt-jersey-dark {
+  fill: var(--paper-3);
+}
+
+.pt-glasses rect,
+.pt-glasses path {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.pt-cap-brim {
+  filter: brightness(0.9);
+}
+
+.pt-silhouette {
+  fill: var(--rule-2);
+}
+
+/* 状態は「濃さ」だけで表す。色で良し悪しを言わない（§21） */
+.portrait-x-injured,
+.portrait-x-disappointed,
+.portrait-x-tired {
+  filter: saturate(0.6);
+}
+
+/* ---- Portrait Reveal（§19）。派手なズーム・回転はしない ---- */
+@keyframes pt-reveal {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 34% 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.portrait-reveal {
+  animation: pt-reveal 420ms ease-out 1 both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portrait-reveal {
+    animation: none;
+  }
+}
+
+/* ---- 名鑑の行に置く肖像 ---- */
+.portrait-row {
+  flex: 0 0 auto;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px var(--paper-edge);
+}
+
+/* ---- 選手詳細の見出し ---- */
+.portrait-plate {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  margin: 2px 0 10px;
+}
+
+.portrait-plate .portrait {
+  box-shadow: 0 0 0 1px var(--paper-edge);
+}
+
+.portrait-plate-text {
+  min-width: 0;
+  padding-bottom: 4px;
+}
+
+/* ---- 並べて見せるとき（ドラフト・トレード・優勝） ---- */
+.portrait-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.portrait-strip figure {
+  margin: 0;
+  flex: 0 0 auto;
+  text-align: center;
+}
+
+.portrait-strip figcaption {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* ---- トレードの OUT / IN（§44） ---- */
+.trade-faces {
+  display: grid;
+  gap: 4px;
+  padding: 6px 0 10px;
+}
+
+.trade-faces-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.trade-faces-arrow {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* ---- ホームの「次の試合」に置く先発（§17） ---- */
+/* 先発の顔。行の中ではなく、独立した1ブロックとして置く（文字を押し出さない。§37） */
+.next-starter-face {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: var(--space-xs);
+  padding-top: var(--space-xs);
+  border-top: 1px dotted var(--rule);
+}
+
+.next-starter-face-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-align: left;
+}
+
+.next-starter-face .portrait {
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 1px var(--paper-edge);
+}
+
+/* ---- 助言の横に置く人物像（§17） ---- */
+.verdict-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.verdict-head .portrait {
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 1px var(--paper-edge);
+}
+
+.verdict-head-text {
+  min-width: 0;
+  flex: 1 1 auto;
 }

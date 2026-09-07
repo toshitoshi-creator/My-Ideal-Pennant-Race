@@ -1,9 +1,7 @@
-import { useMemo } from 'react';
 import type { GrowthReport, RetiredPlayerRecord } from '../../domain/types';
 import { Sheet } from './common';
 import { rankOf } from '../../domain/rank';
-import { faceFromId } from '../../domain/visuals';
-import { PlayerPortrait } from './visuals/PlayerPortrait';
+import { PlayerPortraitById } from './PlayerPortrait';
 
 /**
  * シーズン終了時の成長・衰退の演出（PHASE 2）。
@@ -142,10 +140,9 @@ function PlayerGrowth({
  * 記録は GrowthReport にあるものだけを出し、存在しない実績は書かない。
  */
 function RetirementRow({ entry }: { entry: RetiredPlayerRecord }) {
-  const visual = useMemo(() => faceFromId(entry.playerId, entry.age), [entry]);
   return (
     <div className="retire-row">
-      <PlayerPortrait visual={visual} name={entry.name} size="sm" />
+      <PlayerPortraitById playerId={entry.playerId} name={entry.name} age={entry.age} size="small" />
       <div className="grow">
         <div style={{ fontSize: 16, fontWeight: 800 }}>{entry.name}</div>
         <div className="muted">

@@ -2,8 +2,9 @@
  * PHASE 4.5 ビジュアルの決定（§39）。
  *
  * ここは「何を描くか」を決めるだけの読み取り専用モジュール。
- * GameState・Player・Team・GameResult・NewsItem を読み、
- * 「どの顔か」「どの球場か」「どの出来事か」を返す。
+ * GameState・Team・GameResult・NewsItem を読み、
+ * 「どの球場か」「どの出来事か」を返す。
+ * 選手の顔は playerAppearance.ts が受け持つ。
  *
  * 守ること：
  *   - 乱数を使わない。使うのは playerId / teamId から作る安定したハッシュだけ（§7）
@@ -17,11 +18,9 @@ import type {
   GameResult,
   GameState,
   NewsItem,
-  Player,
   Team,
 } from './types';
 import { seedFrom } from './rng';
-import { overallRating } from './rating';
 
 /* ================= 決定的な取り出し ================= */
 
@@ -46,168 +45,10 @@ export function pickFrom(seed: number, index: number, max: number): number {
   return h % max;
 }
 
-/* ================= 選手 ================= */
-
-/** 選手の「いまの空気」。能力や評価は変えない（§10・§27） */
-export type PlayerMood =
-  | 'ROOKIE'
-  | 'HOT'
-  | 'STEADY'
-  | 'SLUMP'
-  | 'INJURED'
-  | 'VETERAN'
-  | 'RETIRED';
-
-export const MOOD_LABELS: Record<PlayerMood, string> = {
-  ROOKIE: '新人',
-  HOT: '好調',
-  STEADY: '平常',
-  SLUMP: '不振',
-  INJURED: '離脱中',
-  VETERAN: 'ベテラン',
-  RETIRED: '引退',
-};
-
-/** 資料写真の見出し（英字と日本語をセットにする。§44 画像だけで伝えない） */
-export const MOOD_CAPTIONS: Record<PlayerMood, { en: string; ja: string }> = {
-  ROOKIE: { en: 'NEW SIGNING', ja: '入団時の写真' },
-  HOT: { en: 'IN FORM', ja: '状態は上向き' },
-  STEADY: { en: 'SQUAD PHOTO', ja: '選手名鑑の写真' },
-  SLUMP: { en: 'OUT OF FORM', ja: '状態は下向き' },
-  INJURED: { en: 'ON THE MEND', ja: '調整・リハビリ中' },
-  VETERAN: { en: 'VETERAN', ja: 'ベテランの一枚' },
-  RETIRED: { en: 'IN MEMORIAM', ja: '現役時代の一枚' },
-};
-
-export type PlayerPose = 'BAT' | 'PITCH';
-
-/**
- * 一人ぶんの見た目。
- * 顔まわりは playerId だけで決まるので、球団が変わっても同じ顔のまま（§7）。
+/*
+ * 選手の見た目は PHASE 4.5 で playerAppearance.ts / ui/portrait へ移した。
+ * ここに残すのは球団・球場・出来事・ニュースのビジュアルだけ。
  */
-export interface PlayerVisual {
-  playerId: string;
-  seed: number;
-  /** 肌の明度（0〜3） */
-  skin: number;
-  /** 髪型（0〜7） */
-  hair: number;
-  /** 髪の濃さ（0〜2） */
-  hairTone: number;
-  /** 輪郭（0〜3） */
-  face: number;
-  /** 眉・目の形（0〜3） */
-  brow: number;
-  /** ひげ（0=なし 1=無精ひげ 2=口ひげ 3=あごひげ） */
-  beard: number;
-  /** 体格（0=細身 1=標準 2=がっしり） */
-  build: number;
-  /** 打席・マウンドのどちらの姿か */
-  pose: PlayerPose;
-  /** 右利きなら右向き */
-  facing: 'R' | 'L';
-  /** 帽子をかぶっているか（引退資料では脱ぐ） */
-  cap: boolean;
-  mood: PlayerMood;
-  /** 所属球団（色に使う）。未所属なら null */
-  teamId: string | null;
-}
-
-/**
- * 顔だけを決める（state を必要としない）。
- * 引退した選手や、まだ球団に属していないドラフト候補にも使える。
- */
-export function playerFace(player: Player): Omit<PlayerVisual, 'mood'> {
-  const seed = visualSeed(player.id);
-  // 体格は能力から決める（同じIDなら常に同じ）。数字を作り出しているわけではない
-  const power = player.isPitcher
-    ? (player.pitching?.power ?? 50)
-    : player.batting.power;
-  const speed = player.batting.speed;
-  const build = power >= 68 && speed < 60 ? 2 : speed >= 68 ? 0 : 1;
-
-  // 年齢が上がるほどひげが生えやすいが、決め方は決定的
-  const beardRoll = pickFrom(seed, 5, 100);
-  const beardChance = player.age >= 32 ? 55 : player.age >= 27 ? 35 : 14;
-  const beard = beardRoll < beardChance ? 1 + pickFrom(seed, 6, 3) : 0;
-
-  return {
-    playerId: player.id,
-    seed,
-    skin: pickFrom(seed, 1, 4),
-    hair: player.age >= 34 && pickFrom(seed, 9, 100) < 30 ? 7 : pickFrom(seed, 2, 7),
-    hairTone: pickFrom(seed, 3, 3),
-    face: pickFrom(seed, 4, 4),
-    brow: pickFrom(seed, 7, 4),
-    beard,
-    build,
-    pose: player.isPitcher ? 'PITCH' : 'BAT',
-    facing: player.isPitcher ? player.throws : player.bats,
-    cap: true,
-    teamId: player.teamId || null,
-  };
-}
-
-/**
- * いまの空気を決める。
- * 既存の状態（怪我・スランプ・調子・年齢・出場）だけを見る。
- * analyzePlayer の評価を変えることは一切しない（§27）。
- */
-export function playerMood(state: GameState, player: Player): PlayerMood {
-  if (player.ext.injury) return 'INJURED';
-  const debut = player.ext.debutYear;
-  if (debut !== null && debut >= state.year) return 'ROOKIE';
-  if (player.ext.slump) return 'SLUMP';
-  if (player.ext.condition === 'best' || player.ext.condition === 'good') return 'HOT';
-  if (player.ext.condition === 'worst' || player.ext.condition === 'bad') return 'SLUMP';
-  if (player.age >= 33) return 'VETERAN';
-  return 'STEADY';
-}
-
-/** 選手一人ぶんの見た目をまとめて作る */
-export function playerVisual(state: GameState, player: Player): PlayerVisual {
-  return { ...playerFace(player), mood: playerMood(state, player) };
-}
-
-/** 引退した選手の資料写真（帽子を脱いだ一枚） */
-export function retiredVisual(player: Player): PlayerVisual {
-  return { ...playerFace(player), cap: false, mood: 'RETIRED' };
-}
-
-/**
- * 選手IDと年齢だけから作る顔（引退記録など、Player が手元に無いとき用）。
- *
- * 顔の部品は playerId のハッシュだけで決まるので、
- * 現役のときに見ていた顔とここで作る顔は必ず一致する（§7）。
- * 能力に由来する体格だけは分からないので、標準の体格にする。
- */
-export function faceFromId(playerId: string, age: number, isPitcher = false): PlayerVisual {
-  const seed = visualSeed(playerId);
-  const beardRoll = pickFrom(seed, 5, 100);
-  const beardChance = age >= 32 ? 55 : age >= 27 ? 35 : 14;
-  return {
-    playerId,
-    seed,
-    skin: pickFrom(seed, 1, 4),
-    hair: age >= 34 && pickFrom(seed, 9, 100) < 30 ? 7 : pickFrom(seed, 2, 7),
-    hairTone: pickFrom(seed, 3, 3),
-    face: pickFrom(seed, 4, 4),
-    brow: pickFrom(seed, 7, 4),
-    beard: beardRoll < beardChance ? 1 + pickFrom(seed, 6, 3) : 0,
-    // 能力が分からないので体格は標準にする（顔の部品は現役時と同じ）
-    build: 1,
-    pose: isPitcher ? 'PITCH' : 'BAT',
-    facing: 'R',
-    cap: false,
-    mood: 'RETIRED',
-    teamId: null,
-  };
-}
-
-/** ドラフト候補の資料写真（まだどこにも属していない） */
-export function prospectVisual(player: Player): PlayerVisual {
-  return { ...playerFace(player), teamId: null, mood: 'ROOKIE' };
-}
 
 /* ================= 球団 ================= */
 
@@ -539,26 +380,4 @@ export function newsVisualKind(item: NewsItem): NewsVisualKind | null {
     default:
       return null;
   }
-}
-
-/* ================= 並べ替えの小道具 ================= */
-
-/** 表示に使う「この選手らしさ」の一言。能力の断定はしない */
-export function buildNote(visual: PlayerVisual, player: Player): string {
-  const size = visual.build === 2 ? 'がっしりした' : visual.build === 0 ? '細身の' : '';
-  const role = player.isPitcher ? '投手' : '野手';
-  const hand = player.isPitcher
-    ? `${player.throws === 'R' ? '右' : '左'}投`
-    : `${player.bats === 'R' ? '右' : '左'}打`;
-  return `${player.age}歳・${size}${role}・${hand}`;
-}
-
-/** 総合評価を星の数に落とす（既存の評価をそのまま使う。画像で変えない） */
-export function portraitRank(player: Player): number {
-  const overall = overallRating(player);
-  if (overall >= 68) return 5;
-  if (overall >= 57) return 4;
-  if (overall >= 46) return 3;
-  if (overall >= 36) return 2;
-  return 1;
 }

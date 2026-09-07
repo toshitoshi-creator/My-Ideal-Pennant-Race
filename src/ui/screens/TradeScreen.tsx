@@ -26,6 +26,7 @@ import {
   tradeActivityLabel,
 } from '../../domain/teamAi';
 import { RankBadge, Sheet } from '../components/common';
+import { PlayerPortrait } from '../components/PlayerPortrait';
 
 type Filter = 'all' | 'pitcher' | 'catcher' | 'infield' | 'outfield' | 'young' | 'veteran' | 'core';
 
@@ -373,6 +374,11 @@ function TradeBuilder({ partner }: { partner: Team }) {
         <h2>トレード内容</h2>
         {ready ? (
           <>
+            {/*
+              PHASE 4.5 §44: 誰が出て、誰が来るのかを顔でも分かるようにする。
+              名前・人数は必ず文字でも出す（画像だけで伝えない。§36）
+            */}
+            <TradeFaces out={minePlayers} inbound={theirPlayers} />
             <div className="spread" style={{ padding: '4px 0' }}>
               <span className="muted">出す</span>
               <span style={{ fontWeight: 700 }}>{minePlayers.map((p) => p.name).join('・')}</span>
@@ -726,6 +732,42 @@ function TradeHistoryCard() {
           );
         })
       )}
+    </div>
+  );
+}
+
+/**
+ * トレードの OUT / IN を顔で見せる（§44）。
+ * 出す側は帽子を脱ぎ、受け取る側は帽子をかぶった姿にして、向きの違いを出す。
+ */
+function TradeFaces({ out, inbound }: { out: Player[]; inbound: Player[] }) {
+  return (
+    <div className="trade-faces">
+      <div className="trade-faces-side">
+        <span className="label">OUT</span>
+        <div className="portrait-strip">
+          {out.map((p) => (
+            <figure key={p.id}>
+              <PlayerPortrait player={p} size="small" expression="neutral" showCap={false} />
+              <figcaption>{p.name}</figcaption>
+            </figure>
+          ))}
+        </div>
+      </div>
+      <div className="trade-faces-arrow" aria-hidden="true">
+        ↓
+      </div>
+      <div className="trade-faces-side">
+        <span className="label">IN</span>
+        <div className="portrait-strip">
+          {inbound.map((p) => (
+            <figure key={p.id}>
+              <PlayerPortrait player={p} size="small" expression="focused" />
+              <figcaption>{p.name}</figcaption>
+            </figure>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

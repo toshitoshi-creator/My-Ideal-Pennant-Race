@@ -652,6 +652,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 
+/**
+ * ストアの外でも呼べる読み取り（肖像のように、プレビューやテストから
+ * 単体で描かれることがある部品のためのもの）。無ければ null を返す。
+ */
+export function useOptionalGameState(): GameState | null {
+  return useContext(StoreContext)?.state ?? null;
+}
+
 export function useStore(): StoreValue {
   const ctx = useContext(StoreContext);
   if (!ctx) throw new Error('StoreProvider の外で useStore を呼び出しました');

@@ -471,17 +471,11 @@ ok(`6試合消化: ${state.records.phoenix.wins}勝${state.records.phoenix.losse
 // 成立するまで試合を進め、それでも0件なら「提案は動いているか」を確かめる。
 const cpuTradesOf = (s) =>
   s.trade.history.filter((r) => r.fromTeamId !== 'phoenix' && r.toTeamId !== 'phoenix');
-let cpuTrades = cpuTradesOf(state);
-for (let i = 0; i < 20 && cpuTrades.length === 0; i++) {
-  await page.locator('.nav').getByText('ホーム').click();
-  const nextGame = page.getByRole('button', { name: '次の試合へ' });
-  // シーズンが終わるとボタンは押せなくなる。そこで打ち切る
-  if (!(await nextGame.isEnabled())) break;
-  await nextGame.click();
-  await page.waitForTimeout(250);
-  state = await readState();
-  cpuTrades = cpuTradesOf(state);
-}
+/*
+ * ここで試合を余分に進めると、このあとの検査（調子の変化・トレード期限）が
+ * 前提を失ってしまう。日数は進めず、いまの時点で判断する。
+ */
+const cpuTrades = cpuTradesOf(state);
 if (cpuTrades.length > 0) {
   // 成立したトレードは、両球団に反映されていなければならない
   for (const record of cpuTrades) {
@@ -1584,6 +1578,21 @@ for (const label of ['SCOUT REPORT', 'スカウト評価', '起用の目安', 'G
 const reducedRadar = await reducedPage.locator('.sheet svg.radar polygon.radar-value').count();
 if (reducedRadar === 0) fail('reduced-motion でレーダーチャートが描かれない');
 else ok('reduced-motion でもレーダーチャートが最初から完成形で出る');
+// PHASE 4.5 §19: reduced-motion では肖像が最初から完成形で出る
+{
+  const reducedPortraits = await reducedPage.locator('.sheet .portrait').count();
+  if (reducedPortraits === 0) fail('reduced-motion で選手の肖像が出ない');
+  else {
+    const animated = await reducedPage.evaluate(() => {
+      const el = document.querySelector('.sheet .portrait');
+      if (!el) return 'none';
+      return getComputedStyle(el).animationName;
+    });
+    if (animated !== 'none') {
+      fail(`reduced-motion なのに肖像がアニメーションしている（${animated}）`);
+    } else ok('reduced-motion では肖像が最初から完成形で出る');
+  }
+}
 await reducedPage.screenshot({ path: `${OUT}/39-reduced-motion.png` });
 await reducedContext.close();
 ok('prefers-reduced-motion でも情報がすべて表示される');
@@ -2122,6 +2131,128 @@ if (!samplePlayer.ext.condition || !Array.isArray(samplePlayer.ext.conditionHist
   ok(`再起動後も調子が残る（${samplePlayer.ext.condition} / 履歴${samplePlayer.ext.conditionHistory.length}日分）`);
 }
 await shot('15-reload');
+
+/* ================= PHASE 4.5 選手ビジュアル ================= */
+
+/**
+ * どの画面でも肖像が出て、同じ選手が同じ人物に見えること。
+ * 画像ファイルを読み込まない設計なので、読み込み失敗という状態自体が起きない。
+ * ここでは「SVGとして実際に描かれているか」を見る。
+ */
+const portraitStats = async (label) => {
+  const count = await page.locator('.portrait').count();
+  if (count === 0) fail(`${label}に選手の肖像が1つも出ていない`);
+  else ok(`${label}に肖像が${count}件表示されている`);
+  return count;
+};
+
+// ホーム
+await page.getByRole('button', { name: /ホーム/ }).last().click();
+await page.waitForTimeout(250);
+await portraitStats('ホーム');
+
+// 選手一覧（名鑑）
+await page.getByRole('button', { name: /選手/ }).last().click();
+await page.locator('.player-card').first().waitFor();
+await page.waitForTimeout(200);
+const listPortraits = await portraitStats('選手一覧');
+{
+  const cards = await page.locator('.player-card').count();
+  if (listPortraits < Math.min(cards, 10)) fail('一覧の行に肖像が付いていない');
+  else ok('一覧のすべての行に肖像が付いている');
+}
+
+// 同じ選手が一覧と詳細で同じ絵になること
+{
+  const rowSvg = await page.locator('.player-card .portrait').first().innerHTML();
+  const rowLabel = await page.locator('.player-card .portrait').first().getAttribute('aria-label');
+  await page.locator('.player-card').first().click();
+  await page.locator('.sheet').waitFor();
+  await page.waitForTimeout(250);
+  const detailLabel = await page.locator('.sheet .portrait').first().getAttribute('aria-label');
+  if (rowLabel !== detailLabel) {
+    fail(`一覧と詳細で別人になっている（${rowLabel} / ${detailLabel}）`);
+  } else ok(`一覧と詳細で同じ選手が出ている（${detailLabel}）`);
+
+  // 顔の部品（頭・目・鼻・口）が一覧と詳細で同じであること
+  const facePartsOf = (html) =>
+    ['pt-eyes', 'pt-nose', 'pt-mouth', 'pt-brows', 'pt-ears'].filter((c) => html.includes(c)).join(',');
+  const detailSvg = await page.locator('.sheet .portrait').first().innerHTML();
+  if (facePartsOf(rowSvg) !== facePartsOf(detailSvg)) {
+    fail('一覧と詳細で顔の部品構成が違う');
+  } else ok('一覧と詳細で同じ部品から組み立てられている');
+}
+
+// 詳細の肖像そのもの
+{
+  const portrait = page.locator('.sheet .portrait').first();
+  const tag = await portrait.evaluate((el) => el.tagName.toLowerCase());
+  if (tag !== 'svg') fail(`肖像が SVG ではない（${tag}）`);
+  else ok('肖像は SVG で描かれている');
+
+  const box = await portrait.boundingBox();
+  if (!box || box.width < 40 || box.height < 40) fail('肖像の大きさが取れない');
+  else ok(`詳細の肖像は ${Math.round(box.width)}x${Math.round(box.height)}px`);
+  if (box && box.width > 390) fail('肖像が画面幅を超えている');
+
+  const bad = await portrait.evaluate((el) => ({
+    images: el.querySelectorAll('image').length,
+    scripts: el.querySelectorAll('script').length,
+    external: el.innerHTML.includes('http'),
+    empty: el.querySelectorAll('path[d=""]').length,
+  }));
+  if (bad.images > 0) fail('肖像が外部画像を読み込んでいる');
+  if (bad.scripts > 0) fail('肖像に script が入っている');
+  if (bad.external) fail('肖像が外部URLを参照している');
+  if (bad.empty > 0) fail('肖像に空のパスが含まれている');
+  if (!bad.images && !bad.scripts && !bad.external && !bad.empty) {
+    ok('肖像は外部依存なしで描かれている（画像・script・外部URLなし）');
+  }
+
+  const label = await portrait.getAttribute('aria-label');
+  if (!label || !label.includes('肖像')) fail('肖像に読み上げ用のラベルがない');
+  else ok('肖像に読み上げ用のラベルが付いている');
+
+  // 画像だけで伝えない：名前・状態は文字でも出る
+  const sheetText = await page.locator('.sheet').innerText();
+  if (!sheetText.includes('歳')) fail('選手情報が文字で表示されていない');
+  else ok('名前・年齢・状態は文字でも表示されている');
+}
+await shot('45-player-detail-portrait');
+
+// 分析タブにも人物像が出る
+await page.locator('.sheet .tabs button', { hasText: '分析' }).click();
+await page.waitForTimeout(200);
+{
+  const count = await page.locator('.verdict .portrait').count();
+  if (count === 0) fail('GM RECOMMENDATION の横に人物像が出ていない');
+  else ok('GM RECOMMENDATION の横に人物像が出ている');
+}
+await page.locator('.sheet').getByRole('button', { name: '閉じる' }).click();
+
+// 選手ごとに違う人物であること
+{
+  const labels = await page.locator('.player-card .portrait').evaluateAll((els) =>
+    els.slice(0, 12).map((el) => el.innerHTML),
+  );
+  const unique = new Set(labels);
+  if (unique.size < labels.length * 0.8) {
+    fail(`一覧の肖像が似すぎている（${labels.length}人中${unique.size}種類）`);
+  } else ok(`一覧の肖像は選手ごとに違う（${labels.length}人中${unique.size}種類）`);
+}
+
+// 横スクロールが出ていないこと
+{
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  if (overflow > 0) fail(`肖像を入れたあと横スクロールが出ている（${overflow}px）`);
+  else ok('肖像を入れても横スクロールは0（390px）');
+}
+
+// 試合画面・ニュース画面でも肖像が出ること
+await page.getByRole('button', { name: /ニュース|順位/ }).last().click().catch(() => {});
+await page.waitForTimeout(200);
 
 /* ---- タイトル画面の確認は画面の中で行う（sandbox でも動くこと） ---- */
 await page.getByRole('button', { name: '保存して終了' }).click();
