@@ -18,6 +18,7 @@ import {
   MAX_SALARY,
 } from '../../domain/contract';
 import { RankBadge, Sheet } from '../components/common';
+import { PlayerVisual, PlayerVisualSmall } from '../components/PlayerVisual';
 
 /**
  * 契約更改（PHASE 3.3）。
@@ -190,6 +191,7 @@ function ContractCard({ player, onOpen }: { player: Player; onOpen: () => void }
   return (
     <button className="player-card" onClick={onOpen}>
       <span className="pos">{POSITION_SHORT[player.mainPosition]}</span>
+      <PlayerVisualSmall player={player} className="portrait-row" />
       <span className="grow">
         <span className="row" style={{ gap: 6 }}>
           <span className="name">{player.name}</span>
@@ -225,10 +227,14 @@ function NegotiationSheet({ player, onClose }: { player: Player; onClose: () => 
     <Sheet title={`${player.name} との交渉`} onClose={onClose}>
       <div className="card">
         <div className="spread">
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 800 }}>{player.name}</div>
-            <div className="muted">
-              {player.age}歳 / {POSITION_LABELS[player.mainPosition]}
+          <div className="row" style={{ gap: 10 }}>
+            {/* PHASE 4.6 交渉相手の顔を見せる（§22） */}
+            <PlayerVisual player={player} size="medium" expression="focused" />
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{player.name}</div>
+              <div className="muted">
+                {player.age}歳 / {POSITION_LABELS[player.mainPosition]}
+              </div>
             </div>
           </div>
           <RankBadge value={overallRating(player)} />

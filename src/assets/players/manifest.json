@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "generatedFrom": "scripts/generate-asset-manifest.mjs",
+  "canvas": {
+    "width": 1024,
+    "height": 1280,
+    "$comment": "全パーツ共通のキャンバス。マスターは 2048x2560 で作り、取り込み時に半分へ正規化してもよい"
+  },
+  "note": "素材が1枚も無い状態。この場合ゲームは PHASE 4.5 の SVG で選手を描きます。",
+  "parts": {}
+}

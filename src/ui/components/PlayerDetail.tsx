@@ -30,7 +30,7 @@ import { specialAbilityDef } from '../../domain/specialAbilities';
 import { effectiveBreakdown } from '../../domain/effective';
 import { contractStatus, formatSalary, marketValue } from '../../domain/contract';
 import { expressionOf, EXPRESSION_LABELS } from '../../domain/playerAppearance';
-import { PlayerPortraitById, PlayerPortraitLarge } from './PlayerPortrait';
+import { PlayerVisualById, PlayerVisualLarge } from './PlayerVisual';
 import { useFirstVisit, useReducedMotion } from '../anim';
 
 type DetailTab = 'info' | 'analysis';
@@ -500,7 +500,7 @@ function PlayerPhoto({ player }: { player: Player }) {
 
   return (
     <figure className="player-photo">
-      <PlayerPortraitLarge
+      <PlayerVisualLarge
         player={player}
         teamColor={team?.color}
         animate={first && !reduced}
@@ -520,7 +520,7 @@ function PlayerPhoto({ player }: { player: Player }) {
  */
 export function RetiredPortrait({ player, name }: { player: Player; name: string }) {
   return (
-    <PlayerPortraitById
+    <PlayerVisualById
       playerId={player.id}
       name={name}
       age={player.age}

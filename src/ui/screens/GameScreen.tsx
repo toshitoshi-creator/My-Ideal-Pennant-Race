@@ -16,7 +16,7 @@ import {
 } from '../../domain/visuals';
 import { StadiumScene, TeamMark } from '../components/visuals/TeamVisuals';
 import { EventScene } from '../components/visuals/EventScene';
-import { PlayerPortrait } from '../components/PlayerPortrait';
+import { PlayerVisual } from '../components/PlayerVisual';
 import { useFirstVisit, useReducedMotion } from '../anim';
 
 export function GameScreen() {
@@ -62,9 +62,13 @@ export function GameScreen() {
             </div>
             <div className="brief-line">
               <span className="label">STARTING PITCHER</span>
-              <span>
-                {brief.starterName}
-                <span className="muted"> {brief.starterNote}</span>
+              <span className="row" style={{ gap: 8 }}>
+                {/* PHASE 4.6 今日の先発の顔（§22） */}
+                <BriefFace playerId={brief.starterId} />
+                <span>
+                  {brief.starterName}
+                  <span className="muted"> {brief.starterNote}</span>
+                </span>
               </span>
             </div>
             <div className="brief-line">
@@ -390,6 +394,14 @@ function PostGameSection({ result }: { result: GameResult }) {
  * PHASE 4.5 試合前の舞台（§14）。
  * 球場 → 球団 → 対戦 の順に置く。一気に出さない。
  */
+/** 試合前資料に出す小さな顔。選手が見つからなければ何も出さない */
+function BriefFace({ playerId }: { playerId: string | null }) {
+  const { state } = useGame();
+  const player = playerId ? state.players.find((p) => p.id === playerId) : undefined;
+  if (!player) return null;
+  return <PlayerVisual player={player} size="small" className="portrait-row" />;
+}
+
 function PreGameStage({
   opponentId,
   homeAway,
@@ -546,7 +558,7 @@ function EventPlate({
       </div>
       <EventScene kind={kind} teamColor={teamColor} height={rank === 'S' ? 104 : 84} />
       <div className="event-plate-figure">
-        {player && <PlayerPortrait player={player} size="small" teamColor={teamColor} />}
+        {player && <PlayerVisual player={player} size="small" teamColor={teamColor} />}
         <p className="event-plate-text">{text}</p>
       </div>
     </section>

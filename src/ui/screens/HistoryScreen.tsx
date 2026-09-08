@@ -17,6 +17,7 @@ import { TIER_LABELS, playerTier } from '../../domain/hallOfFame';
 import { formatAverage } from '../../domain/stats';
 import { formatWinPct } from '../../domain/standings';
 import { PlayerHistoryView } from '../components/PlayerHistoryView';
+import { PlayerVisualById } from '../components/PlayerVisual';
 import { NewsCard } from '../components/NewsCard';
 import { newsForTeam } from '../../domain/news';
 import { storyOf } from '../../domain/story';
@@ -263,7 +264,20 @@ function HallOfFame() {
                 onClick={() => history && setSelected(history)}
               >
                 <div className="spread">
-                  <strong>{entry.name}</strong>
+                  <span className="row" style={{ gap: 8 }}>
+                    {/* PHASE 4.6 殿堂の顔（§22） */}
+                    {history && (
+                      <PlayerVisualById
+                        playerId={history.playerId}
+                        name={history.name}
+                        age={(history.retiredAt ?? entry.inductedYear) - history.birthYear}
+                        isPitcher={history.isPitcher}
+                        size="small"
+                        className="portrait-row"
+                      />
+                    )}
+                    <strong>{entry.name}</strong>
+                  </span>
                   <span className="chip">{entry.inductedYear}年</span>
                 </div>
                 <div className="muted" style={{ fontSize: 13 }}>
@@ -302,7 +316,17 @@ function RetiredList({ onSelect }: { onSelect: (h: PlayerHistory) => void }) {
       {retired.map((history) => (
         <button key={history.playerId} className="row-btn" onClick={() => onSelect(history)}>
           <div className="spread">
-            <strong>{history.name}</strong>
+            <span className="row" style={{ gap: 8 }}>
+              <PlayerVisualById
+                playerId={history.playerId}
+                name={history.name}
+                age={(history.retiredAt ?? history.debutYear) - history.birthYear}
+                isPitcher={history.isPitcher}
+                size="small"
+                className="portrait-row"
+              />
+              <strong>{history.name}</strong>
+            </span>
             <span className="chip">{history.retiredAt}年引退</span>
           </div>
           <div className="muted" style={{ fontSize: 13 }}>

@@ -14,7 +14,12 @@
     "e2e": "node e2e/smoke.mjs",
     "verify": "tsc --noEmit -p tsconfig.json && vitest run && vite build && node e2e/run-with-preview.mjs",
     "e2e:seeds": "node e2e/run-seeds.mjs",
-    "e2e:sandbox": "node e2e/sandbox-check.mjs"
+    "e2e:sandbox": "node e2e/sandbox-check.mjs",
+    "assets:manifest": "node scripts/generate-asset-manifest.mjs",
+    "assets:validate": "node scripts/validate-assets.mjs",
+    "assets:optimize": "node scripts/optimize-assets.mjs",
+    "assets:audit": "node scripts/audit-player-assets.mjs",
+    "gallery": "npx tsx scripts/visual-gallery.tsx"
   },
   "dependencies": {
     "react": "^18.3.1",

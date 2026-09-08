@@ -1,6 +1,7 @@
 import { useGame } from '../store';
 import { teamVisual } from '../../domain/visuals';
 import { StadiumScene, TeamMark } from '../components/visuals/TeamVisuals';
+import { PlayerVisual } from '../components/PlayerVisual';
 import { Sec } from '../components/Sec';
 import {
   STAGE_LABELS,
@@ -61,6 +62,8 @@ export function PostseasonScreen() {
         )}
         {!champion &&
           leagueWinners.map((id) => <ChampionPlate key={id} teamId={id} kind="LEAGUE" />)}
+        {/* PHASE 4.6 日本シリーズMVPの顔を出す（§22） */}
+        {champion && <SeriesMvp playerId={postseason.japanSeriesMvpPlayerId} />}
       </div>
 
       <div className="card">
@@ -104,6 +107,24 @@ export function PostseasonScreen() {
           {teamName(next.teamBId)}）
         </button>
       )}
+    </div>
+  );
+}
+
+/** 日本シリーズMVP。まだ決まっていなければ何も出さない */
+function SeriesMvp({ playerId }: { playerId: string | null }) {
+  const { state } = useGame();
+  const player = playerId ? state.players.find((p) => p.id === playerId) : undefined;
+  if (!player) return null;
+  return (
+    <div className="row" style={{ gap: 12, marginTop: 12, justifyContent: 'center' }}>
+      <PlayerVisual player={player} size="large" expression="confident" animate />
+      <div>
+        <div className="muted" style={{ fontSize: 13 }}>
+          日本シリーズMVP
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 800 }}>{player.name}</div>
+      </div>
     </div>
   );
 }

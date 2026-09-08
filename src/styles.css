@@ -3804,3 +3804,51 @@ h3.sec {
   min-width: 0;
   flex: 1 1 auto;
 }
+
+/* ================= PHASE 4.6 画像素材で描く肖像 =================
+   共通キャンバスに描かれたパーツを重ねる。すべて同じ大きさなので
+   位置合わせは重ねるだけでよい（§9）。
+   紙面に写真が刷られているように見せる。カードの中に詰め込まない（§23）。 */
+
+.portrait-image {
+  position: relative;
+  display: block;
+  margin: 0;
+  background: var(--photo-bg);
+  overflow: hidden;
+}
+
+.portrait-image .pt-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  /* 拡大しても輪郭がにじまないようにする */
+  image-rendering: auto;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* 球団色は下端の細い線としてだけ入れる（面を球団色で塗らない。§20） */
+.portrait-image .pt-img-accent {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  opacity: 0.9;
+}
+
+/* ---- PHASE 4.6 GM案件票の顔（§22） ---- */
+.gm-note-faces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+.gm-note-face {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

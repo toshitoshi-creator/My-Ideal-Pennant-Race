@@ -6,7 +6,7 @@ import { RankBadge } from './common';
 import { daysUntilChangeable } from '../../domain/roster';
 import { CONDITION_ICONS, CONDITION_LABELS } from '../../domain/condition';
 import { daysUntilReturn } from '../../domain/injury';
-import { PlayerPortraitSmall } from './PlayerPortrait';
+import { PlayerVisualSmall } from './PlayerVisual';
 import { useGame } from '../store';
 
 export function PlayerCard({
@@ -99,6 +99,6 @@ function RowPortrait({ player }: { player: Player }) {
   const { state } = useGame();
   const team = state.teams.find((t) => t.id === player.teamId);
   return (
-    <PlayerPortraitSmall player={player} teamColor={team?.color} className="portrait-row" />
+    <PlayerVisualSmall player={player} teamColor={team?.color} className="portrait-row" />
   );
 }

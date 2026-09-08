@@ -3,7 +3,7 @@ import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import type { DraftProspect, ScoutCategory, ScoutReport } from '../../domain/types';
 import { availableProspects, currentPick } from '../../domain/draft';
-import { PlayerPortrait, PlayerPortraitHero } from '../components/PlayerPortrait';
+import { PlayerVisual, PlayerVisualHero } from '../components/PlayerVisual';
 import { RevealRows } from '../components/Reveal';
 import { POSITION_LABELS, POSITION_SHORT } from '../../domain/positions';
 import {
@@ -185,7 +185,7 @@ export function DraftScreen() {
                 <div key={`${pick.round}-${pick.pick}`} className="spread" style={{ padding: '6px 0' }}>
                   <span>
                     <strong style={{ color: 'var(--accent)' }}>{pick.round}巡目</strong>{' '}
-                    <PlayerPortrait
+                    <PlayerVisual
                       player={prospect.player}
                       size="small"
                       expression="focused"
@@ -268,7 +268,7 @@ export function DraftScreen() {
           <div className="card">
             <div className="draft-confirm">
               {/* §42 指名の見せ場。ここだけ Portrait Reveal を使う */}
-              <PlayerPortraitHero
+              <PlayerVisualHero
                 player={confirming.player}
                 expression="focused"
                 pose="pose_standing"

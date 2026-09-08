@@ -1,0 +1,65 @@
+{
+  "$comment": "PHASE 4.6 選手ビジュアル素材の仕様。外部の画像生成AIで作った素材を、この仕様に合わせて取り込む。",
+  "version": 2,
+  "canvas": {
+    "width": 1024,
+    "height": 1280,
+    "$comment": "全パーツ共通のキャンバス。マスターは 2048x2560 で作り、取り込み時に半分へ正規化してもよい"
+  },
+  "anchors": {
+    "$comment": "共通キャンバス上の基準点。すべてのパーツはこの位置に合わせて描く",
+    "head": { "centerX": 512, "centerY": 470, "topY": 210, "chinY": 800, "leftX": 244, "rightX": 780 },
+    "eyes": { "leftEyeX": 408, "rightEyeX": 616, "eyeY": 496 },
+    "brows": { "leftX": 404, "rightX": 620, "y": 428 },
+    "nose": { "x": 512, "y": 600 },
+    "mouth": { "x": 512, "y": 712 },
+    "ears": { "leftX": 250, "rightX": 774, "y": 512 },
+    "hair": { "anchorTop": 200, "anchorLeft": 232, "anchorRight": 792 },
+    "beard": { "x": 512, "y": 740 },
+    "body": { "neckX": 512, "neckY": 856, "shoulderLeft": 236, "shoulderRight": 788 },
+    "cap": { "x": 512, "brimY": 306 },
+    "equipment": { "x": 512, "y": 980 }
+  },
+  "formats": {
+    "master": "png",
+    "game": "webp",
+    "$comment": "マスターは可逆のPNG、ゲーム同梱は WebP。単一HTMLでの互換性を優先する"
+  },
+  "sizes": {
+    "$comment": "表示サイズごとの書き出し解像度。パーツは共有なので選手が増えても容量は増えない",
+    "small": 128,
+    "medium": 256,
+    "large": 512,
+    "hero": 1024
+  },
+  "categories": [
+    { "id": "head", "dir": "base", "prefix": "head", "min": 10, "max": 15, "required": true, "layer": 7 },
+    { "id": "hair", "dir": "hair", "prefix": "hair", "min": 15, "max": 20, "required": true, "layer": 15 },
+    { "id": "hairBack", "dir": "hair", "prefix": "hairback", "min": 0, "max": 20, "required": false, "layer": 8 },
+    { "id": "eyebrows", "dir": "eyebrows", "prefix": "brow", "min": 10, "max": 15, "required": true, "layer": 10 },
+    { "id": "eyes", "dir": "eyes", "prefix": "eye", "min": 12, "max": 16, "required": true, "layer": 11 },
+    { "id": "nose", "dir": "nose", "prefix": "nose", "min": 10, "max": 15, "required": true, "layer": 12 },
+    { "id": "mouth", "dir": "mouth", "prefix": "mouth", "min": 10, "max": 15, "required": true, "layer": 13 },
+    { "id": "ears", "dir": "face", "prefix": "ear", "min": 6, "max": 10, "required": true, "layer": 6 },
+    { "id": "jaw", "dir": "face", "prefix": "jaw", "min": 6, "max": 10, "required": true, "layer": 9 },
+    { "id": "beard", "dir": "beard", "prefix": "beard", "min": 8, "max": 12, "required": false, "layer": 14 },
+    { "id": "body", "dir": "body", "prefix": "body", "min": 8, "max": 12, "required": true, "layer": 3 },
+    { "id": "neck", "dir": "body", "prefix": "neck", "min": 6, "max": 8, "required": true, "layer": 5 },
+    { "id": "uniform", "dir": "uniforms", "prefix": "uniform", "min": 1, "max": 8, "required": true, "layer": 4 },
+    { "id": "cap", "dir": "equipment", "prefix": "cap", "min": 1, "max": 8, "required": false, "layer": 16 },
+    { "id": "glasses", "dir": "equipment", "prefix": "glasses", "min": 0, "max": 10, "required": false, "layer": 17 },
+    { "id": "equipment", "dir": "equipment", "prefix": "gear", "min": 0, "max": 24, "required": false, "layer": 18 },
+    { "id": "expression", "dir": "expressions", "prefix": "expression", "min": 0, "max": 15, "required": false, "layer": 19 },
+    { "id": "pose", "dir": "poses", "prefix": "pose", "min": 0, "max": 12, "required": false, "layer": 2 }
+  ],
+  "skinTones": 8,
+  "hairColors": 10,
+  "naming": {
+    "pattern": "^[a-z]+(?:_[a-z]+)*_[0-9]{3}(?:@(?:small|medium|large|hero))?\\.(?:png|webp)$",
+    "$comment": "例: head_001.webp / expression_happy_001.webp / pose_batting_001@small.webp"
+  },
+  "forbidden": {
+    "$comment": "取り込み前に必ず取り除くもの",
+    "items": ["背景", "文字", "ロゴ", "透かし", "ウォーターマーク", "床の影", "別人物", "枠線"]
+  }
+}

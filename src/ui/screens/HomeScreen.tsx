@@ -26,7 +26,7 @@ import { buildGmDesk, type GmDeskLink } from '../../domain/gmDesk';
 import { buildPreGameBrief } from '../../domain/gameBrief';
 import { teamVisual, stadiumMoodForDate } from '../../domain/visuals';
 import { TeamMark, StadiumScene } from '../components/visuals/TeamVisuals';
-import { PlayerPortrait } from '../components/PlayerPortrait';
+import { PlayerVisual } from '../components/PlayerVisual';
 import {
   planSummary,
   targetLabels,
@@ -156,7 +156,7 @@ export function HomeScreen() {
               名前と寸評は必ず文字でも残す（画像だけで伝えない。§36）
             */}
             <div className="next-starter-face">
-              {starter && <PlayerPortrait player={starter} size="small" teamColor={team.color} />}
+              {starter && <PlayerVisual player={starter} size="small" teamColor={team.color} />}
               <span className="next-starter-face-text">
                 <span className="label">先発</span>
                 <span>{starter ? `${starter.name}　${brief.starterNote}` : '未設定'}</span>

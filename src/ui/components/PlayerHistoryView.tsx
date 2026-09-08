@@ -16,6 +16,7 @@ import {
 import { POSITION_LABELS } from '../../domain/positions';
 import { newsForPlayer } from '../../domain/news';
 import { NewsCard } from './NewsCard';
+import { PlayerVisualById } from './PlayerVisual';
 import type { PlayerHistory } from '../../domain/types';
 
 /**
@@ -35,6 +36,23 @@ export function PlayerHistoryView({ history }: { history: PlayerHistory }) {
 
   return (
     <>
+      {/* PHASE 4.6 引退した選手も、現役のときと同じ顔で出す（§22・§35） */}
+      <div className="row" style={{ gap: 12, marginBottom: 10 }}>
+        <PlayerVisualById
+          playerId={history.playerId}
+          name={history.name}
+          age={(history.retiredAt ?? state.year) - history.birthYear}
+          isPitcher={history.isPitcher}
+          size="large"
+        />
+        <div className="grow">
+          <div style={{ fontSize: 18, fontWeight: 800 }}>{history.name}</div>
+          <div className="muted" style={{ fontSize: 13 }}>
+            {history.debutYear}年デビュー
+            {history.retiredAt ? ` ／ ${history.retiredAt}年引退` : '（現役）'}
+          </div>
+        </div>
+      </div>
       <div className="spread" style={{ marginBottom: 10 }}>
         <span className="chip">{POSITION_LABELS[history.mainPosition]}</span>
         <span className="chip">{TIER_LABELS[tier]}</span>

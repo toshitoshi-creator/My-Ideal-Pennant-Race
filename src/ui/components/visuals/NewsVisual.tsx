@@ -8,7 +8,7 @@ import { useMemo } from 'react';
 import type { NewsItem } from '../../../domain/types';
 import { newsVisualKind, teamVisual } from '../../../domain/visuals';
 import { useGame } from '../../store';
-import { PlayerPortrait } from '../PlayerPortrait';
+import { PlayerVisual } from '../PlayerVisual';
 import { StadiumScene } from './TeamVisuals';
 
 const KIND_LABELS: Record<string, { en: string; ja: string }> = {
@@ -41,7 +41,7 @@ export function NewsVisual({ item, tier }: { item: NewsItem; tier: 'lead' | 'nor
   if ((kind === 'PLAYER' || kind === 'INJURY' || kind === 'RETIREMENT' || kind === 'RECORD') && player) {
     return (
       <figure className={`news-visual news-visual-${tier}`}>
-        <PlayerPortrait
+        <PlayerVisual
           player={player}
           size={tier === 'lead' ? 'medium' : 'small'}
           teamColor={team?.color}

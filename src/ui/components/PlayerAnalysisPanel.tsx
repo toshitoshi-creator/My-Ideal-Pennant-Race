@@ -10,7 +10,7 @@ import {
   USAGE_ADVICE_LABELS,
 } from '../../domain/playerAnalysis';
 import { buildPlayerReport } from '../../domain/playerReport';
-import { PlayerPortrait } from './PlayerPortrait';
+import { PlayerVisual } from './PlayerVisual';
 import { formatAverage } from '../../domain/stats';
 import { useGame } from '../store';
 import { RadarChart, Stars, TrendChart } from './charts';
@@ -73,7 +73,7 @@ export function PlayerAnalysisPanel({ player }: { player: Player }) {
           「誰の話をしているのか」を思い出しやすくするために置く。
         */}
         <div className="verdict-head">
-          <PlayerPortrait player={player} size="medium" />
+          <PlayerVisual player={player} size="medium" />
           <div className="verdict-head-text">
             <div className="verdict-name">{verdict}</div>
             <p className="verdict-reason">{analysis.recommendationReason}</p>

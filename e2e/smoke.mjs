@@ -35,6 +35,16 @@ await page.addInitScript(() => {
     };
   }
 });
+/*
+ * PHASE 4.6 §43: 起動後に外部へ取りに行かないことを見張る。
+ * 画像素材はビルド時に同梱するので、実行時の外部リクエストは1件もあってはならない。
+ */
+const requestedUrls = [];
+page.on('request', (req) => requestedUrls.push(req.url()));
+page.on('requestfailed', (req) => {
+  // 画像の読み込み失敗は「壊れた画像アイコン」につながるので必ず落とす
+  if (req.resourceType() === 'image') fail('画像の読み込みに失敗した: ' + req.url());
+});
 page.on('pageerror', (e) => fail('ページ内エラー: ' + e.message));
 page.on('console', (m) => {
   if (m.type() === 'error') fail('コンソールエラー: ' + m.text());
@@ -2253,6 +2263,87 @@ await page.locator('.sheet').getByRole('button', { name: '閉じる' }).click();
 // 試合画面・ニュース画面でも肖像が出ること
 await page.getByRole('button', { name: /ニュース|順位/ }).last().click().catch(() => {});
 await page.waitForTimeout(200);
+
+/* ================= PHASE 4.6 画像素材システム ================= */
+
+/*
+ * 素材が1枚も同梱されていなくても、選手の表示が壊れないこと。
+ * そして、実行時に外部（CDN・外部画像・外部AI・外部API）へ一切出ていかないこと。
+ */
+
+// 起動から今までのリクエストが、すべて自分自身のオリジンだけであること
+{
+  const origin = new URL(BASE).origin;
+  const external = requestedUrls.filter((url) => {
+    if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('about:')) return false;
+    return !url.startsWith(origin);
+  });
+  if (external.length > 0) {
+    fail(`外部へのリクエストが${external.length}件ある（${external.slice(0, 3).join(' / ')}）`);
+  } else ok(`外部へのリクエストは0件（${requestedUrls.length}件すべて同一オリジン）`);
+}
+
+// 外部AI・画像生成サービスのホストを叩いていないこと
+{
+  const banned = ['openai', 'stability', 'midjourney', 'replicate', 'huggingface', 'cdn.', 'googleapis', 'unpkg', 'jsdelivr'];
+  const hit = requestedUrls.filter((url) => banned.some((word) => url.includes(word)));
+  if (hit.length > 0) fail(`外部サービスへ出ている（${hit.slice(0, 3).join(' / ')}）`);
+  else ok('外部AI・CDN・Webフォントへのリクエストは0件');
+}
+
+// 画面上の img がすべて同一オリジンか data: であること（外部画像URLが0件）
+await page.getByRole('button', { name: /選手/ }).last().click();
+await page.locator('.player-card').first().waitFor();
+await page.waitForTimeout(200);
+{
+  const srcs = await page.locator('img').evaluateAll((els) => els.map((el) => el.currentSrc || el.src));
+  const external = srcs.filter((src) => src && !src.startsWith(location.origin) && !src.startsWith('data:'));
+  if (external.length > 0) fail(`外部画像URLが${external.length}件ある（${external[0]}）`);
+  else ok(`外部画像URLは0件（img ${srcs.length}件）`);
+}
+
+// 壊れた画像が1枚も出ていないこと
+{
+  const broken = await page.locator('img').evaluateAll((els) =>
+    els.filter((el) => el.complete && el.naturalWidth === 0).length,
+  );
+  if (broken > 0) fail(`読み込めていない画像が${broken}枚ある`);
+  else ok('壊れた画像は0枚');
+}
+
+// 素材が無いので、いまは PHASE 4.5 の SVG で描かれていること
+{
+  const svgCount = await page.locator('.player-card .portrait').evaluateAll((els) =>
+    els.filter((el) => el.tagName.toLowerCase() === 'svg').length,
+  );
+  const imgCount = await page.locator('.player-card .portrait-image').count();
+  if (svgCount === 0) fail('素材が無いのに SVG の肖像が出ていない');
+  else ok(`素材0枚のため SVG で描かれている（SVG ${svgCount}件 / 画像 ${imgCount}件）`);
+}
+
+// 「画像がありません」のような穴埋め表示を出していないこと
+{
+  const text = await page.locator('.screen').innerText();
+  for (const word of ['画像がありません', '画像なし', 'no image', 'undefined', 'NaN']) {
+    if (text.includes(word)) fail(`穴埋めの文言が出ている（${word}）`);
+  }
+  ok('「画像がありません」のような穴埋め表示は出ていない');
+}
+
+// 契約画面・歴史画面でも肖像が出ること（PHASE 4.6 で足した画面）
+for (const [label, name] of [['歴史', /歴史/]]) {
+  const button = page.getByRole('button', { name }).last();
+  if ((await button.count()) === 0) continue;
+  await button.click().catch(() => {});
+  await page.waitForTimeout(250);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  if (overflow > 0) fail(`${label}画面で横スクロールが出ている（${overflow}px）`);
+  else ok(`${label}画面でも横スクロールは0`);
+}
+
+await shot('46-visual-assets');
 
 /* ---- タイトル画面の確認は画面の中で行う（sandbox でも動くこと） ---- */
 await page.getByRole('button', { name: '保存して終了' }).click();

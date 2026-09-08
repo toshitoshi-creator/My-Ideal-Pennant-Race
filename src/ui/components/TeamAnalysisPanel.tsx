@@ -13,6 +13,7 @@ import { AxisBar, RadarChart, Stars } from './charts';
 import type { RadarAxis } from '../../domain/playerAnalysis';
 import { teamVisual, stadiumMoodForDate } from '../../domain/visuals';
 import { TeamMark, TeamUniform, StadiumScene } from './visuals/TeamVisuals';
+import { PlayerVisualById } from './PlayerVisual';
 import { useFirstVisit, useReducedMotion } from '../anim';
 
 /*
@@ -173,6 +174,15 @@ export function TeamAnalysisPanel() {
                   <span className={`depth-slot slot-${entry.slot.toLowerCase()}`}>
                     {SLOT_LABELS[entry.slot]}
                   </span>
+                  {/* PHASE 4.6 選手層にも顔を出す（§22） */}
+                  <PlayerVisualById
+                    playerId={entry.playerId}
+                    name={entry.name}
+                    age={entry.age}
+                    isPitcher={column.key === 'SP' || column.key === 'RP'}
+                    size="small"
+                    className="portrait-row"
+                  />
                   <span className="depth-name">
                     {entry.name}
                     <span className="muted" style={{ fontSize: 11 }}>

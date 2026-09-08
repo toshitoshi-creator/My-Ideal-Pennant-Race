@@ -9,6 +9,8 @@
  */
 import type { GmDeskItem, GmDeskLink } from '../../domain/gmDesk';
 import { useFirstVisit, useReducedMotion } from '../anim';
+import { useGame } from '../store';
+import { PlayerVisual } from './PlayerVisual';
 
 export function GmDeskNote({
   item,
@@ -36,6 +38,8 @@ export function GmDeskNote({
         <span className="gm-note-date">{dateLabel}</span>
       </div>
       <h3 className="gm-note-title">{item.headline}</h3>
+      {/* PHASE 4.6 案件に名前が挙がっている選手の顔（§22） */}
+      <GmNoteFaces playerIds={item.playerIds} />
 
       {item.situation.length > 0 && (
         <div className="gm-block">
@@ -112,5 +116,31 @@ export function GmDeskNote({
         </div>
       )}
     </article>
+  );
+}
+
+/**
+ * 案件に関係する選手の顔。最大3人まで。
+ * 該当する選手が在籍していなければ何も出さない。
+ */
+function GmNoteFaces({ playerIds }: { playerIds: string[] }) {
+  const { state } = useGame();
+  if (playerIds.length === 0) return null;
+  const players = playerIds
+    .map((id) => state.players.find((p) => p.id === id))
+    .filter((p): p is NonNullable<typeof p> => !!p)
+    .slice(0, 3);
+  if (players.length === 0) return null;
+  return (
+    <div className="gm-note-faces">
+      {players.map((player) => (
+        <span key={player.id} className="gm-note-face">
+          <PlayerVisual player={player} size="small" className="portrait-row" />
+          <span className="muted" style={{ fontSize: 12 }}>
+            {player.name}
+          </span>
+        </span>
+      ))}
+    </div>
   );
 }
