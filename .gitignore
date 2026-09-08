@@ -6,3 +6,10 @@ test-results/
 e2e/shots/
 scratch/
 *.jsonl
+
+# PHASE 4.7 画像素材づくり
+.env
+.env.*.local
+assets/incoming/
+assets/original/
+assets/state/

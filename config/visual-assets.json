@@ -1,6 +1,6 @@
 {
   "$comment": "PHASE 4.6 選手ビジュアル素材の仕様。外部の画像生成AIで作った素材を、この仕様に合わせて取り込む。",
-  "version": 2,
+  "version": 3,
   "canvas": {
     "width": 1024,
     "height": 1280,
@@ -50,13 +50,14 @@
     { "id": "glasses", "dir": "equipment", "prefix": "glasses", "min": 0, "max": 10, "required": false, "layer": 17 },
     { "id": "equipment", "dir": "equipment", "prefix": "gear", "min": 0, "max": 24, "required": false, "layer": 18 },
     { "id": "expression", "dir": "expressions", "prefix": "expression", "min": 0, "max": 15, "required": false, "layer": 19 },
-    { "id": "pose", "dir": "poses", "prefix": "pose", "min": 0, "max": 12, "required": false, "layer": 2 }
+    { "id": "pose", "dir": "poses", "prefix": "pose", "min": 0, "max": 12, "required": false, "layer": 2 },
+    { "id": "special", "dir": "special", "prefix": "special", "min": 0, "max": 10, "required": false, "layer": 20 }
   ],
   "skinTones": 8,
   "hairColors": 10,
   "naming": {
-    "pattern": "^[a-z]+(?:_[a-z]+)*_[0-9]{3}(?:@(?:small|medium|large|hero))?\\.(?:png|webp)$",
-    "$comment": "例: head_001.webp / expression_happy_001.webp / pose_batting_001@small.webp"
+    "pattern": "^[a-z]+(?:_[a-z]+)*_[0-9]{3}(?:c[0-9]{2})?(?:@(?:small|medium|large|hero))?\\.(?:png|webp)$",
+    "$comment": "例: head_001.webp / head_001c03.webp（色違い） / expression_happy_001.webp / pose_batting_001@small.webp"
   },
   "forbidden": {
     "$comment": "取り込み前に必ず取り除くもの",

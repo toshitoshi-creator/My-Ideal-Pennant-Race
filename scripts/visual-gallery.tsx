@@ -1,8 +1,8 @@
 /**
- * PHASE 4.6 Visual Gallery（§38）。
+ * PHASE 4.7 Visual Gallery / QA Sheet（§38・§39・§41）。
  *
  *   npx tsx scripts/visual-gallery.tsx [人数] [出力先]
- *   npm run gallery -- 300 gallery.html
+ *   npm run assets:gallery -- 300 gallery.html
  *
  * 選手を大量に並べて、目で「別人に見えるか」「破綻していないか」を確かめる資料。
  * 人数は 100 / 300 / 500 / 1000 を想定している（既定は 300）。
@@ -21,10 +21,12 @@ import type { Expression, Pose } from '../src/domain/playerAppearance';
 import {
   REQUIRED_CATEGORIES,
   VISUAL_CATEGORIES,
+  VISUAL_STATE_LABELS,
   buildVisualProfile,
-  stanceOf,
+  buildVisualProfileFromId,
   type VisualCategory,
   type VisualProfile,
+  type VisualState,
 } from '../src/domain/visualProfile';
 import { PortraitSvg } from '../src/ui/portrait/renderer';
 import type { PortraitSize } from '../src/ui/portrait/types';
@@ -43,11 +45,11 @@ if (!Number.isFinite(COUNT) || COUNT < 1) {
 
 // 1球団ぶんでは足りないので、シードを変えて何度も作って集める
 const pool: Player[] = [];
-const states = [4601, 4602, 4603, 4604, 4605, 4606, 4607, 4608];
-let base = createNewGame('phoenix', 10, states[0]);
-for (const seed of states) {
-  const state = seed === states[0] ? base : createNewGame('phoenix', 10, seed);
-  if (seed !== states[0]) base = state;
+const seeds = [4601, 4602, 4603, 4604, 4605, 4606, 4607, 4608];
+let base = createNewGame('phoenix', 10, seeds[0]);
+for (const seed of seeds) {
+  const state = seed === seeds[0] ? base : createNewGame('phoenix', 10, seed);
+  if (seed !== seeds[0]) base = state;
   for (const p of state.players) {
     pool.push(p);
     if (pool.length >= COUNT) break;
@@ -171,6 +173,81 @@ const positions = section(
   byPosition,
 );
 
+/* ---------------- §41 顔アップ ---------------- */
+
+const closeups = section(
+  '顔アップ（先頭40人）',
+  '小さく並べると気づかない破綻を見る。目と眉がぶつかっていないか、髪が頭に食い込んでいないか、鼻と口の位置がずれていないか。',
+  players.slice(0, 40).map((p) => card(p, { size: 'large' })).join(''),
+);
+
+/* ---------------- §41 パーツごとの一覧 ---------------- */
+
+/**
+ * 同じ顔を土台にして、1つの部品だけを変えたもの。
+ * 部品そのものの善し悪しを見るための並び。
+ */
+const partSheets = (() => {
+  const shown: VisualCategory[] = ['head', 'hair', 'eyebrows', 'eyes', 'nose', 'mouth', 'ears', 'jaw', 'body'];
+  const blocks: string[] = [];
+  for (const category of shown) {
+    // その部品だけが違う選手を探して並べる
+    const seen = new Set<string>();
+    const picks: Player[] = [];
+    for (const p of players) {
+      const id = buildVisualProfile({ player: p }).parts[category];
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      picks.push(p);
+      if (picks.length >= 12) break;
+    }
+    blocks.push(
+      `<h3>${esc(category)}（${picks.length}種類）</h3><div class="sheet">${picks
+        .map((p) => card(p, { size: 'medium', label: buildVisualProfile({ player: p }).parts[category] ?? '' }))
+        .join('')}</div>`,
+    );
+  }
+  return `<section><h2>部品ごとの一覧</h2>
+    <p class="note">${esc('同じ部品が使われている選手を1人ずつ並べたもの。部品そのものの形の違いを見る。')}</p>
+    ${blocks.join('')}</section>`;
+})();
+
+/* ---------------- §41 球団別 ---------------- */
+
+const byTeam = (() => {
+  const blocks: string[] = [];
+  for (const team of base.teams.slice(0, 6)) {
+    const roster = base.players.filter((p) => p.teamId === team.id).slice(0, 8);
+    if (roster.length === 0) continue;
+    blocks.push(
+      `<h3>${esc(team.name)}</h3><div class="sheet">${roster
+        .map((p) => card(p, { size: 'medium' }))
+        .join('')}</div>`,
+    );
+  }
+  return `<section><h2>球団別</h2>
+    <p class="note">${esc('球団色は帽子と襟の線だけに入る。背景を球団色で塗らないことを確かめる。')}</p>
+    ${blocks.join('')}</section>`;
+})();
+
+/* ---------------- §23 状態ごとの見え方 ---------------- */
+
+const STATES: VisualState[] = ['none', 'injury', 'fatigue', 'slump', 'hot', 'rookie', 'veteran'];
+const stateTarget = players[1] ?? players[0];
+const stateSheet = section(
+  '状態',
+  'ゲームの状態から見た目が決まる（一方向）。見た目がゲームの状態を決めることはない。',
+  STATES.map((state) => {
+    const profile = buildVisualProfile({ player: stateTarget, visualState: state });
+    return card(stateTarget, {
+      size: 'large',
+      label: `${VISUAL_STATE_LABELS[state]}（${profile.parts.special ?? '素材なし'}）`,
+    });
+  }).join(''),
+);
+
+/* ---------------- §39 偏りの検査 ---------------- */
+
 /* ---------------- §38-6 設計図の内訳 ---------------- */
 
 const profiles: VisualProfile[] = players.map((p) => buildVisualProfile({ player: p }));
@@ -184,12 +261,83 @@ for (const profile of profiles) {
     if (id) used.get(category)!.add(id);
   }
 }
+/** 部品ごとの使われ方。特定の1つに寄りすぎていないかを見る（§39） */
+const distribution = new Map<VisualCategory, Map<string, number>>();
+for (const category of VISUAL_CATEGORIES) distribution.set(category, new Map());
+for (const profile of profiles) {
+  for (const category of VISUAL_CATEGORIES) {
+    const id = profile.parts[category];
+    if (!id) continue;
+    const counts = distribution.get(category)!;
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+}
+
+interface Skew {
+  category: VisualCategory;
+  id: string;
+  share: number;
+}
+
+/**
+ * 偏りを見るのは「その人らしさ」を作る部品だけ。
+ * 帽子・用具・姿勢・表情・状態は守備位置や調子で決まるので、
+ * 偏っているのが正しい（捕手だけがマスクをかぶる、など）。
+ */
+const IDENTITY_CATEGORIES: VisualCategory[] = [
+  'head',
+  'hair',
+  'hairBack',
+  'eyebrows',
+  'eyes',
+  'nose',
+  'mouth',
+  'ears',
+  'jaw',
+  'beard',
+  'body',
+  'neck',
+];
+
+const skews: Skew[] = [];
+for (const category of IDENTITY_CATEGORIES) {
+  const counts = distribution.get(category)!;
+  let top = '';
+  let max = 0;
+  let total = 0;
+  for (const [id, n] of counts) {
+    total += n;
+    if (n > max) {
+      max = n;
+      top = id;
+    }
+  }
+  if (total === 0) continue;
+  const share = max / total;
+  // 素材が1種類しか無い場合は偏りではない
+  if (counts.size > 1 && share > 0.7) skews.push({ category, id: top, share });
+}
+
 const usageRows = VISUAL_CATEGORIES.map((category) => {
   const ids = used.get(category)!;
   const required = REQUIRED_CATEGORIES.includes(category);
+  const counts = distribution.get(category)!;
+  let top = '';
+  let max = 0;
+  let total = 0;
+  for (const [id, n] of counts) {
+    total += n;
+    if (n > max) {
+      max = n;
+      top = id;
+    }
+  }
+  const share = total === 0 ? 0 : max / total;
+  const warn = IDENTITY_CATEGORIES.includes(category) && counts.size > 1 && share > 0.7;
   return `<tr><td>${category}</td><td>${required ? '必須' : '任意'}</td>
     <td class="n">${ids.size}</td>
-    <td class="dim">${[...ids].sort().slice(0, 8).join(' ')}${ids.size > 8 ? ' …' : ''}</td></tr>`;
+    <td class="n ${warn ? 'warn' : ''}">${total === 0 ? '―' : `${Math.round(share * 100)}%`}</td>
+    <td class="dim">${total === 0 ? '' : `最多 ${esc(top)}`}</td></tr>`;
 }).join('');
 
 // まったく同じ組み合わせの選手がいないか
@@ -210,9 +358,18 @@ for (const profile of profiles) {
 const summary = `<section><h2>設計図の内訳</h2>
   <p class="note">${COUNT}人ぶんの設計図を数えたもの。素材を作るときの目安になる。</p>
   <table>
-    <thead><tr><th>種類</th><th></th><th class="n">使われたID数</th><th>内訳</th></tr></thead>
+    <thead><tr><th>種類</th><th></th><th class="n">使われたID数</th><th class="n">最多の割合</th><th>内訳</th></tr></thead>
     <tbody>${usageRows}</tbody>
   </table>
+  <p class="note ${skews.length > 0 ? 'warn' : ''}">
+    偏りの検査（§39・その人らしさを作る部品だけ）: ${
+      skews.length === 0
+        ? '偏りなし（どの部品も7割を超えていません）'
+        : `<strong>${skews.length}件が7割を超えています</strong> — ${skews
+            .map((skew) => `${skew.category} の ${esc(skew.id)} が ${Math.round(skew.share * 100)}%`)
+            .join(' / ')}`
+    }
+  </p>
   <p class="note">
     同一の組み合わせ: <strong>${collisions.length}組</strong>
     ${collisions.length > 0 ? `（${collisions.map((ids) => esc(ids.join('・'))).slice(0, 5).join(' / ')}）` : ''}
@@ -237,14 +394,24 @@ writeFileSync(
    .dim{color:var(--text-dim)}
    table{border-collapse:collapse;font-size:12px;width:100%;max-width:760px}
    th,td{border-bottom:1px solid var(--paper-edge);padding:4px 8px;text-align:left}
-   td.n,th.n{text-align:right}</style>
+   td.n,th.n{text-align:right}
+   h3{font-size:13px;margin:14px 0 6px;color:var(--text-dim)}
+   .warn{color:#a4442c;font-weight:700}</style>
    <h1>PHASE 4.6 選手ビジュアル一覧</h1>
    <p class="note">${COUNT}人 ／ 生成 ${new Date().getFullYear()} ／ 画像素材ではなく PHASE 4.5 の SVG で描いています</p>
-   ${summary}${aging}${expressions}${poses}${positions}${crowd}`,
+   ${summary}${aging}${expressions}${stateSheet}${poses}${positions}${partSheets}${byTeam}${closeups}${crowd}`,
 );
 
 console.log(`${OUT} を書き出しました`);
 console.log(`  選手 ${COUNT}人 / 同一の組み合わせ ${collisions.length}組`);
+if (skews.length === 0) {
+  console.log('  偏りの検査: 問題なし（どの部品も7割を超えていません）');
+} else {
+  console.log(`  偏りの検査: ⚠️ ${skews.length}件が7割を超えています`);
+  for (const skew of skews) {
+    console.log(`    ${skew.category}: ${skew.id} が ${Math.round(skew.share * 100)}%`);
+  }
+}
 for (const category of REQUIRED_CATEGORIES) {
   console.log(`  ${category}: ${used.get(category)!.size}種類`);
 }

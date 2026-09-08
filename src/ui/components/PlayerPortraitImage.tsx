@@ -1,5 +1,5 @@
 /**
- * PHASE 4.6 画像素材で描く選手の肖像。
+ * PHASE 4.7 画像素材で描く選手の肖像（PHASE 4.6 から拡張）。
  *
  * 外部の画像生成AIで作ったパーツを、共通キャンバスの上に重ねて1人を作る。
  * 実行時に外部へ取りに行くことは一切しない。ビルド時に同梱されたものだけを使う。
@@ -10,10 +10,13 @@
  */
 import { memo, useCallback, useMemo, useState } from 'react';
 import type { VisualCategory, VisualProfile } from '../../domain/visualProfile';
-import { resolveAsset, type AssetSize } from '../visual/assetRegistry';
+import { resolveAsset, zIndexOf, type AssetSize } from '../visual/assetRegistry';
 import { manifest } from '../visual/assetRegistry';
 
-/** 重ねる順番（下から上）。config/visual-assets.json の layer と合わせる */
+/**
+ * 重ねる順番（下から上）。config/visual-assets.json の layer と合わせる。
+ * manifest が素材ごとの zIndex を持っていればそちらを優先する（§8）。
+ */
 const LAYER_ORDER: VisualCategory[] = [
   'pose',
   'body',
@@ -33,7 +36,11 @@ const LAYER_ORDER: VisualCategory[] = [
   'glasses',
   'equipment',
   'expression',
+  'special',
 ];
+
+/** 肌の色をあてる部品。色違いの素材があればそれを使う */
+const SKIN_PARTS: VisualCategory[] = ['head', 'ears', 'neck', 'jaw', 'body'];
 
 export interface PortraitImageProps {
   profile: VisualProfile;
@@ -67,14 +74,22 @@ export const PlayerPortraitImage = memo(function PlayerPortraitImage({
   const [failed, setFailed] = useState(false);
 
   const layers = useMemo(() => {
-    const found: Array<{ category: VisualCategory; url: string }> = [];
-    for (const category of LAYER_ORDER) {
+    const found: Array<{ category: VisualCategory; url: string; z: number }> = [];
+    for (let i = 0; i < LAYER_ORDER.length; i++) {
+      const category = LAYER_ORDER[i];
       const id = profile.parts[category];
       if (!id) continue;
-      const url = resolveAsset(category, id, size);
-      if (url) found.push({ category, url });
+      // 髪は髪色、肌の部品は肌色。色違いが無ければ形だけの素材が返る
+      const colorIndex =
+        category === 'hair' || category === 'hairBack'
+          ? profile.hairColor
+          : SKIN_PARTS.includes(category)
+            ? profile.skinTone
+            : undefined;
+      const url = resolveAsset(category, id, size, colorIndex);
+      if (url) found.push({ category, url, z: zIndexOf(category, id) ?? i });
     }
-    return found;
+    return found.sort((a, b) => a.z - b.z);
   }, [profile, size]);
 
   const handleError = useCallback(() => {
@@ -101,6 +116,7 @@ export const PlayerPortraitImage = memo(function PlayerPortraitImage({
         <img
           key={layer.category}
           className={`pt-img pt-img-${layer.category}`}
+          style={{ zIndex: layer.z }}
           src={layer.url}
           alt=""
           aria-hidden="true"

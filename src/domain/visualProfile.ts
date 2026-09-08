@@ -1,5 +1,5 @@
 /**
- * PHASE 4.6 選手ビジュアルの設計図（Appearance Profile v2）。
+ * PHASE 4.7 選手ビジュアルの設計図（Appearance Profile v3）。
  *
  * PHASE 4.5 は「SVGをその場で描く」ための設計図だった。
  * PHASE 4.6 では、外部の画像生成AIで作った素材を組み合わせるための設計図を足す。
@@ -30,7 +30,7 @@ import type { GameState } from './types';
  * 素材を足したときに既存選手の顔が変わらないよう、ハッシュの種に混ぜる。
  * v1（PHASE 4.5 の SVG）とは別系列なので、片方を足してももう片方は動かない。
  */
-export const VISUAL_PROFILE_VERSION = 2;
+export const VISUAL_PROFILE_VERSION = 3;
 
 /* ================= ハッシュ ================= */
 
@@ -79,6 +79,8 @@ export const VISUAL_CATEGORIES = [
   'equipment',
   'expression',
   'pose',
+  // PHASE 4.7 §4-18 状態を表す小さな重ね（怪我・疲労・新人など）
+  'special',
 ] as const;
 export type VisualCategory = (typeof VISUAL_CATEGORIES)[number];
 
@@ -169,6 +171,51 @@ export function expressionAsset(expression: Expression): string | null {
   return expression === 'neutral' ? null : `expression_${expression}_001`;
 }
 
+/**
+ * PHASE 4.7 §4-18 状態を表す小さな重ね。
+ *
+ * 大事なのは向きで、**ゲームの状態から見た目が決まる**（§23）。
+ * 見た目がゲームの状態を決めることは絶対にない。
+ */
+export type VisualState =
+  | 'none'
+  | 'injury'
+  | 'fatigue'
+  | 'slump'
+  | 'hot'
+  | 'rookie'
+  | 'veteran';
+
+export const VISUAL_STATE_LABELS: Record<VisualState, string> = {
+  none: '通常',
+  injury: '離脱中',
+  fatigue: '疲労',
+  slump: '不振',
+  hot: '好調',
+  rookie: '新人',
+  veteran: 'ベテラン',
+};
+
+/** 状態の素材ID。none のときは素材を使わない */
+export function specialAsset(state: VisualState): string | null {
+  return state === 'none' ? null : `special_${state}_001`;
+}
+
+/**
+ * いまの状態から、重ねる印を決める。
+ * 見ているのはすでにゲームが決めた事実だけ（怪我・疲労・スランプ・調子・年数）。
+ */
+export function visualStateOf(state: GameState, player: Player): VisualState {
+  if (player.ext.injury) return 'injury';
+  if (player.ext.slump) return 'slump';
+  if (player.ext.fatigue >= 78) return 'fatigue';
+  if (player.ext.condition === 'best') return 'hot';
+  const debut = player.ext.debutYear;
+  if (debut !== null && debut >= state.year) return 'rookie';
+  if (player.age >= 36) return 'veteran';
+  return 'none';
+}
+
 /* ================= 設計図 ================= */
 
 /** 画像素材の割り当て（種類 → 素材ID） */
@@ -191,6 +238,8 @@ export interface VisualProfile {
   headwear: 'cap' | 'helmet' | 'mask';
   /** 身につけている装備のID */
   equipment: string[];
+  /** 状態を表す印（§4-18・§23）。ゲームの状態から一方向に決まる */
+  state: VisualState;
   /** 所属球団（ユニフォームの色に使う）。未所属なら null */
   teamId: string | null;
   /**
@@ -203,6 +252,8 @@ export interface VisualProfile {
 /** 設計図を作るのに必要な、ゲーム側の最小の情報 */
 export interface VisualProfileInput {
   player: Player;
+  /** 渡さなければ状態から決める */
+  visualState?: VisualState;
   /** 渡さなければ状態から決める */
   expression?: Expression;
   /** 渡さなければ守備位置から決める */
@@ -255,6 +306,7 @@ const SALT: Record<string, number> = {
   beardChance: 15,
   glassesChance: 16,
   greyChance: 17,
+  hairBack: 18,
 };
 
 /** 年齢段階ごとのひげの出やすさ（§16） */
@@ -294,6 +346,8 @@ export function buildVisualProfile(
       stance: input.stance ?? stanceOf(player.mainPosition, player.isPitcher),
       expression:
         input.expression ?? (input.state ? expressionOf(input.state, player) : 'neutral'),
+      state:
+        input.visualState ?? (input.state ? visualStateOf(input.state, player) : 'none'),
       teamId: player.teamId || null,
       // PHASE 4.5 の設計図をそのまま持つ。素材が無いときはこれで描く
       svg: appearanceOf(player),
@@ -309,6 +363,7 @@ export interface VisualProfileByIdInput {
   isPitcher?: boolean;
   expression?: Expression;
   stance?: VisualStance;
+  visualState?: VisualState;
   teamId?: string | null;
 }
 
@@ -327,6 +382,7 @@ export function buildVisualProfileFromId(
       age: input.age,
       stance: input.stance ?? (isPitcher ? 'PITCHER' : 'BATTER'),
       expression: input.expression ?? 'neutral',
+      state: input.visualState ?? 'none',
       teamId: input.teamId ?? null,
       svg: appearanceFromId(input.playerId, input.age, isPitcher),
     },
@@ -340,6 +396,7 @@ interface ProfileCoreInput {
   age: number;
   stance: VisualStance;
   expression: Expression;
+  state: VisualState;
   teamId: string | null;
   svg: PlayerAppearance;
 }
@@ -381,6 +438,13 @@ function buildProfileCore(input: ProfileCoreInput, counts: CategoryCounts): Visu
   parts.equipment = STANCE_GEAR_ASSET[stance];
   const expressionOverlay = expressionAsset(expression);
   if (expressionOverlay) parts.expression = expressionOverlay;
+  const stateOverlay = specialAsset(input.state);
+  if (stateOverlay) parts.special = stateOverlay;
+  // 後ろ髪は、前髪と番号をそろえる（同じ髪型の裏側になるように）
+  const hairBackCount = counts.hairBack ?? 0;
+  if (hairBackCount > 0) {
+    parts.hairBack = assetId('hairback', visualPick(seed, SALT.hairBack, hairBackCount));
+  }
 
   // 白髪は年齢が上がってから。若い選手には出さない
   const baseHairColor = visualPick(seed, SALT.hairColor, 6);
@@ -401,6 +465,7 @@ function buildProfileCore(input: ProfileCoreInput, counts: CategoryCounts): Visu
     stance,
     headwear,
     equipment: STANCE_EQUIPMENT[stance],
+    state: input.state,
     teamId: input.teamId,
     svg: input.svg,
   };

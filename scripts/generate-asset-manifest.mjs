@@ -1,5 +1,5 @@
 /**
- * PHASE 4.6 選手ビジュアル素材の manifest を作る。
+ * PHASE 4.7 選手ビジュアル素材の manifest を作る（PHASE 4.6 から拡張）。
  *
  *   npm run assets:manifest
  *
@@ -45,17 +45,40 @@ function imageSize(buffer, ext) {
   return null;
 }
 
-/** ファイル名から「素材ID」と「サイズ違い」を取り出す（例: head_001@small.webp） */
+/**
+ * ファイル名から中身を取り出す。
+ *   head_001.webp          → id head_001 / base head_001 / color なし
+ *   head_001c03.webp       → id head_001c03 / base head_001 / color 3
+ *   head_001c03@small.webp → 上に加えて variant small
+ */
 function parseName(file) {
   const ext = extname(file);
   const stem = basename(file, ext);
   const at = stem.indexOf('@');
+  const id = at >= 0 ? stem.slice(0, at) : stem;
+  const colorMatch = /^(.*_\d{3})c(\d{2})$/.exec(id);
   return {
-    id: at >= 0 ? stem.slice(0, at) : stem,
+    id,
+    base: colorMatch ? colorMatch[1] : id,
+    color: colorMatch ? Number(colorMatch[2]) : null,
     variant: at >= 0 ? stem.slice(at + 1) : null,
     ext,
   };
 }
+
+/** 検査の結果（assets/state/quality.json）。無ければ空 */
+function loadQuality() {
+  const path = 'assets/state/quality.json';
+  if (!existsSync(path)) return new Map();
+  try {
+    const parsed = JSON.parse(readFileSync(path, 'utf8'));
+    return new Map((parsed.reports ?? []).map((report) => [report.id, report]));
+  } catch {
+    return new Map();
+  }
+}
+
+const QUALITY = loadQuality();
 
 const parts = {};
 let total = 0;
@@ -68,7 +91,7 @@ for (const category of CONFIG.categories) {
   const byId = new Map();
 
   for (const file of files) {
-    const { id, variant, ext } = parseName(file);
+    const { id, base, color, variant, ext } = parseName(file);
     // 種類ごとの接頭辞に合うものだけ拾う（同じフォルダに複数の種類が入るため）
     if (!id.startsWith(`${category.prefix}_`)) continue;
     const full = join(dir, file);
@@ -76,8 +99,13 @@ for (const category of CONFIG.categories) {
     const size = imageSize(buffer, ext.toLowerCase());
     if (!size) problems.push(`${full}: 画像の大きさを読めません（壊れている可能性）`);
 
+    const report = QUALITY.get(base);
     const entry = byId.get(id) ?? {
       id,
+      // 色違いなら、形のもとになった素材のID
+      base,
+      ...(color === null ? {} : { color }),
+      type: category.id,
       path: null,
       width: size?.width ?? 0,
       height: size?.height ?? 0,
@@ -85,6 +113,15 @@ for (const category of CONFIG.categories) {
       sha1: '',
       variants: {},
       anchor: CONFIG.anchors[category.id] ?? null,
+      // 重ねる順（§8）。素材ごとに変えられる
+      zIndex: category.layer,
+      // 機械検査の点数（§40）。検査していなければ null
+      quality: report ? report.score : null,
+      // 採用してよいか。REJECT のものはゲームに出さない（§15）
+      approved: report ? report.grade !== 'REJECT' : true,
+      // 出所（§17）。鍵・利用者情報は入れない
+      source: 'external-ai',
+      version: CONFIG.version,
       compatibleTypes: [],
       tags: [],
     };
@@ -108,10 +145,17 @@ for (const category of CONFIG.categories) {
   }
 }
 
+// 色違いを除いた「形」の数。素材の充実度はこれで測る
+const structural = {};
+for (const [category, list] of Object.entries(parts)) {
+  structural[category] = new Set(list.map((entry) => entry.base)).size;
+}
+
 const manifest = {
   version: CONFIG.version,
   generatedFrom: 'scripts/generate-asset-manifest.mjs',
   canvas: CONFIG.canvas,
+  structural,
   note:
     total === 0
       ? '素材が1枚も無い状態。この場合ゲームは PHASE 4.5 の SVG で選手を描きます。'

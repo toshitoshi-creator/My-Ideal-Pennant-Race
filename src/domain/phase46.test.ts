@@ -187,8 +187,11 @@ describe('PHASE4.6 ハッシュ', () => {
   });
 
   it('PHASE 4.5 とは別の版番号を使う', () => {
-    expect(VISUAL_PROFILE_VERSION).toBe(2);
+    // PHASE 4.7 で設計図を v3 に上げた（画像素材の割り当てが変わったため）。
+    // v1（PHASE 4.5 の SVG）とは別系列である、という趣旨は変わらない。
+    expect(VISUAL_PROFILE_VERSION).toBe(3);
     expect(VISUAL_PROFILE_VERSION).not.toBe(APPEARANCE_VERSION);
+    expect(VISUAL_PROFILE_VERSION).toBeGreaterThan(APPEARANCE_VERSION);
   });
 });
 
@@ -257,11 +260,15 @@ describe('PHASE4.6 素材の仕様', () => {
     }
   });
 
-  it('表情はいちばん上に重なる', () => {
+  it('表情は顔のどの部品よりも上に重なる', () => {
     const layer = (id: string) => SPEC.categories.find((c) => c.id === id)!.layer;
+    // PHASE 4.7 で、表情のさらに上に「状態の印」（special）を足した。
+    // 表情が顔のすべての部品より上、という趣旨は変わっていない。
     for (const c of SPEC.categories) {
-      if (c.id !== 'expression') expect(layer('expression')).toBeGreaterThan(c.layer);
+      if (c.id === 'expression' || c.id === 'special') continue;
+      expect(layer('expression'), c.id).toBeGreaterThan(c.layer);
     }
+    expect(layer('special')).toBeGreaterThan(layer('expression'));
   });
 
   it('必須の種類は最低でも1点は要ると書いてある', () => {

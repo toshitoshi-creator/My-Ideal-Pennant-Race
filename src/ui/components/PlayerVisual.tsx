@@ -1,11 +1,12 @@
 /**
- * PHASE 4.6 選手のビジュアル（表示側の唯一の入口）。
+ * PHASE 4.7 選手のビジュアル（表示側の唯一の入口）。
  *
- * 3段階で描く（§1・§21・§50）：
+ * 4段階で描く（PHASE 4.7 §35）：
  *
  *   1. 画像素材（外部の画像生成AIで作ったパーツを重ねる）
  *   2. 画像素材の別バリエーション（低い解像度・別サイズ）
  *   3. PHASE 4.5 の SVG
+ *   4. 名前だけの安全な代替（SVG も描けないとき）
  *
  * 素材が1枚も無くても、素材の読み込みに失敗しても、
  * 選手の表示そのものは絶対に壊れない。
@@ -26,6 +27,7 @@ import { assetCounts, hasAsset, imageModeAvailable } from '../visual/assetRegist
 import type { AssetSize } from '../visual/assetRegistry';
 import { PlayerPortraitImage } from './PlayerPortraitImage';
 import { PlayerPortrait, PlayerPortraitById } from './PlayerPortrait';
+import { PlayerPortraitFallback } from './PlayerPortraitFallback';
 import type { PortraitSize } from '../portrait';
 import { useOptionalGameState } from '../store';
 
@@ -201,8 +203,8 @@ interface VisualLayersProps {
 }
 
 /**
- * 3段階の選び分けだけを受け持つ。
- *   0 = 画像素材 / 1 = 画像素材の別解像度 / 2 = SVG
+ * 4段階の選び分けだけを受け持つ（§35）。
+ *   0 = 画像素材 / 1 = 画像素材の別解像度 / 2 = SVG / 3 = 名前だけの代替
  */
 function VisualLayers({
   profile,
@@ -255,8 +257,17 @@ function VisualLayers({
     );
   }
 
-  // 素材が無くても・読み込みに失敗しても、ここで必ず描ける
-  return renderSvg();
+  // ここまで来たら SVG で描く。素材が1枚も無いときはいつもここ
+  if (tier <= 2) {
+    try {
+      return renderSvg();
+    } catch {
+      // SVG の組み立てで落ちても、選手の行そのものは残す
+    }
+  }
+
+  // 最後の砦。名前の頭文字だけを出す（§35 safe placeholder）
+  return <PlayerPortraitFallback name={name} size={size} className={className} />;
 }
 
 /** 一覧・ニュースで使う小さなビジュアル */

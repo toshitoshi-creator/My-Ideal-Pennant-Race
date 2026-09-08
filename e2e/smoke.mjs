@@ -498,12 +498,26 @@ if (cpuTrades.length > 0) {
 } else {
   /*
    * 成立0件のシーズンもある（30日時点で 3/30 シード。支配下70人枠の前後で変わらない）。
-   * ここで必ず1件を要求するとシードによって落ちるので、
-   * 「トレード市場が開いていて、期限が今シーズンのものになっている」ことを確かめる。
+   * ここで必ず1件を要求するとシードによって落ちるので、市場の状態だけを確かめる。
+   *
+   * トレード期限はシーズンの一定の割合の日付なので、
+   * ここに来る時点（開幕から数試合後）ではすでに過ぎていることがあります。
+   * 「まだ期限内であること」を求めると、日程の進み方だけで落ちてしまうので、
+   * 「市場が今シーズンのもので、期限が今シーズンの日程の中にある」ことを見ます。
    */
   if (state.trade.year !== state.year) fail('トレード市場が今シーズンのものになっていない');
-  else if (!(state.trade.deadline > state.date)) fail('トレード期限がすでに過ぎている');
-  else ok('このシーズンはCPU同士のトレードが成立しなかった（市場は開いている）');
+  else if (!state.trade.deadline || !state.trade.deadline.startsWith(String(state.year))) {
+    fail(`トレード期限が今シーズンの日付ではない（${state.trade.deadline}）`);
+  } else {
+    const dates = [...new Set(state.schedule.map((g) => g.date))].sort();
+    if (!dates.includes(state.trade.deadline)) {
+      fail(`トレード期限が今シーズンの日程に無い日付になっている（${state.trade.deadline}）`);
+    } else {
+      ok(
+        `このシーズンはCPU同士のトレードが成立しなかった（市場は今シーズンのもの／期限 ${state.trade.deadline}）`,
+      );
+    }
+  }
 }
 
 // リロードしてもトレード履歴が残る
@@ -2025,8 +2039,18 @@ ok('試合前資料に対戦相手・先発・直近の成績が出ている（�
   if (nextGame) {
     const opponentId = nextGame.homeTeamId === 'phoenix' ? nextGame.awayTeamId : nextGame.homeTeamId;
     const briefBox = await page.locator('.card').first().innerText();
-    const leaked = st.players.filter((p) => p.teamId === opponentId).some((p) => briefBox.includes(p.name));
-    if (leaked) fail('試合前資料に相手球団の選手情報が出ている');
+    /*
+     * 支配下70人枠（12球団 780人）にしたことで、別球団に同姓同名の選手が
+     * 毎シーズン30人前後います。自軍の先発の名前が相手球団の誰かと同姓同名だと、
+     * 「漏れている」と誤判定してしまうので、自軍にも居る名前は数えません。
+     * 相手球団にしか居ない名前が1つでも出ていれば、これまでどおり失敗にします。
+     */
+    const ourNames = new Set(st.players.filter((p) => p.teamId === 'phoenix').map((p) => p.name));
+    const opponentOnly = st.players
+      .filter((p) => p.teamId === opponentId && !ourNames.has(p.name))
+      .map((p) => p.name);
+    const leaked = opponentOnly.filter((name) => briefBox.includes(name));
+    if (leaked.length > 0) fail(`試合前資料に相手球団の選手情報が出ている（${leaked[0]}）`);
     else ok('相手球団については公開されている成績しか出していない（§31）');
   }
 }
@@ -2344,6 +2368,75 @@ for (const [label, name] of [['歴史', /歴史/]]) {
 }
 
 await shot('46-visual-assets');
+
+/* ================= PHASE 4.7 画像素材パイプライン ================= */
+
+/*
+ * 開発時に使う画像生成の仕組みが、ゲーム本体へ混ざっていないこと。
+ * 見るのは「ページが実際に何を読み込んだか」だけで、ソースの見た目ではない。
+ */
+
+// 起動から今までに読み込んだものに、外部AI・鍵・外部画像が無いこと
+{
+  const banned = [
+    'openai',
+    'replicate',
+    'fal.run',
+    'fal.ai',
+    'stability',
+    'midjourney',
+    'huggingface',
+    'api_key',
+    'apikey',
+    'authorization',
+  ];
+  const hit = requestedUrls.filter((url) => {
+    const lower = url.toLowerCase();
+    return banned.some((word) => lower.includes(word));
+  });
+  if (hit.length > 0) fail(`画像生成APIらしき宛先へ出ています（${hit.slice(0, 2).join(' / ')}）`);
+  else ok('画像生成API・鍵らしき宛先へのリクエストは0件');
+}
+
+// ページが持っているコードに鍵が残っていないこと
+{
+  const leaked = await page.evaluate(() => {
+    const scripts = [...document.querySelectorAll('script')].map((el) => el.textContent ?? '').join('\n');
+    const words = ['IMAGE_API_KEY', 'sk-', 'Bearer ', 'api.openai.com', 'api.replicate.com'];
+    return words.filter((word) => scripts.includes(word));
+  });
+  if (leaked.length > 0) fail(`ページのコードに鍵らしき文字が残っています（${leaked.join(', ')}）`);
+  else ok('ページのコードに鍵らしき文字は残っていない');
+}
+
+// 選手の表示が、素材の有無にかかわらず必ず出ること（4段フォールバック）
+await page.getByRole('button', { name: /選手/ }).last().click();
+await page.locator('.player-card').first().waitFor();
+await page.waitForTimeout(200);
+{
+  const cards = await page.locator('.player-card').count();
+  const portraits = await page.locator('.player-card .portrait').count();
+  if (portraits < Math.min(cards, 10)) fail('肖像が出ていない選手がいます');
+  else ok(`${cards}人すべてに肖像が出ている（画像でも SVG でも必ず出る）`);
+}
+
+// 状態（怪我・不振など）が文字でも読めること。画像だけで伝えない
+{
+  const text = await page.locator('.screen').innerText();
+  if (!/歳/.test(text)) fail('選手の情報が文字で出ていません');
+  else ok('選手の状態は文字でも読める（画像だけで伝えていない）');
+}
+
+// 画像素材が入ったときのために、壊れた画像が1枚も無いこと
+{
+  const broken = await page
+    .locator('img')
+    .evaluateAll((els) => els.filter((el) => el.complete && el.naturalWidth === 0).length);
+  if (broken > 0) fail(`読み込めていない画像が${broken}枚あります`);
+  else ok('壊れた画像は0枚（PHASE 4.7）');
+}
+
+await shot('47-asset-pipeline');
 
 /* ---- タイトル画面の確認は画面の中で行う（sandbox でも動くこと） ---- */
 await page.getByRole('button', { name: '保存して終了' }).click();

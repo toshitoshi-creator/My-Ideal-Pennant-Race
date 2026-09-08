@@ -19,7 +19,16 @@
     "assets:validate": "node scripts/validate-assets.mjs",
     "assets:optimize": "node scripts/optimize-assets.mjs",
     "assets:audit": "node scripts/audit-player-assets.mjs",
-    "gallery": "npx tsx scripts/visual-gallery.tsx"
+    "assets:dry-run": "npx tsx scripts/assets-cli.ts dry-run",
+    "assets:generate": "npx tsx scripts/assets-cli.ts generate",
+    "assets:regenerate": "npx tsx scripts/assets-cli.ts regenerate",
+    "assets:process": "npx tsx scripts/assets-cli.ts process",
+    "assets:check": "npx tsx scripts/assets-cli.ts check",
+    "assets:prompts": "npx tsx scripts/assets-cli.ts prompts",
+    "assets:gallery": "npx tsx scripts/visual-gallery.tsx",
+    "gallery": "npx tsx scripts/visual-gallery.tsx",
+    "e2e:images": "node e2e/image-mode-check.mjs",
+    "audit:security": "node scripts/security-audit.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
