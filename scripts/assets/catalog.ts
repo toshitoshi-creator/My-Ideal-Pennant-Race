@@ -144,7 +144,7 @@ export const CATALOG: CatalogEntry[] = [
      * 生成器の得意なことに合わせたほうが、破綻が少ない。
      */
     subject:
-      'the head of a flat vector avatar character: skull, hair, ears and a short neck, all in one shape. The face area is completely blank — no eyes, no eyebrows, no nose, no mouth',
+      'the head of a super-deformed baseball game character: skull, hair, ears and a short neck, all in one shape. The head is large and rounded. The face area is completely blank — no eyes, no eyebrows, no nose, no mouth',
     variants: [
       'oval face, short neat hair swept to one side',
       'round face, short cropped hair',

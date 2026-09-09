@@ -687,20 +687,25 @@ describe('PHASE4.7 プロンプト', () => {
   });
 
   it('文面に共通の絵柄が必ず入る', () => {
-    // 絵柄を「フラットなベクターアバター」に変えたので、目印もそれに合わせる
+    /*
+     * PHASE 4.7-A で絵柄を「日本のデフォルメ野球ゲーム風」に変えた。
+     * 部品もキャラクター本体も同じ文言を使うので、目印もそれに合わせる。
+     */
     for (const entry of imageCategories()) {
       const parts = buildPrompt(entry.id, 0);
-      expect(parts.prompt, entry.id).toContain('flat vector avatar');
-      expect(parts.prompt, entry.id).toContain('bold uniform black outline');
+      expect(parts.prompt, entry.id).toContain('Japanese baseball video game character');
+      expect(parts.prompt, entry.id).toContain('super-deformed');
       expect(parts.prompt, entry.id).toContain('transparent background');
     }
   });
 
-  it('文面に「記号として描く」指示が入る（写実にしない）', () => {
+  it('文面に「簡単に描く」指示が入る（写実にしない）', () => {
     for (const entry of imageCategories()) {
       const parts = buildPrompt(entry.id, 0);
-      expect(parts.prompt, entry.id).toContain('simple geometric symbols');
-      expect(parts.prompt, entry.id).toContain('not as realistic anatomy');
+      expect(parts.prompt, entry.id).toContain('simple clean facial features');
+      expect(parts.prompt, entry.id).toContain('not realistic anatomy');
+      // 大きすぎるアニメ目も禁止（§2）
+      expect(parts.prompt, entry.id).toContain('no oversized anime eyes');
     }
   });
 
@@ -822,19 +827,22 @@ describe('PHASE4.7 プロンプト', () => {
      */
     for (const word of [
       'photorealistic',
-      '3d render',
-      'realistic rendering',
-      'painterly',
-      'soft shading',
-      'gradient shading',
-      'skin texture',
+      'realistic human',
+      'hyper realistic',
+      'detailed skin pores',
+      'realistic proportions',
+      'beautiful anime character',
     ]) {
       expect(NEGATIVE_PROMPT, word).toContain(word);
     }
   });
 
-  it('ネガティブが「フラットなアイコン調」を禁止していない（それが狙いなので）', () => {
-    for (const word of ['flat icon', 'clipart', 'sticker art']) {
+  it('ネガティブが「柔らかい陰影」を禁止していない（PHASE 4.7-A で欲しくなったので）', () => {
+    /*
+     * 前の絵柄は完全なフラット塗りだったので soft shading を禁止していた。
+     * いまは「適度な立体感・柔らかな陰影」が狙いなので、禁止してはいけない。
+     */
+    for (const word of ['soft shading', 'gradient shading', 'flat icon', 'clipart']) {
       expect(NEGATIVE_PROMPT, word).not.toContain(word);
     }
   });

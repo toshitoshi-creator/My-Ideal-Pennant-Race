@@ -1,3 +1,18 @@
+> **⚠️ この文面は PHASE 4.6 のものです（絵柄が変わりました）**
+>
+> PHASE 4.7-A で絵柄を「日本のデフォルメ野球ゲーム風」へ変えました。
+> ここに書いてある「flat vector illustration / ink outline #1b1a17 /
+> two-tone shading」は**もう使いません**。
+>
+> いま実際に使う文面は、次のどちらかで出してください。
+>
+> ```
+> npm run assets:prompts        部品ごとの文面（scripts/assets/prompts.ts）
+> npm run assets:style-test -- --dry-run   キャラクター本体の文面
+> ```
+>
+> 絵柄の正本は `assets/prompts/style-bible.md` の §15・§16 です。
+
 # 17 expression ── 表情の上書き（任意 / 0〜15枚）
 
 - 置き場所: `src/assets/players/expressions/`

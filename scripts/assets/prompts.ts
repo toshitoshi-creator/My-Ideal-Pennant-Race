@@ -139,9 +139,10 @@ export const NEGATIVE_PROMPT = negativePrompt(true);
 export function masterStyleSheetPrompt(transparent = true): string {
   return [
     'A MASTER CHARACTER STYLE SHEET for a baseball management game.',
-    'One adult male baseball player avatar, shown from the chest up, front facing, neutral expression.',
-    'Simple flat vector character, like a clean app avatar icon: bold black outline, flat colour fills,',
-    'eyes drawn as simple rounded shapes, eyebrows as simple strokes, mouth as one simple shape.',
+    'One adult male baseball player character, shown from the chest up, front facing, neutral expression.',
+    'Super-deformed proportions: a large rounded head on a compact body.',
+    'Simple readable features: eyes as simple rounded shapes, eyebrows as simple strokes,',
+    'mouth as one simple shape. Soft controlled shading, clean smooth contours.',
     'Plain off-white baseball jersey with no logo, no number and no lettering.',
     'This sheet defines the visual language for an entire cast of players:',
     'line weight, shading steps, eye construction, nose construction, mouth construction,',
