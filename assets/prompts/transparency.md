@@ -111,6 +111,32 @@ manifest 登録
 消し残りは「**縁だけ**が内側より明るい」。白髪は「縁も内側も白い」。
 そこで、縁と内側の明るさの差（`lift`）で見分けています。
 
+## ネットワークの許可（Claude Code on the web で動かすとき）
+
+生成を実行する環境が外部へ出られないと、鍵が正しくても 403 で止まります。
+
+```
+fal が 403 を返しました: Host not in allowlist: fal.run.
+Add this host to your network egress settings to allow access.
+```
+
+これは**鍵の問題ではなく、実行環境の通信設定**です。
+環境の egress 許可リストに、次のホストを足してください。
+
+| ホスト | 用途 |
+| --- | --- |
+| `fal.run` | 生成を頼む先 |
+| `queue.fal.run` | 待ち行列を使うモデルのとき |
+| `fal.media` / `v3.fal.media` | 出来上がった画像の置き場所 |
+
+許可リストは、環境を作るときに選ぶネットワーク方針で決まります
+（https://code.claude.com/docs/en/claude-code-on-the-web）。
+
+**通信を開けられないときは、`IMAGE_PROVIDER=local` を使ってください。**
+手元（ブラウザなど）で作った PNG を `assets/incoming/<素材ID>.png` へ置けば、
+背景除去から先はまったく同じ流れで動きます。文面は
+`npm run assets:prompts` が `assets/prompts/generated-prompts.md` に書き出します。
+
 ## いきなり量産しない
 
 ```sh
