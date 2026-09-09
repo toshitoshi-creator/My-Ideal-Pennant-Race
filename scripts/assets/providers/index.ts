@@ -48,7 +48,7 @@ export const PROVIDER_REQUIREMENTS: ProviderRequirement[] = [
   {
     id: 'fal',
     label: 'fal.ai',
-    envKeys: ['IMAGE_API_KEY'],
+    envKeys: ['9d58d3dd-ea31-4764-a841-d288d6ed56fa:4d2c01ee86c698fac01477e35be68ca5'],
     defaultModel: 'fal-ai/flux/dev',
     note: '速い。透明背景は自分で抜く必要がある',
   },
