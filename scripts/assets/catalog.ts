@@ -40,7 +40,26 @@ export const CATALOG_IDS = [
 ] as const;
 export type CatalogId = (typeof CATALOG_IDS)[number];
 
-export type CatalogKind = 'image' | 'recolor';
+/**
+ * image   … 画像生成AIに1枚ずつ作らせる
+ * recolor … AIには作らせず、後処理で色を振り分けて増やす
+ * merged  … 別の素材の中に描き込まれる。**AIには単独で作らせない**
+ *
+ * merged にした理由（C-2）。
+ *
+ * 髪・耳・首は、頭という土台があって初めて形が決まる。
+ * 「髪だけ描いて」と頼むと、生成器は親切に顔の輪郭まで描いてしまい、
+ * 重ねたときに頬の上へ二重の線が出た（3回試して3回とも同じだった）。
+ * そこで、頭・髪・耳・首は1枚にまとめて描かせる。
+ *
+ * ただし、まとめたままだと髪色を変えられない。
+ * 肌8色 × 髪10色 を1枚ずつ焼くと1つの頭につき80枚になってしまう。
+ * そこで **描かせるのはまとめて、持つのは層ごと** にする。
+ * 後処理（normalize）で髪の画素だけを抜き出して別の層にすれば、
+ * 8 + 10 = 18枚で済み、髪型は頭に必ず合ったままになる。
+ * 抜き出しは scripts/assets/pipeline.ts の extractHairLayer。
+ */
+export type CatalogKind = 'image' | 'recolor' | 'merged';
 
 export interface CatalogEntry {
   id: CatalogId;
@@ -63,6 +82,8 @@ export interface CatalogEntry {
   zIndex: number;
   /** 何を描くのか（人間向け・プロンプトにも入る） */
   subject: string;
+  /** merged のとき、どの素材に描き込まれるか */
+  mergedInto?: CatalogId;
   /**
    * 1枚ずつ変える指定。**構造そのものが違うもの**を並べる（§13）。
    * 色だけ違うものは並べない。
@@ -107,28 +128,48 @@ export const CATALOG: CatalogEntry[] = [
     prefix: 'head',
     dir: 'base',
     min: 10,
-    target: 12,
-    max: 15,
+    target: 24,
+    max: 60,
     required: true,
     zIndex: 7,
+    /*
+     * PHASE 4.7 の途中で設計を変えた。
+     *
+     * 「髪だけ」「耳だけ」を描かせようとしたが、生成器は頭の輪郭を
+     * 一緒に描いてしまい、重ねると線が二重になった（3通り試して全部失敗）。
+     * 逆に「顔の造作が無い頭」は一発で綺麗に出る。
+     *
+     * そこで、頭・髪・耳・首を1枚にまとめて土台にし、
+     * その上に目・眉・鼻・口だけを重ねる形にした。
+     * 生成器の得意なことに合わせたほうが、破綻が少ない。
+     */
     subject:
-      'a bare human head — the skin surface from forehead to chin, with no facial features at all',
+      'the head of a flat vector avatar character: skull, hair, ears and a short neck, all in one shape. The face area is completely blank — no eyes, no eyebrows, no nose, no mouth',
     variants: [
-      'oval face, balanced proportions',
-      'round face, soft full cheeks',
-      'square face, wide heavy jaw',
-      'long narrow face, high forehead',
-      'heart shaped face, wide brow and narrow chin',
-      'diamond face, prominent cheekbones and narrow forehead',
-      'broad face with strong zygomatic arches',
-      'soft rounded square, gentle angles',
-      'angular face, sharp planes and flat cheeks',
-      'tapered face, narrow toward the chin',
-      'wide flat face, low forehead',
-      'slightly asymmetric oval, one cheek fuller',
-      'gaunt face, hollow cheeks',
-      'heavy face, full lower half',
-      'compact face, short vertical proportions',
+      'oval face, short neat hair swept to one side',
+      'round face, short cropped hair',
+      'square jawed face, flat top crew cut',
+      'long narrow face, hair with a centre part',
+      'heart shaped face, soft fringe over the forehead',
+      'diamond face, short spiky hair',
+      'broad face, buzz cut, almost shaved',
+      'soft rounded square face, messy short hair',
+      'angular face, hair slicked straight back',
+      'tapered face, tight fade with a fuller top',
+      'wide face, bowl cut with a straight fringe',
+      'oval face, curly short hair',
+      'round face, wavy medium hair covering the ear tops',
+      'square face, receding hairline, thin at the temples',
+      'long face, completely bald, no hair at all',
+      'heart shaped face, long hair tied back at the nape',
+      'diamond face, textured crop with a blunt fringe',
+      'broad face, high and tight military cut',
+      'compact face, thick nape hair, low hairline',
+      'gaunt face, thinning hair on the crown',
+      'heavy face, short hair parted seven to three',
+      'narrow face, afro textured rounded volume',
+      'wide flat face, side part with a hard line',
+      'slightly asymmetric oval face, short shaggy hair',
     ],
   },
   {
@@ -162,7 +203,9 @@ export const CATALOG: CatalogEntry[] = [
   {
     id: 'hair_style',
     runtime: 'hair',
-    kind: 'image',
+    kind: 'merged',
+    mergedInto: 'head_shape',
+
     prefix: 'hair',
     dir: 'hair',
     min: 10,
@@ -280,29 +323,37 @@ export const CATALOG: CatalogEntry[] = [
     prefix: 'eye',
     dir: 'eyes',
     min: 10,
-    target: 14,
-    max: 16,
+    target: 15,
+    max: 15,
     required: true,
     zIndex: 11,
+    /*
+     * 目は2つの軸で決まる（見本の表と同じ組み方）。
+     *   縦: 丸目 ── 標準 ── 切れ長
+     *   横: ツリ目（鋭い）── アーモンド ── タレ目（穏やか）
+     * 3 × 5 で15通り。これで「鋭い人」「穏やかな人」が描き分けられる。
+     *
+     * 大事なのは**怖くしない**こと。線を太くしすぎず、
+     * 白目を大きく出さず、虹彩は落ち着いた茶か灰にする。
+     */
     subject:
-      'a pair of eyes only, left and right, calm neutral gaze looking straight ahead, no eyebrows',
+      'a pair of eyes only, left and right, calm and gentle, looking straight ahead. Thin soft eyelid lines, warm dark grey-brown iris, one small highlight. No eyebrows',
     variants: [
-      'almond shaped',
-      'round and open',
-      'narrow and long',
-      'hooded, heavy upper lid',
-      'downturned outer corners',
-      'upturned outer corners',
-      'wide set, far apart',
-      'close set, near the nose',
-      'deep set, shadowed sockets',
-      'single eyelid, smooth lid',
-      'double eyelid, defined crease',
-      'sleepy, half lowered lids',
-      'large and expressive',
-      'small and sharp',
-      'slightly uneven, one narrower',
-      'piercing, high contrast iris',
+      'round and open, outer corners lifted sharply upward — alert',
+      'round and open, outer corners lifted slightly',
+      'round and open, level almond shape — neutral',
+      'round and open, outer corners dropped slightly — friendly',
+      'round and open, outer corners dropped clearly — very gentle',
+      'medium height, outer corners lifted sharply upward — sharp',
+      'medium height, outer corners lifted slightly',
+      'medium height, level almond shape — neutral',
+      'medium height, outer corners dropped slightly — mild',
+      'medium height, outer corners dropped clearly — soft',
+      'narrow and long, outer corners lifted sharply upward — keen',
+      'narrow and long, outer corners lifted slightly',
+      'narrow and long, level almond shape — composed',
+      'narrow and long, outer corners dropped slightly — calm',
+      'narrow and long, outer corners dropped clearly — sleepy and mild',
     ],
   },
   {
@@ -368,7 +419,9 @@ export const CATALOG: CatalogEntry[] = [
   {
     id: 'ears',
     runtime: 'ears',
-    kind: 'image',
+    kind: 'merged',
+    mergedInto: 'head_shape',
+
     prefix: 'ear',
     dir: 'face',
     min: 6,
@@ -393,7 +446,9 @@ export const CATALOG: CatalogEntry[] = [
   {
     id: 'jaw_cheeks',
     runtime: 'jaw',
-    kind: 'image',
+    kind: 'merged',
+    mergedInto: 'head_shape',
+
     prefix: 'jaw',
     dir: 'face',
     min: 6,
@@ -573,7 +628,9 @@ export const CATALOG: CatalogEntry[] = [
   {
     id: 'neck',
     runtime: 'neck',
-    kind: 'image',
+    kind: 'merged',
+    mergedInto: 'head_shape',
+
     prefix: 'neck',
     dir: 'body',
     min: 6,
@@ -597,7 +654,9 @@ export const CATALOG: CatalogEntry[] = [
   {
     id: 'hair_back',
     runtime: 'hairBack',
-    kind: 'image',
+    kind: 'merged',
+    mergedInto: 'head_shape',
+
     prefix: 'hairback',
     dir: 'hair',
     min: 0,

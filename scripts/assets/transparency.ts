@@ -12,12 +12,13 @@ import {
   contentBounds,
   cornersTransparent,
   estimateBackground,
+  faceMetrics,
   hasTransparency,
   inspectFringe,
   type Bounds,
   type FringeReport,
 } from './pipeline';
-import { ANCHORS, CANVAS_HEIGHT, CANVAS_WIDTH } from './anchors';
+import { ANCHORS, CANVAS_HEIGHT, CANVAS_WIDTH, FACE_LINES } from './anchors';
 import type { CatalogId } from './catalog';
 
 /** 1点あたりのファイルサイズの上限（§10 相当）。これを超えたら production に入れない */
@@ -29,6 +30,15 @@ export const MAX_CONTENT_RATIO = 0.9;
 
 /** 基準点からのずれの許容（画素） */
 export const ANCHOR_TOLERANCE = 12;
+
+/**
+ * 顔の目印のずれの許容（画素）。
+ *
+ * 頭の素材（C-2）は、髪や首をふくむので外枠の中心に意味がない。
+ * 代わりに「耳の線」と「あご」が仕様どおりの高さに来ているかを見る。
+ * 外枠より厳しい検査で、目や口が顔からはみ出す事故を防ぐ。
+ */
+export const FACE_LINE_TOLERANCE = 16;
 
 /**
  * 縁が内側よりどれだけ明るければ「消し残り」とみなすか。
@@ -321,7 +331,27 @@ export function checkTransparency(input: TransparencyInput): TransparencyReport 
   }
 
   /* ---- 14. 基準点が仕様どおりであること ---- */
-  if (normalized && input.category) {
+  if (normalized && input.category === 'head_shape') {
+    /*
+     * 頭は外枠ではなく顔で見る（C-2）。
+     * 髪型で外枠は変わるが、耳の線とあごは変わってはいけない。
+     */
+    const metrics = faceMetrics(image);
+    if (!metrics) {
+      add('anchor', '基準点が仕様どおり', 'FAIL', '顔の目印（耳の線・あご）が見つかりません');
+    } else {
+      const dEar = Math.abs(metrics.earLineY - FACE_LINES.earLine);
+      const dChin = Math.abs(metrics.chinY - FACE_LINES.chinLine);
+      const detail =
+        `耳の線 y=${metrics.earLineY}（仕様 ${FACE_LINES.earLine}）` +
+        ` / あご y=${metrics.chinY}（仕様 ${FACE_LINES.chinLine}）`;
+      if (dEar > FACE_LINE_TOLERANCE || dChin > FACE_LINE_TOLERANCE) {
+        add('anchor', '基準点が仕様どおり', 'FAIL', `${detail} … ずれすぎです`);
+      } else {
+        add('anchor', '基準点が仕様どおり', 'PASS', detail);
+      }
+    }
+  } else if (normalized && input.category) {
     const anchor = ANCHORS[input.category];
     const centreX = (bounds.left + bounds.right) / 2;
     const centreY = (bounds.top + bounds.bottom) / 2;

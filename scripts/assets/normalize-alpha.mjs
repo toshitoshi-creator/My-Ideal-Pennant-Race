@@ -28,14 +28,17 @@ import {
   cleanAlpha,
   contentBounds,
   derivatives,
+  fitHeadToFace,
   fitToCanvas,
+  extractHairLayer,
   looksTransparent,
   recolor,
+  recolorHead,
   trimHalo,
   HAIR_RAMPS,
   SKIN_RAMPS,
 } from './pipeline.ts';
-import { ANCHORS, CANVAS_WIDTH, OUTPUT_SIZES } from './anchors.ts';
+import { ANCHORS, CANVAS_WIDTH, FACE_LINES, OUTPUT_SIZES, SIDE_POINTS } from './anchors.ts';
 
 const ROOT = process.cwd();
 const FROM = join(ROOT, 'assets/cutout');
@@ -155,10 +158,39 @@ for (const entry of categories()) {
       continue;
     }
 
-    const placed = fitToCanvas(image, {
-      anchor: ANCHORS[entry.id],
-      ...(TARGET_WIDTH[entry.id] === undefined ? {} : { targetWidth: TARGET_WIDTH[entry.id] }),
-    });
+    /*
+     * 頭だけは外枠ではなく「顔そのもの」に合わせる（C-2）。
+     *
+     * 頭・髪・耳・首を1枚にまとめたので、髪型で外枠が変わってしまう。
+     * 外枠で合わせると、坊主頭と長髪で顔の位置がずれ、
+     * あとから重ねる目や口が顔からはみ出す。
+     */
+    let placed;
+    let note = '';
+    if (entry.id === 'head_shape') {
+      const fitted = fitHeadToFace(image, {
+        earLine: FACE_LINES.earLine,
+        chinLine: FACE_LINES.chinLine,
+        faceWidth: SIDE_POINTS.faceRightX - SIDE_POINTS.faceLeftX,
+        centerX: ANCHORS.head_shape.x,
+      });
+      if (fitted.metrics) {
+        placed = fitted.image;
+        note =
+          ` / 顔合わせ 耳線 y=${fitted.metrics.earLineY}→${FACE_LINES.earLine}` +
+          ` あご y=${fitted.metrics.chinY}→${FACE_LINES.chinLine}` +
+          (fitted.clamped ? '（縦の伸びを頭打ち）' : '');
+      } else {
+        // 顔が測れないものは、これまでどおり外枠で置く
+        note = ' / ⚠️ 顔の目印が測れないので外枠で配置';
+      }
+    }
+    if (!placed) {
+      placed = fitToCanvas(image, {
+        anchor: ANCHORS[entry.id],
+        ...(TARGET_WIDTH[entry.id] === undefined ? {} : { targetWidth: TARGET_WIDTH[entry.id] }),
+      });
+    }
 
     const base = join(TO, entry.dir);
     const size = save(join(base, `${id}.png`), placed);
@@ -169,7 +201,40 @@ for (const entry of categories()) {
 
     // 髪色・肌色の振り分け（形は1つ、色は後処理で増やす）
     let made = 0;
-    if (!noColors) {
+    if (!noColors && entry.id === 'head_shape') {
+      /*
+       * 頭は1枚に肌と髪と輪郭線が同居している（C-2）。
+       *
+       * ふつうの recolor は明るさだけで塗るので、髪も輪郭線も
+       * まとめて肌色になってしまう。色の帯を見分けて塗り分ける。
+       *
+       * さらに、髪だけを別の層として抜き出す。
+       * こうすれば 肌8色 × 髪10色 を 80枚ではなく 8+10=18枚で持てる。
+       */
+      for (let i = 0; i < SKIN_RAMPS.length; i++) {
+        const tinted = recolorHead(placed, { skin: SKIN_RAMPS[i] });
+        save(join(base, `${id}c${String(i + 1).padStart(2, '0')}.png`), tinted);
+        made += 1;
+      }
+      const hairLayer = extractHairLayer(placed);
+      if (!contentBounds(hairLayer).empty) {
+        const hairDir = join(TO, catalogEntry('hair_style').dir);
+        const hairId = id.replace(/^head/, 'hair');
+        save(join(hairDir, `${hairId}.png`), hairLayer);
+        for (const [label, width] of Object.entries(OUTPUT_SIZES)) {
+          if (width >= CANVAS_WIDTH) continue;
+          save(join(hairDir, `${hairId}@${label}.png`), derivatives(hairLayer, [width]).get(width));
+        }
+        for (let i = 0; i < HAIR_RAMPS.length; i++) {
+          const tinted = recolor(hairLayer, HAIR_RAMPS[i].dark, HAIR_RAMPS[i].light);
+          save(join(hairDir, `${hairId}c${String(i + 1).padStart(2, '0')}.png`), tinted);
+          made += 1;
+        }
+        note += ` / 髪を別層に分離（${HAIR_RAMPS.length}色）`;
+      } else {
+        note += ' / 髪なし（坊主）';
+      }
+    } else if (!noColors) {
       const ramps = entry.id === 'hair_style' || entry.id === 'hair_back'
         ? HAIR_RAMPS
         : SKIN_PARTS.has(entry.id)
@@ -191,7 +256,8 @@ for (const entry of categories()) {
         (placedBounds.left + placedBounds.right) / 2
       ).toFixed(0)}, ${((placedBounds.top + placedBounds.bottom) / 2).toFixed(0)}) ` +
         `基準点 (${ANCHORS[entry.id].x}, ${ANCHORS[entry.id].y}) / ${(size / 1024).toFixed(0)}KB` +
-        (made > 0 ? ` / 色違い ${made}点` : ''),
+        (made > 0 ? ` / 色違い ${made}点` : '') +
+        note,
     );
     done += 1;
   }

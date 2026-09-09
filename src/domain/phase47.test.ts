@@ -84,15 +84,20 @@ import {
 import {
   HAIR_RAMPS,
   SKIN_RAMPS,
+  classifyHeadPixel,
   cleanAlpha,
   compose,
   contentBounds,
   cropToContent,
   derivatives,
+  extractHairLayer,
+  faceMetrics,
+  fitHeadToFace,
   fitToCanvas,
   looksTransparent,
   processPart,
   recolor,
+  recolorHead,
   removeBackground,
   resize,
 } from '../../scripts/assets/pipeline';
@@ -243,6 +248,59 @@ function blob(
         image.data[at + 1] = background[1];
         image.data[at + 2] = background[2];
         image.data[at + 3] = 255;
+      }
+    }
+  }
+  return image;
+}
+
+/**
+ * C-2 の頭を真似た合成画像。
+ *
+ * 肌（暖色）・髪（中間色で暗い）・首（顔より細い）を1枚に描く。
+ * 顔の目印を測る仕組みは、この3つの区別だけを頼りにしている。
+ */
+function syntheticHead(
+  options: { faceCy?: number; faceRy?: number; bald?: boolean; skin?: [number, number, number] } = {},
+): RgbaImage {
+  const width = 1024;
+  const height = 1280;
+  const image = createImage(width, height);
+  const skin = options.skin ?? [168, 120, 72];
+  const hair: [number, number, number] = [40, 40, 40];
+  const cx = 512;
+  const cy = options.faceCy ?? 560;
+  const rx = 180;
+  const ry = options.faceRy ?? 240;
+  const chin = cy + ry;
+
+  const put = (x: number, y: number, color: [number, number, number]) => {
+    if (x < 0 || x >= width || y < 0 || y >= height) return;
+    const at = (y * width + x) * 4;
+    image.data[at] = color[0];
+    image.data[at + 1] = color[1];
+    image.data[at + 2] = color[2];
+    image.data[at + 3] = 255;
+  };
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      // 顔
+      if (((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1) put(x, y, skin);
+      // 耳（顔のいちばん広いあたりに左右へ張り出す）
+      for (const ex of [cx - rx, cx + rx]) {
+        if (((x - ex) / 34) ** 2 + ((y - cy) / 52) ** 2 <= 1) put(x, y, skin);
+      }
+      // 首（顔より細く、まっすぐ下へ）
+      if (y > chin - 6 && y < chin + 150 && Math.abs(x - cx) < 72) put(x, y, skin);
+    }
+  }
+  // 髪（頭の上をおおう。中間色なので肌と見分けがつく）
+  if (!options.bald) {
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (y > cy - ry * 0.45) continue;
+        if (((x - cx) / (rx + 12)) ** 2 + ((y - cy) / (ry + 12)) ** 2 <= 1) put(x, y, hair);
       }
     }
   }
@@ -673,6 +731,54 @@ describe('PHASE4.7 プロンプト', () => {
     expect(buildPrompt('eyes', 0).negativePrompt).toContain('eyebrows');
   });
 
+  /*
+   * C-2 の約束ごと。
+   *
+   * 髪・耳・首は頭と1枚にまとめる、と決めた。
+   * それなのに「髪を描くな」と書いてしまうと、指示同士が食い違って
+   * 生成器はどちらかを勝手に選ぶ。ここで食い違いを止める。
+   */
+  it('頭のプロンプトは髪・耳・首を描かせる（C-2）', () => {
+    const parts = buildPrompt('head_shape', 0);
+    expect(parts.prompt).toContain('Hair, ears and neck are part of this same shape');
+    // 「描くな」の一覧に、描かせたいものが混ざっていないこと
+    const doNotDraw = /Do not draw: ([^.]+)\./.exec(parts.prompt);
+    expect(doNotDraw).not.toBeNull();
+    // 「facial hair」（ひげ）は別部品なので禁止のままでよい。
+    // 語の一部ではなく、区切られた項目そのものを見る。
+    const banned = (doNotDraw as RegExpExecArray)[1].split(',').map((w) => w.trim());
+    for (const word of ['hair', 'ears', 'neck', 'head']) {
+      expect(banned, word).not.toContain(word);
+    }
+    expect(banned).toContain('facial hair');
+  });
+
+  it('頭のプロンプトは顔の造作だけを止めている', () => {
+    const banned = (/Do not draw: ([^.]+)\./.exec(buildPrompt('head_shape', 0).prompt) ??
+      [])[1];
+    for (const word of ['eyes', 'eyebrows', 'nose', 'mouth']) {
+      expect(banned, word).toContain(word);
+    }
+  });
+
+  /*
+   * 目が怖くならないための指定。
+   *
+   * 最初の試作は、太い輪郭と大きな白目と青い虹彩で睨んで見えた。
+   * 見本の表（丸い／中くらい／細長い × つり上がり〜垂れ目）に合わせつつ、
+   * 「穏やかに」を毎回言わせる。
+   */
+  it('目のプロンプトは穏やかな目を指定している', () => {
+    const prompt = buildPrompt('eyes', 0).prompt;
+    expect(prompt).toContain('gentle and calm');
+    expect(prompt).toContain('Do NOT make them look angry, glaring, startled or menacing');
+    expect(prompt).toContain('no bright saturated blue');
+  });
+
+  it('眉も穏やかに描かせる（吊り上げると怒って見える）', () => {
+    expect(buildPrompt('eyebrow', 0).prompt).toContain('reads as angry');
+  });
+
   it('髪と肌は中間色で作らせる（色は後処理）', () => {
     expect(buildPrompt('hair_style', 0).prompt).toContain('neutral dark base colour');
     expect(buildPrompt('head_shape', 0).prompt).toContain('neutral mid tone');
@@ -734,9 +840,14 @@ describe('PHASE4.7 プロンプト', () => {
   });
 
   it('部品だけを描かせる念押しが入る（生成器は顔まで描きたがる）', () => {
-    // body / uniform / pose は、まわりの形があって初めて意味が通るので対象外
+    /*
+     * まわりの形があって初めて意味が通る種類は対象外。
+     * body / uniform / pose に加えて、C-2 では head_shape も対象外になった。
+     * 頭は「頭・髪・耳・首をひとまとめにした土台」なので、
+     * 「これ一部品だけ」と言うと逆に髪や耳が落ちる。
+     */
     for (const entry of imageCategories()) {
-      if (['body_type', 'uniform', 'pose'].includes(entry.id)) continue;
+      if (['body_type', 'uniform', 'pose', 'head_shape'].includes(entry.id)) continue;
       const prompt = buildPrompt(entry.id, 0).prompt;
       expect(prompt, entry.id).toContain('ONLY this one part and nothing else');
       expect(prompt, entry.id).toContain('floats alone in empty space');
@@ -2165,6 +2276,7 @@ import {
 } from '../../scripts/assets/pipeline';
 import {
   ANCHOR_TOLERANCE,
+  FACE_LINE_TOLERANCE,
   LIFT_FAIL,
   MAX_FILE_BYTES,
   checkTransparency,
@@ -2577,7 +2689,13 @@ describe('PHASE4.7 透明PNGの検査', () => {
       id: 'x',
       image,
       bytes,
-      category: 'head_shape',
+      /*
+       * 楕円ひとつには顔の目印（耳の線・あご）が無い。
+       * 頭の基準点検査は顔で見るようになったので、
+       * ここは同じ基準点を持つ skin_tone で汎用の項目だけを確かめる。
+       * 頭そのものは「C-2 顔の位置合わせ」で別に検査する。
+       */
+      category: 'skin_tone',
       normalized: true,
       ...over,
     });
@@ -2753,13 +2871,13 @@ describe('PHASE4.7 透明PNGの検査', () => {
   it('FLUX 風の画像を通しで処理すると合格する', () => {
     const raw = fluxLike(1024, 1280, [{ cx: 500, cy: 600, rx: 250, ry: 330, shade: 196 }]);
     const cut = cutout(raw);
-    const placed = fitToCanvas(cut.image, { anchor: ANCHORS.head_shape, targetWidth: 536 });
+    const placed = fitToCanvas(cut.image, { anchor: ANCHORS.skin_tone, targetWidth: 536 });
     const bytes = encodePng(placed);
     const report = checkTransparency({
       id: 'head_001',
       image: placed,
       bytes,
-      category: 'head_shape',
+      category: 'skin_tone',
       normalized: true,
     });
     const fails = report.checks.filter((c) => c.level === 'FAIL' && c.id !== 'file-size');
@@ -2940,3 +3058,206 @@ describe('PHASE4.7 背景除去はゲームに入らない', () => {
     expect(registry).not.toMatch(/https?:\/\//);
   });
 });
+
+/* ================================================================
+ * 21. C-2 顔の位置合わせと色の塗り分け
+ * ============================================================== */
+
+describe('PHASE4.7 C-2 顔の位置合わせ', () => {
+  it('合成した頭から、耳の線とあごが測れる', () => {
+    const metrics = faceMetrics(syntheticHead());
+    expect(metrics).not.toBeNull();
+    // 顔の中心 y=560、半径 240 → あごは 800 あたり
+    expect(metrics!.chinY).toBeGreaterThan(760);
+    expect(metrics!.chinY).toBeLessThan(830);
+    // 耳は顔のいちばん広いあたり
+    expect(Math.abs(metrics!.earLineY - 560)).toBeLessThan(40);
+    expect(metrics!.centerX).toBeCloseTo(512, 0);
+  });
+
+  it('首を顔と読み違えない（あごより下は顔ではない）', () => {
+    const metrics = faceMetrics(syntheticHead())!;
+    // 首は chin より下まで続くが、あごはそこではない
+    expect(metrics.chinY).toBeLessThan(900);
+  });
+
+  it('坊主頭でも顔の位置は変わらない（髪で外枠が変わっても動かない）', () => {
+    const withHair = faceMetrics(syntheticHead())!;
+    const bald = faceMetrics(syntheticHead({ bald: true }))!;
+    expect(Math.abs(withHair.chinY - bald.chinY)).toBeLessThanOrEqual(2);
+    expect(Math.abs(withHair.earLineY - bald.earLineY)).toBeLessThanOrEqual(2);
+  });
+
+  it('肌の色を変えても顔の位置は変わらない', () => {
+    const light = faceMetrics(syntheticHead({ skin: [244, 216, 194] }))!;
+    const deep = faceMetrics(syntheticHead({ skin: [86, 58, 40] }))!;
+    expect(Math.abs(light.earLineY - deep.earLineY)).toBeLessThanOrEqual(2);
+    expect(Math.abs(light.chinY - deep.chinY)).toBeLessThanOrEqual(2);
+  });
+
+  it('顔の目印が無いものは null（無理に動かさない）', () => {
+    expect(faceMetrics(createImage(CANVAS_WIDTH, CANVAS_HEIGHT))).toBeNull();
+  });
+
+  it('位置合わせすると、耳の線とあごが仕様の高さに来る', () => {
+    const fitted = fitHeadToFace(syntheticHead(), {
+      earLine: FACE_LINES.earLine,
+      chinLine: FACE_LINES.chinLine,
+      faceWidth: SIDE_POINTS.faceRightX - SIDE_POINTS.faceLeftX,
+    });
+    expect(fitted.metrics).not.toBeNull();
+    const after = faceMetrics(fitted.image)!;
+    expect(Math.abs(after.earLineY - FACE_LINES.earLine)).toBeLessThanOrEqual(FACE_LINE_TOLERANCE);
+    expect(Math.abs(after.chinY - FACE_LINES.chinLine)).toBeLessThanOrEqual(FACE_LINE_TOLERANCE);
+  });
+
+  it('顔の形が違っても、そろえたあとは同じ高さに来る', () => {
+    const fit = (over: Parameters<typeof syntheticHead>[0]) =>
+      faceMetrics(
+        fitHeadToFace(syntheticHead(over), {
+          earLine: FACE_LINES.earLine,
+          chinLine: FACE_LINES.chinLine,
+          faceWidth: SIDE_POINTS.faceRightX - SIDE_POINTS.faceLeftX,
+        }).image,
+      )!;
+    const round = fit({ faceRy: 200 });
+    const long = fit({ faceRy: 270 });
+    expect(Math.abs(round.chinY - long.chinY)).toBeLessThanOrEqual(FACE_LINE_TOLERANCE);
+  });
+
+  it('縦の伸ばしすぎは頭打ちになる（顔が伸びて見えないように）', () => {
+    const fitted = fitHeadToFace(syntheticHead({ faceRy: 90 }), {
+      earLine: FACE_LINES.earLine,
+      chinLine: FACE_LINES.chinLine,
+      faceWidth: SIDE_POINTS.faceRightX - SIDE_POINTS.faceLeftX,
+      maxAspectDeviation: 0.15,
+    });
+    expect(fitted.clamped).toBe(true);
+    expect(fitted.scaleY).toBeLessThanOrEqual(fitted.scaleX * 1.15 + 1e-9);
+  });
+
+  it('顔が測れないときは metrics が null で返る', () => {
+    const fitted = fitHeadToFace(createImage(CANVAS_WIDTH, CANVAS_HEIGHT), {
+      earLine: FACE_LINES.earLine,
+      chinLine: FACE_LINES.chinLine,
+      faceWidth: 536,
+    });
+    expect(fitted.metrics).toBeNull();
+  });
+
+  it('頭の検査は外枠ではなく顔で見る', () => {
+    const placed = fitHeadToFace(syntheticHead(), {
+      earLine: FACE_LINES.earLine,
+      chinLine: FACE_LINES.chinLine,
+      faceWidth: SIDE_POINTS.faceRightX - SIDE_POINTS.faceLeftX,
+    }).image;
+    const report = checkTransparency({
+      id: 'head_001',
+      image: placed,
+      bytes: encodePng(placed),
+      category: 'head_shape',
+      normalized: true,
+    });
+    expect(report.checks.find((c) => c.id === 'anchor')!.level).toBe('PASS');
+  });
+
+  it('顔がずれた頭は検査で落ちる', () => {
+    const raw = syntheticHead({ faceCy: 300 });
+    const report = checkTransparency({
+      id: 'head_001',
+      image: raw,
+      bytes: encodePng(raw),
+      category: 'head_shape',
+      normalized: true,
+    });
+    expect(report.checks.find((c) => c.id === 'anchor')!.level).toBe('FAIL');
+  });
+});
+
+describe('PHASE4.7 C-2 色の塗り分け', () => {
+  it('肌・髪・輪郭線を色で見分ける', () => {
+    expect(classifyHeadPixel(168, 120, 72)).toBe('skin');
+    expect(classifyHeadPixel(40, 40, 40)).toBe('hair');
+    expect(classifyHeadPixel(16, 16, 16)).toBe('outline');
+  });
+
+  it('濃い肌も肌として見分ける', () => {
+    expect(classifyHeadPixel(108, 76, 56)).toBe('skin');
+  });
+
+  it('肌を塗り替えても髪と輪郭線は変わらない', () => {
+    const head = syntheticHead();
+    const out = recolorHead(head, { skin: SKIN_RAMPS[0] });
+    let hairKept = 0;
+    let skinChanged = 0;
+    for (let i = 0; i < head.data.length; i += 4) {
+      if (head.data[i + 3] === 0) continue;
+      const band = classifyHeadPixel(head.data[i], head.data[i + 1], head.data[i + 2]);
+      const same =
+        head.data[i] === out.data[i] &&
+        head.data[i + 1] === out.data[i + 1] &&
+        head.data[i + 2] === out.data[i + 2];
+      if (band === 'hair' || band === 'outline') {
+        if (same) hairKept += 1;
+      } else if (!same) {
+        skinChanged += 1;
+      }
+    }
+    expect(hairKept).toBeGreaterThan(0);
+    expect(skinChanged).toBeGreaterThan(0);
+    // 髪と輪郭線は1画素も変わっていない
+    expect(hairKept).toBe(
+      countBand(head, (band) => band === 'hair' || band === 'outline'),
+    );
+  });
+
+  it('髪だけを塗り替えられる', () => {
+    const head = syntheticHead();
+    const out = recolorHead(head, { hair: HAIR_RAMPS[8] });
+    const skinKept = countSame(head, out, (band) => band === 'skin');
+    expect(skinKept).toBe(countBand(head, (band) => band === 'skin'));
+  });
+
+  it('髪だけを別の層として抜き出せる', () => {
+    const head = syntheticHead();
+    const hair = extractHairLayer(head);
+    expect(contentBounds(hair).empty).toBe(false);
+    for (let i = 0; i < hair.data.length; i += 4) {
+      if (hair.data[i + 3] === 0) continue;
+      expect(classifyHeadPixel(hair.data[i], hair.data[i + 1], hair.data[i + 2])).toBe('hair');
+    }
+  });
+
+  it('坊主頭からは髪の層が出ない', () => {
+    expect(contentBounds(extractHairLayer(syntheticHead({ bald: true }))).empty).toBe(true);
+  });
+
+  it('層を分ければ 肌8色 × 髪10色 が 18枚で足りる', () => {
+    // 1枚ずつ焼くと 80 枚。層に分けると足し算で済む
+    expect(SKIN_RAMPS.length * HAIR_RAMPS.length).toBe(80);
+    expect(SKIN_RAMPS.length + HAIR_RAMPS.length).toBe(18);
+  });
+});
+
+function countBand(image: RgbaImage, want: (band: ReturnType<typeof classifyHeadPixel>) => boolean): number {
+  let n = 0;
+  for (let i = 0; i < image.data.length; i += 4) {
+    if (image.data[i + 3] === 0) continue;
+    if (want(classifyHeadPixel(image.data[i], image.data[i + 1], image.data[i + 2]))) n += 1;
+  }
+  return n;
+}
+
+function countSame(
+  a: RgbaImage,
+  b: RgbaImage,
+  want: (band: ReturnType<typeof classifyHeadPixel>) => boolean,
+): number {
+  let n = 0;
+  for (let i = 0; i < a.data.length; i += 4) {
+    if (a.data[i + 3] === 0) continue;
+    if (!want(classifyHeadPixel(a.data[i], a.data[i + 1], a.data[i + 2]))) continue;
+    if (a.data[i] === b.data[i] && a.data[i + 1] === b.data[i + 1] && a.data[i + 2] === b.data[i + 2]) n += 1;
+  }
+  return n;
+}

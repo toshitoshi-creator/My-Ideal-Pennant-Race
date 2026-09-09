@@ -28,8 +28,10 @@ import { MATTE_BACKGROUND_HEX } from './pipeline';
  *     「画面にはこれ以外なにも無い」とはっきり言わないと伝わらない。
  * v5: 髪に「顔の輪郭線を描くな」を足した。
  *     重ねたときに頬の上へ二重の線が出ていたため。
+ * v6: 設計を C-2 に変更（頭・髪・耳・首を1枚にまとめ、造作だけ重ねる）。
+ *     あわせて、目が怖くならないよう線と色の指定を足した。
  */
-export const PROMPT_VERSION = 5;
+export const PROMPT_VERSION = 6;
 
 /* ================================================================
  * 共通の土台
@@ -165,7 +167,8 @@ export function masterStyleSheetPrompt(transparent = true): string {
 /** 種類ごとの「置き場所」の指定。共通キャンバス 1024x1280 の座標（§6・§7） */
 const PLACEMENT: Partial<Record<CatalogId, string>> = {
   head_shape:
-    'Top of the skull at y=210, chin at y=800, face width spanning x=244 to x=780, centred at x=512.',
+    'Top of the hair at y=150, top of the skull at y=210, chin at y=800, ' +
+    'face width spanning x=244 to x=780, centred at x=512, neck ending at y=880.',
   body_type:
     'Neck base at x=512 y=856, shoulders spanning x=236 to x=788, continuing to the bottom edge y=1280.',
   hair_style:
@@ -192,7 +195,8 @@ const PLACEMENT: Partial<Record<CatalogId, string>> = {
  * 顔全体をAIに作らせないための、いちばん大事な指定。
  */
 const EXCLUSIONS: Partial<Record<CatalogId, string>> = {
-  head_shape: 'eyes, eyebrows, nose, mouth, ears, hair, facial hair, glasses, hat, neck, shoulders',
+  // C-2: 頭・髪・耳・首は1枚にまとめるので、ここで禁止するのは「顔の造作」と「首から下」だけ
+  head_shape: 'eyes, eyebrows, nose, mouth, facial features, facial hair, glasses, hat, headband, shoulders, chest, body, arms',
   body_type: 'head, neck, face, jersey, shirt, uniform, hands, forearms, legs',
   hair_style: 'face, skin, forehead, eyes, ears, head shape, neck, hat, cap, headband',
   eyebrow: 'eyes, eyelids, forehead, skin, face, hair, a single eyebrow',
@@ -217,14 +221,25 @@ const EXCLUSIONS: Partial<Record<CatalogId, string>> = {
  * 重ねたときに顔の上へ二重の線が出るので、はっきり止める。
  */
 const EXTRA_WARNING: Partial<Record<CatalogId, string>> = {
+  head_shape:
+    'The face area must be completely blank skin with no facial features at all: ' +
+    'absolutely no eyes, no eyebrows, no nose, no mouth, no facial lines. ' +
+    'Hair, ears and neck are part of this same shape and must be drawn as one connected silhouette. ' +
+    'Leave the space below the neck empty.',
   hair_style:
     'Draw the hair as one solid silhouette shape. Do NOT draw the outline of a face, cheeks, chin, jaw, ears or neck. Below the hair there is nothing at all — the hair simply ends.',
   hair_back:
     'Draw only the hair volume. Do NOT draw the outline of a face, head, ears or neck.',
   facial_hair:
     'Draw only the hair shape itself. Do NOT draw lips, chin outline or any part of a face.',
-  eyebrow: 'Draw only two separate eyebrow shapes. Do NOT draw eyes, eyelids or a forehead.',
-  eyes: 'Draw only two separate eye shapes side by side. Do NOT draw eyebrows, a nose or a face outline.',
+  eyebrow:
+    'Draw only two separate eyebrow shapes. Do NOT draw eyes, eyelids or a forehead. ' +
+    'Keep them relaxed — do NOT draw them steeply angled down toward the nose, which reads as angry.',
+  eyes:
+    'Draw only two separate eye shapes side by side. Do NOT draw eyebrows, a nose or a face outline. ' +
+    'Keep them gentle and calm: thin soft lids, a warm dark grey-brown iris, and only a small highlight. ' +
+    'Do NOT make them look angry, glaring, startled or menacing. ' +
+    'No thick heavy outline around the whole eye, no bright saturated blue, no large white sclera, no red veins.',
   ears: 'Draw only two separate ear shapes. Do NOT draw a head outline between them.',
 };
 
@@ -238,12 +253,16 @@ const ISOLATED: Partial<Record<CatalogId, boolean>> = {
   body_type: false,
   uniform: false,
   pose: false,
+  // 頭は「頭・髪・耳・首をひとまとめにした土台」なので、孤立させる指示は合わない
+  head_shape: false,
 };
 
 /** 色を素材に焼き込ませないための指定。移籍で色が変えられなくなるのを防ぐ（§13 uniform） */
 const NEUTRAL_COLOR: Partial<Record<CatalogId, string>> = {
   hair_style: 'Render the hair in a neutral dark base colour; colour variants are produced later.',
-  head_shape: 'Render the skin in a neutral mid tone; skin tone variants are produced later.',
+  head_shape:
+    'Render the skin in a neutral mid tone and the hair in a neutral dark tone; ' +
+    'skin and hair colour variants are produced later.',
   ears: 'Render the skin in a neutral mid tone, matching the head parts.',
   jaw_cheeks: 'Neutral shading only, no skin fill colour of its own.',
   uniform:

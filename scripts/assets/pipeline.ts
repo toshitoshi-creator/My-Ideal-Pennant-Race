@@ -851,6 +851,255 @@ export function fitToCanvas(source: RgbaImage, options: FitOptions): RgbaImage {
   return out;
 }
 
+/* ================================================================
+ * 顔の位置合わせ（C-2）
+ * ============================================================== */
+
+/**
+ * 生成AIは座標の指示に従わない。
+ *
+ * プロンプトに「あごは y=800」と書いても、モデルは自分の好きな比率で
+ * 顔を描いてくる。中身の外枠（bounding box）で合わせても、
+ * C-2 では髪型によって外枠が変わるので、顔の位置が毎回ずれる。
+ * （髪の長い頭と坊主頭では、同じ外枠でも顔の大きさがまるで違う）
+ *
+ * そこで、外枠ではなく **顔そのものを測って** 合わせる。
+ * 目印は2つだけ。どちらも髪型に左右されない。
+ *
+ *   耳の線 … 耳をふくめていちばん幅の広い行。目の高さとほぼ同じ
+ *   あご   … そこから下へ顔が細くなりきって、首の幅に戻る境目
+ */
+export interface FaceMetrics {
+  /** 耳をふくめていちばん幅の広い行の y */
+  earLineY: number;
+  /** あご先の y */
+  chinY: number;
+  /** 耳をふくめた顔の幅 */
+  faceWidth: number;
+  /** 顔の左右の中心 */
+  centerX: number;
+}
+
+/** 行ごとの「肌らしき画素」の広がり */
+interface SkinRow {
+  y: number;
+  count: number;
+  left: number;
+  right: number;
+  width: number;
+}
+
+/**
+ * 行ごとに、肌の色がどこからどこまで広がっているかを測る。
+ * skin を渡せばその色との近さで、渡さなければ明るさで判定する。
+ */
+function skinRows(image: RgbaImage, threshold: number, skin: Rgb | null): SkinRow[] {
+  const { width, height, data } = image;
+  const rows: SkinRow[] = [];
+  for (let y = 0; y < height; y++) {
+    let count = 0;
+    let left = width;
+    let right = -1;
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      if (data[i + 3] < 128) continue;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const isSkin = skin
+        ? colorDistance(r, g, b, skin) <= SKIN_MATCH_DISTANCE
+        : luminance(r, g, b) >= threshold;
+      if (!isSkin) continue;
+      count += 1;
+      if (x < left) left = x;
+      if (x > right) right = x;
+    }
+    rows.push({ y, count, left, right, width: right < 0 ? 0 : right - left + 1 });
+  }
+  return rows;
+}
+
+/** 肌の色とみなす色の近さ（いちばん差の大きい成分で見る） */
+export const SKIN_MATCH_DISTANCE = 44;
+
+/** 耳の帯とみなす幅の割合。いちばん広い行の何割以上を「耳のあたり」とするか */
+export const EAR_BAND_RATIO = 0.9;
+
+/**
+ * 肌とみなす明るさの下限（目印が見つからないときの保険）。
+ */
+export const SKIN_LUMINANCE = 90;
+
+/** 肌とみなす暖かさ（r - b）の下限 */
+export const SKIN_WARMTH = 20;
+
+/** これより暗い中間色は輪郭線とみなす */
+export const OUTLINE_LUMINANCE = 28;
+
+/** 暖かさ。肌は赤みがあり、中間色の髪と輪郭線は 0 に近い */
+export function warmth(r: number, b: number): number {
+  return r - b;
+}
+
+/**
+ * その絵のいちばん広い「肌の色」を見つける。
+ *
+ * フラットな絵なので色数は少ない。面積のいちばん広い暖色が肌。
+ * 明るさを決め打ちしないので、肌色を振り分けたあと（濃い肌）でも見つかる。
+ */
+export function dominantSkinColor(image: RgbaImage): Rgb | null {
+  const counts = new Map<number, number>();
+  const { data } = image;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 200) continue;
+    const r = data[i] & 0xf8;
+    const g = data[i + 1] & 0xf8;
+    const b = data[i + 2] & 0xf8;
+    if (warmth(r, b) < SKIN_WARMTH) continue;
+    if (luminance(r, g, b) < OUTLINE_LUMINANCE) continue;
+    const key = (r << 16) | (g << 8) | b;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  let best = -1;
+  let bestCount = 0;
+  for (const [key, count] of counts) {
+    if (count > bestCount) {
+      bestCount = count;
+      best = key;
+    }
+  }
+  if (best < 0) return null;
+  return [(best >> 16) & 0xff, (best >> 8) & 0xff, best & 0xff];
+}
+
+/**
+ * 頭の素材から、顔の目印を測る。
+ * 顔が見つからなければ null（測れないものは無理に動かさない）。
+ */
+export function faceMetrics(
+  image: RgbaImage,
+  options: { threshold?: number } = {},
+): FaceMetrics | null {
+  const threshold = options.threshold ?? SKIN_LUMINANCE;
+  const skin = dominantSkinColor(image);
+  const rows = skinRows(image, threshold, skin).filter((row) => row.count >= 8);
+  if (rows.length < 8) return null;
+
+  /*
+   * 耳の線を決める。
+   *
+   * 「いちばん広い行」をそのまま使うと、耳のあたりは同じ幅が何十行も続くので、
+   * 色を振り分けただけで数画素ずれてしまう（色で位置が動いてはいけない）。
+   * そこで、幅が十分に広い帯の**上端と下端の真ん中**を取る。
+   * 端は幅がはっきり変わる場所なので、色が変わってもぶれない。
+   */
+  let maxWidth = 0;
+  for (const row of rows) if (row.width > maxWidth) maxWidth = row.width;
+  const wideEnough = maxWidth * EAR_BAND_RATIO;
+  const band = rows.filter((row) => row.width >= wideEnough);
+  if (band.length === 0) return null;
+  const earLineY = Math.round((band[0].y + band[band.length - 1].y) / 2);
+  const earRow =
+    rows.find((row) => row.y === earLineY) ?? band[Math.floor(band.length / 2)];
+  const faceWidth = maxWidth;
+  const centerX = (earRow.left + earRow.right) / 2;
+
+  /*
+   * あごを探す。
+   *
+   * 耳の線から下へ、顔はだんだん細くなる。あご先でいちばん細くなり、
+   * その下は首なので、幅がまた広がる。
+   * 「いちばん細くなった行」が、幅の戻りを見てから確定する。
+   */
+  const below = rows.filter((row) => row.y > earLineY);
+  let chinY = below.length > 0 ? below[below.length - 1].y : earRow.y;
+  let narrowest = Number.POSITIVE_INFINITY;
+  let narrowestY = chinY;
+  for (const row of below) {
+    if (row.width < narrowest) {
+      narrowest = row.width;
+      narrowestY = row.y;
+      continue;
+    }
+    // 首に入った合図：いちばん細かった所より、はっきり広がった
+    if (narrowest < faceWidth * 0.5 && row.width > narrowest * 1.8) {
+      chinY = narrowestY;
+      break;
+    }
+    chinY = narrowestY;
+  }
+  if (chinY <= earLineY) return null;
+
+  return { earLineY, chinY, faceWidth, centerX };
+}
+
+export interface FaceFitOptions {
+  /** 耳の線を、この y に合わせる */
+  earLine: number;
+  /** あごを、この y に合わせる */
+  chinLine: number;
+  /** 顔の幅を、この値にそろえる */
+  faceWidth: number;
+  /** 左右の中心を、この x に合わせる */
+  centerX?: number;
+  canvasWidth?: number;
+  canvasHeight?: number;
+  /**
+   * 縦横の伸ばし方の差の上限。
+   * 目印2つにきっちり合わせると顔が縦に伸びることがあるので、
+   * ここで頭打ちにする。0.15 なら縦は横の 0.87〜1.15 倍まで。
+   */
+  maxAspectDeviation?: number;
+  threshold?: number;
+}
+
+export interface FaceFitResult {
+  image: RgbaImage;
+  /** 測れた目印。測れなければ null（そのときは外枠で置いている） */
+  metrics: FaceMetrics | null;
+  scaleX: number;
+  scaleY: number;
+  /** 縦横の伸ばし方の差を頭打ちにしたか */
+  clamped: boolean;
+}
+
+/**
+ * 顔の目印に合わせて、頭の素材を共通キャンバスへ置く（C-2）。
+ *
+ * 目印が測れなかったときは false を返さず、呼び出し側が
+ * これまでどおり外枠で置けるように metrics: null を返す。
+ */
+export function fitHeadToFace(source: RgbaImage, options: FaceFitOptions): FaceFitResult {
+  const canvasWidth = options.canvasWidth ?? CANVAS_WIDTH;
+  const canvasHeight = options.canvasHeight ?? CANVAS_HEIGHT;
+  const metrics = faceMetrics(source, { threshold: options.threshold });
+  if (!metrics) {
+    return { image: createImage(canvasWidth, canvasHeight), metrics: null, scaleX: 1, scaleY: 1, clamped: false };
+  }
+
+  const scaleX = options.faceWidth / Math.max(1, metrics.faceWidth);
+  const span = Math.max(1, metrics.chinY - metrics.earLineY);
+  let scaleY = (options.chinLine - options.earLine) / span;
+
+  const deviation = options.maxAspectDeviation ?? 0.15;
+  const low = scaleX * (1 - deviation);
+  const high = scaleX * (1 + deviation);
+  const clamped = scaleY < low || scaleY > high;
+  if (scaleY < low) scaleY = low;
+  if (scaleY > high) scaleY = high;
+
+  const width = Math.max(1, Math.round(source.width * scaleX));
+  const height = Math.max(1, Math.round(source.height * scaleY));
+  const scaled = resize(source, width, height);
+
+  const left = Math.round((options.centerX ?? canvasWidth / 2) - metrics.centerX * scaleX);
+  const top = Math.round(options.earLine - metrics.earLineY * scaleY);
+
+  const out = createImage(canvasWidth, canvasHeight);
+  compose(out, scaled, left, top);
+  return { image: out, metrics, scaleX, scaleY, clamped };
+}
+
 /** 上に重ねる（アルファ合成） */
 export function compose(target: RgbaImage, source: RgbaImage, left: number, top: number): void {
   for (let y = 0; y < source.height; y++) {
@@ -920,6 +1169,107 @@ export function recolor(source: RgbaImage, dark: Rgb, light: Rgb): RgbaImage {
     data[i] = clamp255(dark[0] + (light[0] - dark[0]) * t);
     data[i + 1] = clamp255(dark[1] + (light[1] - dark[1]) * t);
     data[i + 2] = clamp255(dark[2] + (light[2] - dark[2]) * t);
+  }
+  return out;
+}
+
+/**
+ * 頭の素材（C-2）の色を振り分ける。
+ *
+ * 1枚に肌と髪と輪郭線が同居しているので、ふつうの recolor は使えない。
+ * 明るさだけで塗ると、髪も輪郭線もまとめて肌色になってしまう。
+ *
+ * 見分け方は色そのもの。
+ *   肌     … 暖色（r が b よりはっきり大きい）
+ *   髪     … 中間色で、輪郭線より明るい
+ *   輪郭線 … 中間色で、とても暗い → **触らない**
+ */
+export interface HeadRecolorOptions {
+  /** 肌に使う色。省略すると肌はそのまま */
+  skin?: { dark: Rgb; light: Rgb };
+  /** 髪に使う色。省略すると髪はそのまま */
+  hair?: { dark: Rgb; light: Rgb };
+  /** これより暗い中間色は輪郭線として残す */
+  outlineLuminance?: number;
+  /** 肌とみなす暖かさの下限 */
+  warmthThreshold?: number;
+}
+
+/** 画素の分け方。テストと説明のために名前を付けておく */
+export type HeadBand = 'skin' | 'hair' | 'outline';
+
+export function classifyHeadPixel(
+  r: number,
+  g: number,
+  b: number,
+  options: { outlineLuminance?: number; warmthThreshold?: number } = {},
+): HeadBand {
+  const outlineMax = options.outlineLuminance ?? OUTLINE_LUMINANCE;
+  const warmthMin = options.warmthThreshold ?? SKIN_WARMTH;
+  const value = luminance(r, g, b);
+  if (value <= outlineMax) return 'outline';
+  return warmth(r, b) >= warmthMin ? 'skin' : 'hair';
+}
+
+export function recolorHead(source: RgbaImage, options: HeadRecolorOptions): RgbaImage {
+  const out: RgbaImage = {
+    width: source.width,
+    height: source.height,
+    data: new Uint8Array(source.data),
+  };
+  const { data } = out;
+
+  // 帯ごとに明るさの幅を測る（帯によって幅が違うので、まとめて測ると潰れる）
+  const range: Record<HeadBand, { min: number; max: number }> = {
+    skin: { min: 255, max: 0 },
+    hair: { min: 255, max: 0 },
+    outline: { min: 255, max: 0 },
+  };
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] === 0) continue;
+    const band = classifyHeadPixel(data[i], data[i + 1], data[i + 2], options);
+    const value = luminance(data[i], data[i + 1], data[i + 2]);
+    if (value < range[band].min) range[band].min = value;
+    if (value > range[band].max) range[band].max = value;
+  }
+
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] === 0) continue;
+    const band = classifyHeadPixel(data[i], data[i + 1], data[i + 2], options);
+    const ramp = band === 'skin' ? options.skin : band === 'hair' ? options.hair : undefined;
+    if (!ramp) continue; // 輪郭線、および指定のない帯はそのまま
+    const span = Math.max(1, range[band].max - range[band].min);
+    const t = (luminance(data[i], data[i + 1], data[i + 2]) - range[band].min) / span;
+    data[i] = clamp255(ramp.dark[0] + (ramp.light[0] - ramp.dark[0]) * t);
+    data[i + 1] = clamp255(ramp.dark[1] + (ramp.light[1] - ramp.dark[1]) * t);
+    data[i + 2] = clamp255(ramp.dark[2] + (ramp.light[2] - ramp.dark[2]) * t);
+  }
+  return out;
+}
+
+/**
+ * まとめて描かれた頭から、髪の部分だけを抜き出す（C-2）。
+ *
+ * こうすると、髪型は「頭と一緒に描かせたので必ず合う」まま、
+ * 髪色だけを別の層として自由に変えられる。
+ * 肌8色 × 髪10色を1枚ずつ焼くと 80 枚になるが、
+ * 層を分ければ 8 + 10 = 18 枚で足りる。
+ *
+ * 輪郭線は頭の側に残す。髪はその上に塗るので、線は透けて見える。
+ */
+export function extractHairLayer(
+  source: RgbaImage,
+  options: { outlineLuminance?: number; warmthThreshold?: number } = {},
+): RgbaImage {
+  const out = createImage(source.width, source.height);
+  const { data } = source;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] === 0) continue;
+    if (classifyHeadPixel(data[i], data[i + 1], data[i + 2], options) !== 'hair') continue;
+    out.data[i] = data[i];
+    out.data[i + 1] = data[i + 1];
+    out.data[i + 2] = data[i + 2];
+    out.data[i + 3] = data[i + 3];
   }
   return out;
 }

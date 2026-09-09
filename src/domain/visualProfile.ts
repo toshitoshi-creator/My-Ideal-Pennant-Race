@@ -84,7 +84,16 @@ export const VISUAL_CATEGORIES = [
 ] as const;
 export type VisualCategory = (typeof VISUAL_CATEGORIES)[number];
 
-/** 顔として最低限そろっていないと「画像で描けた」とは言えない種類 */
+/**
+ * 顔として最低限そろっていないと「画像で描けた」とは言えない種類。
+ *
+ * ears / jaw / neck はここに入っていない。
+ * PHASE 4.7 の C-2 で、耳・あご・首は **頭の素材の中に描き込まれる** ことにしたので、
+ * 単独の素材としては存在しない（assets/prompts/style-bible.md §15）。
+ * 単独で要求すると、いつまでも画像モードにならず SVG のままになってしまう。
+ *
+ * 足りないものが1つでもあれば SVG に落とす仕組み自体は、これまでどおり残す。
+ */
 export const REQUIRED_CATEGORIES: VisualCategory[] = [
   'head',
   'hair',
@@ -92,10 +101,7 @@ export const REQUIRED_CATEGORIES: VisualCategory[] = [
   'eyes',
   'nose',
   'mouth',
-  'ears',
-  'jaw',
   'body',
-  'neck',
   'uniform',
 ];
 
