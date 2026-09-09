@@ -12,4 +12,6 @@ scratch/
 .env.*.local
 assets/incoming/
 assets/original/
+assets/cutout/
 assets/state/
+assets-compare.html

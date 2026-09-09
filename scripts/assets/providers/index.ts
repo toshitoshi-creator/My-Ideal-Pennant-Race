@@ -48,9 +48,9 @@ export const PROVIDER_REQUIREMENTS: ProviderRequirement[] = [
   {
     id: 'fal',
     label: 'fal.ai',
-    envKeys: ['IMAGE_API_KEY'],
+    envKeys: ['IMAGE_API_KEY', 'FAL_KEY'],
     defaultModel: 'fal-ai/flux/dev',
-    note: '速い。透明背景は自分で抜く必要がある',
+    note: '速い。透明背景を出せないので、単色の下地を描かせて後処理で抜く',
   },
   {
     id: 'local',
@@ -117,13 +117,17 @@ export function resolveProvider(
     };
   }
 
-  const apiKey = (env.IMAGE_API_KEY ?? '').trim();
+  // fal は FAL_KEY という名前で持っている人が多いので、そちらも見る
+  const apiKey = (
+    (wanted === 'fal' ? (env.IMAGE_API_KEY ?? env.FAL_KEY) : env.IMAGE_API_KEY) ?? ''
+  ).trim();
   if (!apiKey) {
+    const keys = wanted === 'fal' ? ['IMAGE_API_KEY', 'FAL_KEY'] : ['IMAGE_API_KEY'];
     return {
       available: false,
       reason: `${wanted} を使うには鍵が要ります`,
-      missing: ['IMAGE_API_KEY'],
-      hint: '.env に IMAGE_API_KEY を書いてください（.env は git に入りません）',
+      missing: keys,
+      hint: `.env に ${keys.join(' か ')} を書いてください（.env は git に入りません）`,
     };
   }
 

@@ -2100,3 +2100,803 @@ describe('PHASE4.7 目録', () => {
     }
   });
 });
+
+/* ================================================================
+ * 17. 透明背景を出せないモデル（fal-ai/flux/dev）への対応
+ *
+ * FLUX には透明背景を出す機能が無い。
+ * 「transparent background」と書いても透明にはならないので、
+ * 単色の下地を描かせて、後処理で抜く。ここはその後処理の検証。
+ * ============================================================== */
+
+import {
+  MATTE_BACKGROUND,
+  MATTE_BACKGROUND_HEX,
+  cornersTransparent,
+  cutout,
+  defringe,
+  despill,
+  estimateBackground,
+  hasTransparency,
+  inspectFringe,
+  isKeyColor,
+  removeFlatBackground,
+  trimHalo,
+} from '../../scripts/assets/pipeline';
+import {
+  ANCHOR_TOLERANCE,
+  LIFT_FAIL,
+  MAX_FILE_BYTES,
+  checkTransparency,
+  opaqueShare,
+  softAlphaShare,
+} from '../../scripts/assets/transparency';
+import { framing, negativePrompt } from '../../scripts/assets/prompts';
+
+/**
+ * fal-ai/flux/dev が返してきそうな画像を作る。
+ * 大事なのは次の3点で、どれも実際に起きる:
+ *   ・背景は不透明な単色（アルファが無い）
+ *   ・輪郭は下地と人物が混ざった色（＝そのまま抜くとハローになる）
+ *   ・背景にわずかなムラ
+ */
+function fluxLike(
+  width: number,
+  height: number,
+  shapes: Array<{ cx: number; cy: number; rx: number; ry: number; shade: number }>,
+  options: { background?: [number, number, number]; noise?: number; feather?: number } = {},
+): RgbaImage {
+  const background = options.background ?? MATTE_BACKGROUND;
+  const noise = options.noise ?? 4;
+  const feather = options.feather ?? 0.012;
+  const image = createImage(width, height);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const at = (y * width + x) * 4;
+      const wobble = ((x * 7 + y * 13) % (noise * 2)) - noise;
+      let r = background[0] + wobble;
+      let g = background[1] + wobble;
+      let b = background[2] + wobble;
+
+      let cover = 0;
+      let sr = 0;
+      let sg = 0;
+      let sb = 0;
+      for (const shape of shapes) {
+        const d = Math.sqrt(((x - shape.cx) / shape.rx) ** 2 + ((y - shape.cy) / shape.ry) ** 2);
+        const a = d <= 1 ? 1 : d >= 1 + feather ? 0 : (1 + feather - d) / feather;
+        if (a <= 0) continue;
+        const value = shape.shade + Math.round(26 * ((y - shape.cy) / shape.ry));
+        sr = value;
+        sg = value - 14;
+        sb = value - 26;
+        cover = Math.max(cover, a);
+      }
+      if (cover > 0) {
+        r = sr * cover + r * (1 - cover);
+        g = sg * cover + g * (1 - cover);
+        b = sb * cover + b * (1 - cover);
+      }
+      image.data[at] = Math.max(0, Math.min(255, Math.round(r)));
+      image.data[at + 1] = Math.max(0, Math.min(255, Math.round(g)));
+      image.data[at + 2] = Math.max(0, Math.min(255, Math.round(b)));
+      image.data[at + 3] = 255;
+    }
+  }
+  return image;
+}
+
+/** 下地の色が輪郭に残っている割合（ハローの実測） */
+function keyResidue(image: RgbaImage, background: [number, number, number]): number {
+  const { width, height, data } = image;
+  const alphaAt = (x: number, y: number): number => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return 0;
+    return data[(y * width + x) * 4 + 3];
+  };
+  let edge = 0;
+  let residue = 0;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const at = (y * width + x) * 4;
+      if (data[at + 3] === 0) continue;
+      let onEdge = false;
+      for (let dy = -2; dy <= 2 && !onEdge; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          if (alphaAt(x + dx, y + dy) === 0) {
+            onEdge = true;
+            break;
+          }
+        }
+      }
+      if (!onEdge) continue;
+      edge += 1;
+      // 下地の一番強い成分が、他より突出していれば消し残り
+      const r = data[at];
+      const g = data[at + 1];
+      const b = data[at + 2];
+      if (background[1] > background[0] && background[1] > background[2]) {
+        if (g > r + 25 && g > b + 25) residue += 1;
+      }
+    }
+  }
+  return edge === 0 ? 0 : residue / edge;
+}
+
+const GREEN_MATTE = fluxLike(400, 500, [{ cx: 200, cy: 250, rx: 110, ry: 150, shade: 190 }]);
+
+describe('PHASE4.7 透明背景を出せないモデルへの対応', () => {
+  it('抜くための下地の色が決まっている', () => {
+    expect(MATTE_BACKGROUND).toEqual([0, 177, 64]);
+    expect(MATTE_BACKGROUND_HEX.toUpperCase()).toBe('#00B140');
+  });
+
+  it('下地の色は鮮やかで、抜くのに使える', () => {
+    expect(isKeyColor(MATTE_BACKGROUND)).toBe(true);
+  });
+
+  it('白や灰色は「抜くのに使える色」ではない', () => {
+    expect(isKeyColor([255, 255, 255])).toBe(false);
+    expect(isKeyColor([128, 128, 128])).toBe(false);
+    expect(isKeyColor([16, 16, 18])).toBe(false);
+  });
+
+  it('下地の色は肌・髪・生成りの白のどれからも離れている', () => {
+    const far = (color: [number, number, number]) =>
+      Math.max(
+        Math.abs(color[0] - MATTE_BACKGROUND[0]),
+        Math.abs(color[1] - MATTE_BACKGROUND[1]),
+        Math.abs(color[2] - MATTE_BACKGROUND[2]),
+      );
+    expect(far([232, 198, 172])).toBeGreaterThan(90); // 肌
+    expect(far([33, 29, 26])).toBeGreaterThan(90); // 髪
+    expect(far([242, 239, 230])).toBeGreaterThan(90); // 生成りの白
+  });
+
+  it('縁から下地の色を見立てられる', () => {
+    const estimate = estimateBackground(GREEN_MATTE);
+    expect(Math.abs(estimate.color[1] - MATTE_BACKGROUND[1])).toBeLessThanOrEqual(6);
+    expect(estimate.uniformity).toBeGreaterThan(0.9);
+  });
+
+  it('人物が写り込んでいても、縁の中央値なので引きずられない', () => {
+    const image = fluxLike(300, 300, [{ cx: 150, cy: 150, rx: 140, ry: 140, shade: 200 }]);
+    expect(estimateBackground(image).uniformity).toBeGreaterThan(0.5);
+  });
+
+  it('ムラのある背景は「一様さ」が下がる', () => {
+    const noisy = fluxLike(300, 300, [{ cx: 150, cy: 150, rx: 60, ry: 60, shade: 190 }], {
+      noise: 60,
+    });
+    expect(estimateBackground(noisy).uniformity).toBeLessThan(
+      estimateBackground(GREEN_MATTE).uniformity,
+    );
+  });
+
+  it('生成直後は透明背景ではない（FLUX はアルファを返さない）', () => {
+    expect(cornersTransparent(GREEN_MATTE)).toBe(false);
+    expect(hasTransparency(GREEN_MATTE)).toBe(false);
+  });
+
+  it('単色の下地を抜くと四隅が透明になる', () => {
+    const { image } = removeFlatBackground(GREEN_MATTE);
+    expect(cornersTransparent(image)).toBe(true);
+  });
+
+  it('鮮やかな下地なら、透け具合を実測して抜く', () => {
+    const result = removeFlatBackground(GREEN_MATTE);
+    expect(result.keyed).toBe(true);
+  });
+
+  it('白い下地なら、色の差から見立てて抜く', () => {
+    const white = fluxLike(300, 300, [{ cx: 150, cy: 150, rx: 80, ry: 90, shade: 60 }], {
+      background: [250, 250, 250],
+    });
+    const result = removeFlatBackground(white);
+    expect(result.keyed).toBe(false);
+    expect(cornersTransparent(result.image)).toBe(true);
+  });
+
+  it('抜いても人物は残る', () => {
+    const { image } = removeFlatBackground(GREEN_MATTE);
+    const bounds = contentBounds(image);
+    expect(bounds.empty).toBe(false);
+    expect(bounds.width).toBeGreaterThan(180);
+  });
+
+  it('囲まれた同色は抜かない（白いユニフォームを守る）', () => {
+    // 外が緑、中に緑の穴があいた人物
+    const image = createImage(160, 160);
+    for (let y = 0; y < 160; y++) {
+      for (let x = 0; x < 160; x++) {
+        const at = (y * 160 + x) * 4;
+        const r = Math.hypot(x - 80, y - 80);
+        const inside = r < 25;
+        const ring = r >= 25 && r < 60;
+        const color = ring ? [190, 176, 160] : MATTE_BACKGROUND;
+        image.data[at] = color[0];
+        image.data[at + 1] = color[1];
+        image.data[at + 2] = color[2];
+        image.data[at + 3] = 255;
+        if (inside) {
+          image.data[at] = MATTE_BACKGROUND[0];
+          image.data[at + 1] = MATTE_BACKGROUND[1];
+          image.data[at + 2] = MATTE_BACKGROUND[2];
+        }
+      }
+    }
+    const { image: out } = removeFlatBackground(image);
+    // 真ん中（囲まれた下地）は残る
+    expect(out.data[(80 * 160 + 80) * 4 + 3]).toBe(255);
+    // 隅（外の下地）は消える
+    expect(out.data[3]).toBe(0);
+  });
+
+  it('ハロー除去をしないと下地の色が縁に残る', () => {
+    const { image } = removeFlatBackground(GREEN_MATTE);
+    expect(keyResidue(image, MATTE_BACKGROUND)).toBeGreaterThan(0.2);
+  });
+
+  it('ハロー除去とスピル除去で、下地の色が縁から消える', () => {
+    const result = cutout(GREEN_MATTE);
+    expect(keyResidue(result.image, MATTE_BACKGROUND)).toBeLessThan(0.02);
+  });
+
+  it('ハローを消しても人物の色は変わらない', () => {
+    const result = cutout(GREEN_MATTE);
+    const bounds = contentBounds(result.image);
+    const x = Math.round((bounds.left + bounds.right) / 2);
+    const y = Math.round((bounds.top + bounds.bottom) / 2);
+    const at = (y * result.image.width + x) * 4;
+    // もとの人物の色（190 前後）が保たれている
+    expect(result.image.data[at]).toBeGreaterThan(160);
+    expect(result.image.data[at]).toBeLessThan(225);
+    expect(result.image.data[at + 3]).toBe(255);
+  });
+
+  it('スピル除去は、下地の成分だけを抑える', () => {
+    const image = createImage(2, 1);
+    // 緑がとび抜けた画素
+    image.data.set([120, 220, 100, 255, 120, 100, 110, 255]);
+    const out = despill(image, MATTE_BACKGROUND);
+    expect(out.data[1]).toBeLessThan(220);
+    expect(out.data[0]).toBe(120);
+    expect(out.data[2]).toBe(100);
+    // もともと突出していない画素は変えない
+    expect(out.data[5]).toBe(100);
+  });
+
+  it('スピル除去は、鮮やかでない下地では何もしない', () => {
+    const image = createImage(1, 1);
+    image.data.set([120, 220, 100, 255]);
+    const out = despill(image, [250, 250, 250]);
+    expect([...out.data]).toEqual([120, 220, 100, 255]);
+  });
+
+  it('引き算（defringe）は透明・不透明の画素を変えない', () => {
+    const image = createImage(3, 1);
+    image.data.set([10, 20, 30, 0, 40, 50, 60, 255, 70, 80, 90, 128]);
+    const out = defringe(image, [0, 0, 0]);
+    expect([...out.data.slice(0, 4)]).toEqual([10, 20, 30, 0]);
+    expect([...out.data.slice(4, 8)]).toEqual([40, 50, 60, 255]);
+  });
+
+  it('薄い膜を落とせる', () => {
+    const image = createImage(3, 1);
+    image.data.set([1, 1, 1, 10, 2, 2, 2, 90, 3, 3, 3, 255]);
+    const out = trimHalo(image, 40);
+    expect(out.data[3]).toBe(0);
+    expect(out.data[7]).toBe(90);
+    expect(out.data[11]).toBe(255);
+  });
+
+  it('すでに透明な素材は、抜き取りを飛ばす', () => {
+    const image = createImage(40, 40);
+    for (let y = 10; y < 30; y++) {
+      for (let x = 10; x < 30; x++) image.data[(y * 40 + x) * 4 + 3] = 255;
+    }
+    const result = cutout(image);
+    expect(result.steps[0]).toContain('すでに透明背景');
+  });
+
+  it('抜き取りの手順が記録される', () => {
+    const result = cutout(GREEN_MATTE);
+    expect(result.steps.join(' ')).toContain('単色背景を抜いた');
+    expect(result.steps.join(' ')).toContain('ハロー除去');
+    expect(result.steps.join(' ')).toContain('スピル除去');
+  });
+
+  it('どんなキャンバスの大きさでも抜ける', () => {
+    for (const [width, height] of [
+      [512, 512],
+      [1024, 1280],
+      [920, 1160],
+      [1400, 700],
+    ]) {
+      const image = fluxLike(width, height, [
+        { cx: width / 2, cy: height / 2, rx: width / 5, ry: height / 5, shade: 180 },
+      ]);
+      const result = cutout(image);
+      expect(cornersTransparent(result.image), `${width}x${height}`).toBe(true);
+      expect(contentBounds(result.image).empty, `${width}x${height}`).toBe(false);
+    }
+  });
+});
+
+/* ================================================================
+ * 18. 輪郭の見立て（白髪を誤って弾かないこと）
+ * ============================================================== */
+
+describe('PHASE4.7 輪郭の見立て', () => {
+  /** 縁だけが明るい（＝背景の消し残り）素材 */
+  function withHalo(rim: [number, number, number], core: [number, number, number]): RgbaImage {
+    const image = createImage(300, 300);
+    for (let y = 0; y < 300; y++) {
+      for (let x = 0; x < 300; x++) {
+        const at = (y * 300 + x) * 4;
+        const r = Math.hypot(x - 150, y - 150);
+        if (r > 100) continue;
+        const color = r > 92 ? rim : core;
+        image.data[at] = color[0];
+        image.data[at + 1] = color[1];
+        image.data[at + 2] = color[2];
+        image.data[at + 3] = 255;
+      }
+    }
+    return image;
+  }
+
+  it('縁と内側の明るさの差を測れる', () => {
+    const report = inspectFringe(withHalo([250, 250, 250], [60, 50, 44]));
+    expect(report.corePixels).toBeGreaterThan(0);
+    expect(report.lift).toBeGreaterThan(LIFT_FAIL);
+  });
+
+  it('縁も内側も同じ色なら、差はほぼ0', () => {
+    const report = inspectFringe(withHalo([240, 240, 238], [240, 240, 238]));
+    expect(Math.abs(report.lift)).toBeLessThan(8);
+  });
+
+  it('白いハローは不合格になる', () => {
+    const image = withHalo([250, 250, 250], [60, 50, 44]);
+    const placed = fitToCanvas(image, { anchor: ANCHORS.head_shape, targetWidth: 536 });
+    const bytes = encodePng(placed);
+    const report = checkTransparency({
+      id: 'halo',
+      image: placed,
+      bytes,
+      category: 'head_shape',
+      normalized: true,
+    });
+    expect(report.checks.find((check) => check.id === 'white-fringe')!.level).toBe('FAIL');
+  });
+
+  it('灰色のハローは不合格になる', () => {
+    const image = withHalo([186, 186, 186], [56, 46, 40]);
+    const placed = fitToCanvas(image, { anchor: ANCHORS.head_shape, targetWidth: 536 });
+    const bytes = encodePng(placed);
+    const report = checkTransparency({
+      id: 'halo',
+      image: placed,
+      bytes,
+      category: 'head_shape',
+      normalized: true,
+    });
+    expect(report.checks.find((check) => check.id === 'grey-fringe')!.level).toBe('FAIL');
+  });
+
+  it('白髪の素材は、縁が白くても合格する（誤検知しない）', () => {
+    // 白髪＝縁も内側も白い
+    const image = withHalo([238, 237, 234], [238, 237, 234]);
+    const placed = fitToCanvas(image, { anchor: ANCHORS.hair_style, targetWidth: 560 });
+    const bytes = encodePng(placed);
+    const report = checkTransparency({
+      id: 'hair_001c09',
+      image: placed,
+      bytes,
+      category: 'hair_style',
+      normalized: true,
+    });
+    expect(report.checks.find((check) => check.id === 'white-fringe')!.level).not.toBe('FAIL');
+    expect(report.checks.find((check) => check.id === 'grey-fringe')!.level).not.toBe('FAIL');
+  });
+});
+
+/* ================================================================
+ * 19. 透明PNGの検査（14項目）
+ * ============================================================== */
+
+describe('PHASE4.7 透明PNGの検査', () => {
+  const CANVAS = { width: CANVAS_WIDTH, height: CANVAS_HEIGHT };
+
+  function disc(
+    color: [number, number, number],
+    options: { cx?: number; cy?: number; rx?: number; ry?: number; alpha?: number } = {},
+  ): RgbaImage {
+    const image = createImage(CANVAS.width, CANVAS.height);
+    const cx = options.cx ?? 512;
+    const cy = options.cy ?? 470;
+    const rx = options.rx ?? 268;
+    const ry = options.ry ?? 334;
+    for (let y = 0; y < CANVAS.height; y++) {
+      for (let x = 0; x < CANVAS.width; x++) {
+        if (((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 > 1) continue;
+        const at = (y * CANVAS.width + x) * 4;
+        image.data[at] = color[0];
+        image.data[at + 1] = color[1];
+        image.data[at + 2] = color[2];
+        image.data[at + 3] = options.alpha ?? 255;
+      }
+    }
+    return image;
+  }
+
+  const check = (image: RgbaImage | null, over: Partial<Parameters<typeof checkTransparency>[0]> = {}) => {
+    const bytes = image ? encodePng(image) : new Uint8Array([1, 2, 3, 4]);
+    return checkTransparency({
+      id: 'x',
+      image,
+      bytes,
+      category: 'head_shape',
+      normalized: true,
+      ...over,
+    });
+  };
+
+  const levelOf = (report: ReturnType<typeof checkTransparency>, id: string) =>
+    report.checks.find((c) => c.id === id)?.level;
+
+  it('正しい素材は合格する', () => {
+    const report = check(disc([190, 170, 150]));
+    const fails = report.checks.filter((c) => c.level === 'FAIL' && c.id !== 'file-size');
+    expect(fails.map((c) => c.id)).toEqual([]);
+  });
+
+  it('14項目すべてを検査している', () => {
+    const report = check(disc([190, 170, 150]));
+    for (const id of [
+      'is-png',
+      'decodable',
+      'alpha-channel',
+      'corners',
+      'background-left',
+      'white-fringe',
+      'grey-fringe',
+      'halo',
+      'inside-canvas',
+      'bbox-min',
+      'bbox-max',
+      'canvas-size',
+      'anchor',
+      'file-size',
+    ]) {
+      expect(levelOf(report, id), id).toBeTruthy();
+    }
+  });
+
+  it('PNG でなければ落とす', () => {
+    const report = checkTransparency({
+      id: 'x',
+      image: null,
+      bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xe0]),
+      category: 'head_shape',
+      decodeError: 'JPEG です',
+    });
+    expect(levelOf(report, 'is-png')).toBe('FAIL');
+    expect(report.ok).toBe(false);
+  });
+
+  it('壊れた PNG は落とす', () => {
+    const broken = encodePng(disc([190, 170, 150])).slice(0, 120);
+    const report = checkTransparency({
+      id: 'x',
+      image: null,
+      bytes: broken,
+      category: 'head_shape',
+      decodeError: '途中で終わっています',
+    });
+    expect(levelOf(report, 'decodable')).toBe('FAIL');
+  });
+
+  it('アルファが無ければ落とす', () => {
+    const image = createImage(CANVAS.width, CANVAS.height);
+    for (let at = 0; at < image.data.length; at += 4) {
+      image.data[at] = 120;
+      image.data[at + 3] = 255;
+    }
+    expect(levelOf(check(image), 'alpha-channel')).toBe('FAIL');
+  });
+
+  it('四隅が不透明なら落とす', () => {
+    const image = disc([190, 170, 150]);
+    image.data[3] = 255;
+    expect(levelOf(check(image), 'corners')).toBe('FAIL');
+  });
+
+  it('背景が抜けていなければ落とす', () => {
+    const image = createImage(CANVAS.width, CANVAS.height);
+    for (let at = 0; at < image.data.length; at += 4) {
+      image.data[at + 1] = 177;
+      image.data[at + 3] = 255;
+    }
+    expect(levelOf(check(image), 'background-left')).toBe('FAIL');
+  });
+
+  it('半透明の膜が残っていれば落とす', () => {
+    const image = disc([190, 170, 150]);
+    for (let at = 3; at < image.data.length; at += 4) {
+      if (image.data[at] === 0) image.data[at] = 40;
+    }
+    expect(levelOf(check(image), 'halo')).toBe('FAIL');
+  });
+
+  it('キャンバス外にはみ出していれば落とす', () => {
+    expect(levelOf(check(disc([190, 170, 150], { rx: 600, ry: 700 })), 'inside-canvas')).toBe('FAIL');
+  });
+
+  it('中身が小さすぎれば落とす', () => {
+    expect(levelOf(check(disc([190, 170, 150], { rx: 20, ry: 22 })), 'bbox-min')).toBe('FAIL');
+  });
+
+  it('中身が大きすぎれば落とす', () => {
+    expect(levelOf(check(disc([190, 170, 150], { rx: 560, ry: 700 })), 'bbox-max')).toBe('FAIL');
+  });
+
+  it('1024x1280 でなければ落とす', () => {
+    const image = createImage(512, 640);
+    for (let y = 100; y < 500; y++) {
+      for (let x = 100; x < 400; x++) {
+        const at = (y * 512 + x) * 4;
+        image.data[at] = 190;
+        image.data[at + 3] = 255;
+      }
+    }
+    expect(levelOf(check(image), 'canvas-size')).toBe('FAIL');
+  });
+
+  it('基準点がずれていれば落とす', () => {
+    expect(levelOf(check(disc([190, 170, 150], { cx: 300, cy: 900 })), 'anchor')).toBe('FAIL');
+  });
+
+  it('基準点が合っていれば通る', () => {
+    expect(levelOf(check(disc([190, 170, 150], { cx: 512, cy: 470 })), 'anchor')).toBe('PASS');
+  });
+
+  it('基準点の許容は仕様どおり', () => {
+    expect(ANCHOR_TOLERANCE).toBeGreaterThan(0);
+    const justInside = disc([190, 170, 150], { cx: 512 + ANCHOR_TOLERANCE - 2, cy: 470 });
+    expect(levelOf(check(justInside), 'anchor')).toBe('PASS');
+  });
+
+  it('正規化前なら大きさと基準点は見送る', () => {
+    const image = createImage(400, 400);
+    for (let y = 100; y < 300; y++) {
+      for (let x = 100; x < 300; x++) {
+        const at = (y * 400 + x) * 4;
+        image.data[at] = 190;
+        image.data[at + 3] = 255;
+      }
+    }
+    const report = check(image, { normalized: false });
+    expect(levelOf(report, 'canvas-size')).toBe('PASS');
+    expect(levelOf(report, 'anchor')).toBe('PASS');
+  });
+
+  it('ファイルサイズの上限がある', () => {
+    expect(MAX_FILE_BYTES).toBeGreaterThan(100_000);
+    const report = checkTransparency({
+      id: 'x',
+      image: disc([190, 170, 150]),
+      bytes: new Uint8Array(MAX_FILE_BYTES + 1),
+      category: 'head_shape',
+    });
+    expect(levelOf(report, 'file-size')).toBe('FAIL');
+  });
+
+  it('中身が空なら落とす', () => {
+    expect(levelOf(check(createImage(CANVAS.width, CANVAS.height)), 'not-empty')).toBe('FAIL');
+  });
+
+  it('不透明な画素の割合を測れる', () => {
+    expect(opaqueShare(createImage(10, 10))).toBe(0);
+    const image = createImage(10, 10);
+    for (let at = 3; at < image.data.length; at += 4) image.data[at] = 255;
+    expect(opaqueShare(image)).toBe(1);
+  });
+
+  it('半透明な画素の割合を測れる', () => {
+    const image = createImage(4, 1);
+    image.data.set([0, 0, 0, 255, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 200]);
+    expect(softAlphaShare(image)).toBeCloseTo(2 / 3, 2);
+  });
+
+  it('FLUX 風の画像を通しで処理すると合格する', () => {
+    const raw = fluxLike(1024, 1280, [{ cx: 500, cy: 600, rx: 250, ry: 330, shade: 196 }]);
+    const cut = cutout(raw);
+    const placed = fitToCanvas(cut.image, { anchor: ANCHORS.head_shape, targetWidth: 536 });
+    const bytes = encodePng(placed);
+    const report = checkTransparency({
+      id: 'head_001',
+      image: placed,
+      bytes,
+      category: 'head_shape',
+      normalized: true,
+    });
+    const fails = report.checks.filter((c) => c.level === 'FAIL' && c.id !== 'file-size');
+    expect(fails.map((c) => `${c.id}: ${c.detail}`)).toEqual([]);
+  });
+});
+
+/* ================================================================
+ * 20. 透明を出せないモデル向けのプロンプト
+ * ============================================================== */
+
+describe('PHASE4.7 下地を描かせるプロンプト', () => {
+  it('透明を出せるモデルには透明背景を頼む', () => {
+    expect(framing(true)).toContain('fully transparent background');
+  });
+
+  it('透明を出せないモデルには「transparent background」と書かない', () => {
+    expect(framing(false)).not.toContain('transparent background');
+  });
+
+  it('透明を出せないモデルには単色の下地を頼む', () => {
+    const text = framing(false);
+    expect(text).toContain(MATTE_BACKGROUND_HEX);
+    expect(text).toContain('flat solid');
+    expect(text).toContain('no gradient');
+  });
+
+  it('どちらの場合も、影と枠は禁止する', () => {
+    for (const transparent of [true, false]) {
+      expect(framing(transparent), String(transparent)).toContain('no cast shadow');
+      expect(framing(transparent), String(transparent)).toContain('no frame');
+    }
+  });
+
+  it('下地を描かせるときは background を丸ごと否定しない', () => {
+    // 'background' を否定すると下地まで消えてしまう
+    expect(negativePrompt(false)).not.toMatch(/(^|,\s)background(,|$)/);
+    expect(negativePrompt(true)).toMatch(/(^|,\s)background(,|$)/);
+  });
+
+  it('下地を描かせるときも、模様や風景は否定する', () => {
+    const text = negativePrompt(false);
+    for (const word of ['gradient background', 'textured background', 'scenery', 'checkerboard']) {
+      expect(text, word).toContain(word);
+    }
+  });
+
+  it('どちらの場合も、権利まわりの禁止は変わらない', () => {
+    for (const transparent of [true, false]) {
+      for (const word of ['real athlete', 'celebrity likeness', 'watermark', 'logo']) {
+        expect(negativePrompt(transparent), `${transparent}/${word}`).toContain(word);
+      }
+    }
+  });
+
+  it('透明を出せないモデル向けの文面は、抜けることを前提にしている', () => {
+    const parts = buildPrompt('head_shape', 0, { transparent: false });
+    expect(parts.transparent).toBe(false);
+    expect(parts.prompt).toContain('removed cleanly afterwards');
+  });
+
+  it('文面がどちらの前提で作られたかが残る', () => {
+    expect(buildPrompt('eyes', 0).transparent).toBe(true);
+    expect(buildPrompt('eyes', 0, { transparent: false }).transparent).toBe(false);
+  });
+
+  it('見本の1枚も下地の指定を切り替えられる', () => {
+    expect(masterStyleSheetPrompt(true)).toContain('fully transparent background');
+    expect(masterStyleSheetPrompt(false)).toContain(MATTE_BACKGROUND_HEX);
+  });
+
+  it('文面の版が上がっている（下地の指定を足したため）', () => {
+    expect(PROMPT_VERSION).toBeGreaterThanOrEqual(2);
+  });
+
+  it('まとめて組み立てるときも前提を渡せる', () => {
+    const prompts = buildPromptsFor('eyes', 3, { transparent: false });
+    expect(prompts.length).toBe(3);
+    expect(prompts.every((part) => part.transparent === false)).toBe(true);
+  });
+});
+
+/* ================================================================
+ * 21. fal のつなぎ
+ * ============================================================== */
+
+describe('PHASE4.7 fal のつなぎ', () => {
+  it('透明背景は返せないと宣言している', () => {
+    const resolution = resolveProvider({ IMAGE_PROVIDER: 'fal', IMAGE_API_KEY: 'test-key' });
+    expect(resolution.available).toBe(true);
+    if (resolution.available) {
+      expect(resolution.provider.supportsTransparency()).toBe(false);
+    }
+  });
+
+  it('FAL_KEY でも鍵として認める', () => {
+    const resolution = resolveProvider({ IMAGE_PROVIDER: 'fal', FAL_KEY: 'test-key' });
+    expect(resolution.available).toBe(true);
+    if (resolution.available) expect(resolution.provider.name).toBe('fal');
+  });
+
+  it('IMAGE_API_KEY が優先される', () => {
+    const resolution = resolveProvider({
+      IMAGE_PROVIDER: 'fal',
+      IMAGE_API_KEY: 'a',
+      FAL_KEY: 'b',
+    });
+    expect(resolution.available).toBe(true);
+  });
+
+  it('どちらの鍵も無ければ、両方の名前を教える', () => {
+    const resolution = resolveProvider({ IMAGE_PROVIDER: 'fal' });
+    expect(resolution.available).toBe(false);
+    if (!resolution.available) {
+      expect(resolution.missing).toContain('IMAGE_API_KEY');
+      expect(resolution.missing).toContain('FAL_KEY');
+    }
+  });
+
+  it('FAL_KEY は fal 以外では使わない', () => {
+    const resolution = resolveProvider({ IMAGE_PROVIDER: 'openai', FAL_KEY: 'test-key' });
+    expect(resolution.available).toBe(false);
+  });
+
+  it('必要な環境変数として FAL_KEY が載っている', () => {
+    const fal = PROVIDER_REQUIREMENTS.find((requirement) => requirement.id === 'fal')!;
+    expect(fal.envKeys).toContain('FAL_KEY');
+    expect(fal.defaultModel).toBe('fal-ai/flux/dev');
+  });
+
+  it('つなぎのコードが PNG を指定している', () => {
+    const source = TOOL_SOURCES['../../scripts/assets/providers/fal.ts'];
+    expect(source).toBeTruthy();
+    expect(source).toContain("output_format: 'png'");
+  });
+
+  it('つなぎのコードが JPEG を使っていない', () => {
+    const source = TOOL_SOURCES['../../scripts/assets/providers/fal.ts'];
+    expect(source).not.toContain('jpeg');
+    expect(source).not.toContain('jpg');
+  });
+});
+
+/* ================================================================
+ * 22. ゲーム本体に背景除去が入り込んでいないこと
+ * ============================================================== */
+
+describe('PHASE4.7 背景除去はゲームに入らない', () => {
+  it('ゲーム本体が背景除去のコードを読み込んでいない', () => {
+    for (const [path, source] of Object.entries(GAME_SOURCES)) {
+      expect(source, path).not.toContain('removeFlatBackground');
+      expect(source, path).not.toContain('removeBackground');
+      expect(source, path).not.toContain('defringe');
+      expect(source, path).not.toContain('despill');
+      expect(source, path).not.toContain('cutout');
+    }
+  });
+
+  it('ゲーム本体が画素をいじる処理を持っていない', () => {
+    for (const [path, source] of Object.entries(GAME_SOURCES)) {
+      expect(source, path).not.toContain('getImageData');
+      expect(source, path).not.toContain('putImageData');
+      expect(source, path).not.toContain('ImageData');
+    }
+  });
+
+  it('ゲーム本体が下地の色を知らない', () => {
+    for (const [path, source] of Object.entries(GAME_SOURCES)) {
+      expect(source, path).not.toContain('MATTE_BACKGROUND');
+      expect(source, path).not.toContain('00B140');
+    }
+  });
+
+  it('ゲーム本体が完成した PNG だけを読む', () => {
+    const registry = GAME_SOURCES['../ui/visual/assetRegistry.ts'];
+    expect(registry).toContain('import.meta.glob');
+    expect(registry).not.toContain('fetch(');
+    expect(registry).not.toMatch(/https?:\/\//);
+  });
+});

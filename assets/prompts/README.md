@@ -16,23 +16,31 @@ APIキーも `.env` もゲームには要りません。外部サービスが止
 | `canvas.md` | 共通キャンバスと基準点 |
 | `negative-prompt.md` | すべての生成で必ず外すもの |
 | `workflow.md` | 生成 → 後処理 → 検査 → 取り込み の手順 |
+| `transparency.md` | **透明背景の作りかた（fal-ai/flux/dev むけ）** |
 | `01-head.md` … `18-pose.md` | 種類ごとの手書きの解説 |
 | `generated-prompts.md` | `npm run assets:prompts` が書き出す、そのまま貼れる文面 |
 
 ## 早わかり
 
 ```sh
-npm run assets:dry-run                       # 何を何枚作るのか。1枚も作らない
-cp .env.example .env                         # プロバイダーと鍵を設定
-npm run assets:generate -- --master          # 見本の1枚（STYLE SHEET）
-npm run assets:generate -- --type all --count 3
-npm run assets:process                       # 背景除去・位置合わせ・色の振り分け
-npm run assets:check                         # 機械の検査
-npm run assets:audit                         # 人の目で見る（文字・ロゴ・実在人物）
-npm run assets:manifest                      # 目録を作る
-npm run assets:gallery -- 300                # 300人を組み上げて確認
-npm run build:single                         # 単一HTMLに同梱
+npm run assets:generate -- --dry-run          # 何を何枚作るのか。APIを1回も呼ばない
+cp .env.example .env                          # プロバイダーと鍵を設定
+npm run assets:generate -- --master           # 見本の1枚（STYLE SHEET）
+npm run assets:generate -- --type head_shape,hair_style,eyes --count 1   # まず3枚だけ
+npm run assets:remove-background              # 単色の下地を抜いて透明PNGにする
+npm run assets:normalize                      # 1024x1280 へ正規化・色の振り分け
+npm run assets:compare                        # 元 → 除去後 → 正規化後 を見比べる
+npm run assets:validate                       # 透明PNGとして検査（14項目）
+npm run assets:manifest                       # 目録を作る
+npm run assets:audit                          # 人の目で見る（文字・ロゴ・実在人物）
+npm run assets:gallery -- 300                 # 300人を組み上げて確認
+npm run build:single                          # 単一HTMLに同梱
 ```
+
+`assets:remove-background` → `normalize` → `validate` → `manifest` は
+`npm run assets:build` でまとめて実行できます。
+
+**3枚で品質を確かめてから量産してください。**
 
 APIを契約していないときは `IMAGE_PROVIDER=local` にして、
 手元のツールで作った PNG を `assets/incoming/` へ置けば、

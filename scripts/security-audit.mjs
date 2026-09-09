@@ -55,7 +55,16 @@ for (const pattern of SECRET_PATTERNS) {
 if (failures === 0) ok('鍵らしき文字は見つかりませんでした');
 
 /* ---- 2. 環境変数の名前 ---- */
-const ENV_NAMES = ['IMAGE_API_KEY', 'IMAGE_PROVIDER', 'IMAGE_BASE_URL', 'OPENAI_API_KEY', 'REPLICATE_API_TOKEN', 'FAL_KEY'];
+const ENV_NAMES = [
+  'IMAGE_API_KEY',
+  'IMAGE_PROVIDER',
+  'IMAGE_MODEL',
+  'IMAGE_BASE_URL',
+  'OPENAI_API_KEY',
+  'REPLICATE_API_TOKEN',
+  'FAL_KEY',
+  'STABILITY_API_KEY',
+];
 const envHits = [];
 for (const name of ENV_NAMES) {
   for (const file of texts) {
@@ -85,7 +94,19 @@ if (serviceHits.length > 0) fail(`画像生成サービスの宛先が残って�
 else ok('画像生成サービスの宛先は入っていません');
 
 /* ---- 4. 開発用のコードが混ざっていないか ---- */
-const DEV_ONLY = ['ImageGenerationProvider', 'generateBatch', 'masterStyleSheetPrompt', 'resolveProvider'];
+// 開発時のパイプラインのコードが1つでも混ざっていたら、ビルドの設定がおかしい
+const DEV_ONLY = [
+  'ImageGenerationProvider',
+  'generateBatch',
+  'masterStyleSheetPrompt',
+  'resolveProvider',
+  // PHASE 4.7 追補: 背景除去はゲームに入ってはいけない
+  'removeFlatBackground',
+  'defringe',
+  'despill',
+  'MATTE_BACKGROUND',
+  'checkTransparency',
+];
 const devHits = [];
 for (const word of DEV_ONLY) {
   for (const file of texts) {
@@ -94,6 +115,13 @@ for (const word of DEV_ONLY) {
 }
 if (devHits.length > 0) fail(`開発用のコードが混ざっています: ${devHits.slice(0, 3).join(', ')}`);
 else ok('開発用の画像生成コードは入っていません');
+
+/* ---- 4b. 下地の色（開発時だけのもの）---- */
+{
+  const hits = texts.filter((file) => file.body.includes('00B140') || file.body.includes('#00b140'));
+  if (hits.length > 0) fail(`抜くための下地の色がゲームに入っています: ${hits[0].path}`);
+  else ok('抜くための下地の色は入っていません（背景除去は開発時だけ）');
+}
 
 /* ---- 5. 外部の宛先そのもの ---- */
 {

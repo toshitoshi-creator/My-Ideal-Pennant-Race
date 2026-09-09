@@ -16,7 +16,7 @@
     "e2e:seeds": "node e2e/run-seeds.mjs",
     "e2e:sandbox": "node e2e/sandbox-check.mjs",
     "assets:manifest": "node scripts/generate-asset-manifest.mjs",
-    "assets:validate": "node scripts/validate-assets.mjs",
+    "assets:validate": "npx tsx scripts/assets/validate-transparency.mjs && node scripts/validate-assets.mjs",
     "assets:optimize": "node scripts/optimize-assets.mjs",
     "assets:audit": "node scripts/audit-player-assets.mjs",
     "assets:dry-run": "npx tsx scripts/assets-cli.ts dry-run",
@@ -28,7 +28,12 @@
     "assets:gallery": "npx tsx scripts/visual-gallery.tsx",
     "gallery": "npx tsx scripts/visual-gallery.tsx",
     "e2e:images": "node e2e/image-mode-check.mjs",
-    "audit:security": "node scripts/security-audit.mjs"
+    "audit:security": "node scripts/security-audit.mjs",
+    "assets:remove-background": "npx tsx scripts/assets/remove-background.mjs",
+    "assets:normalize": "npx tsx scripts/assets/normalize-alpha.mjs",
+    "assets:validate:files": "node scripts/validate-assets.mjs",
+    "assets:compare": "npx tsx scripts/assets/compare-gallery.mjs",
+    "assets:build": "npm run assets:remove-background && npm run assets:normalize && npm run assets:validate && npm run assets:manifest"
   },
   "dependencies": {
     "react": "^18.3.1",

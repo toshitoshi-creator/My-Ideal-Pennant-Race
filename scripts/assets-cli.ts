@@ -40,6 +40,7 @@ import {
   buildPrompt,
   buildPromptsFor,
   masterStyleSheetPrompt,
+  negativePrompt,
   planGeneration,
   billableCount,
   NEGATIVE_PROMPT,
@@ -89,6 +90,8 @@ interface Args {
   confirmLargeBatch: boolean;
   master: boolean;
   json: boolean;
+  /** true なら API を一切呼ばず、予定枚数だけ表示する */
+  dryRun: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -99,6 +102,7 @@ function parseArgs(argv: string[]): Args {
     confirmLargeBatch: false,
     master: false,
     json: false,
+    dryRun: false,
   };
   for (let i = 1; i < argv.length; i++) {
     const arg = argv[i];
@@ -112,6 +116,7 @@ function parseArgs(argv: string[]): Args {
     else if (arg === '--confirm-large-batch') out.confirmLargeBatch = true;
     else if (arg === '--master') out.master = true;
     else if (arg === '--json') out.json = true;
+    else if (arg === '--dry-run') out.dryRun = true;
   }
   return out;
 }
@@ -298,6 +303,13 @@ function countProduction(): number {
 
 async function commandGenerate(args: Args): Promise<void> {
   const categories = categoriesOf(args.type);
+
+  // --dry-run は API を一切呼ばない。予定枚数を見せて終わる
+  if (args.dryRun) {
+    commandDryRun(args);
+    return;
+  }
+
   const resolution = resolve();
 
   if (!resolution.available) {
@@ -333,16 +345,27 @@ async function commandGenerate(args: Args): Promise<void> {
   ensureDir(DIR.original);
   ensureDir(DIR.state);
 
+  /*
+   * 透明背景を出せないモデル（fal-ai/flux/dev など）には、
+   * 「transparent background」ではなく「単色の下地」を描かせる。
+   * 抜くのは後処理（assets:remove-background）の仕事。
+   */
+  const transparent = provider.supportsTransparency();
+  if (!transparent) {
+    console.log('  このモデルは透明背景を出せません。');
+    console.log('  単色の下地を描かせて、あとで npm run assets:remove-background で抜きます。\n');
+  }
+
   /* ---- 見本の1枚（§11） ---- */
   if (args.master) {
     console.log('── MASTER CHARACTER STYLE SHEET ──');
     const request: GenerationRequest = {
       id: 'master-style-sheet',
-      prompt: masterStyleSheetPrompt(),
-      negativePrompt: NEGATIVE_PROMPT,
+      prompt: masterStyleSheetPrompt(transparent),
+      negativePrompt: negativePrompt(transparent),
       width: CANVAS_WIDTH,
       height: CANVAS_HEIGHT,
-      transparent: provider.supportsTransparency(),
+      transparent,
     };
     const result = await provider.generateImage(request);
     if (result.ok) {
@@ -369,7 +392,7 @@ async function commandGenerate(args: Args): Promise<void> {
     const entry = catalogEntry(category);
     if (entry.kind === 'recolor') continue;
 
-    const prompts = buildPromptsFor(category, args.count);
+    const prompts = buildPromptsFor(category, args.count, { transparent });
     if (prompts.length === 0) continue;
     console.log(`── ${category}（${prompts.length}枚）──`);
 
@@ -379,7 +402,7 @@ async function commandGenerate(args: Args): Promise<void> {
       negativePrompt: part.negativePrompt,
       width: CANVAS_WIDTH,
       height: CANVAS_HEIGHT,
-      transparent: provider.supportsTransparency(),
+      transparent,
       ...(reference ? { referenceImage: reference } : {}),
     }));
 
@@ -405,7 +428,13 @@ async function commandGenerate(args: Args): Promise<void> {
   }
 
   console.log(`=== 生成: 成功 ${made}枚 / 失敗 ${failed.length}枚 ===`);
-  console.log('次は npm run assets:process で後処理をしてください。');
+  console.log('生成したものは assets/original/ にあります（背景つき・ゲームには入りません）。');
+  console.log('次はこの順で進めてください：');
+  console.log('  1. npm run assets:remove-background   背景を抜く');
+  console.log('  2. npm run assets:normalize           1024x1280 へ正規化');
+  console.log('  3. npm run assets:compare             元 → 除去後 → 正規化後 を見比べる');
+  console.log('  4. npm run assets:validate            透明PNGとして検査');
+  console.log('  ここまで確かめてから、量産してください。');
   if (made === 0) process.exit(1);
 }
 
@@ -439,7 +468,7 @@ async function commandRegenerate(args: Args): Promise<void> {
     }
     const entry = catalogEntry(category);
     const index = Number(id.slice(-3)) - 1;
-    const part = buildPrompt(category, index);
+    const part = buildPrompt(category, index, { transparent: provider.supportsTransparency() });
     const result: GenerationResult = await provider.generateImage({
       id: part.id,
       prompt: part.prompt,
@@ -681,23 +710,32 @@ function commandCheck(args: Args): void {
 
 function commandPrompts(args: Args): void {
   const categories = categoriesOf(args.type);
+  // 透明背景を出せるプロバイダーが決まっていれば、その前提で書き出す
+  const resolution = resolve();
+  const transparent = resolution.available ? resolution.provider.supportsTransparency() : false;
   const lines: string[] = [
     '# 生成用プロンプト（機械が組み立てたもの）',
     '',
     `プロンプトの版: v${PROMPT_VERSION}`,
+    '',
+    transparent
+      ? '透明背景を出せるモデル向けの文面です。'
+      : '**透明背景を出せないモデル向けの文面です。**単色の下地を描かせて、'
+        + 'あとで `npm run assets:remove-background` で抜きます。'
+        + '「transparent background」とは書きません（書いても透明にはならないため）。',
     '',
     '手元のツール（Web版のUIなど）で作るときは、ここをそのまま貼ってください。',
     '',
     '## MASTER CHARACTER STYLE SHEET',
     '',
     '```',
-    masterStyleSheetPrompt(),
+    masterStyleSheetPrompt(transparent),
     '```',
     '',
     '### Negative prompt（すべて共通）',
     '',
     '```',
-    NEGATIVE_PROMPT,
+    negativePrompt(transparent),
     '```',
     '',
   ];
@@ -709,7 +747,7 @@ function commandPrompts(args: Args): void {
       lines.push('AIには作らせません。後処理で色を振り分けます（npm run assets:process）。', '');
       continue;
     }
-    const prompts = buildPromptsFor(category, args.count);
+    const prompts = buildPromptsFor(category, args.count, { transparent });
     lines.push(`## ${category}（${prompts.length}枚）`, '');
     for (const part of prompts) {
       lines.push(`### ${part.id}`, '', '```', part.prompt, '```', '');

@@ -121,6 +121,490 @@ function colorDistance(r: number, g: number, b: number, to: [number, number, num
 }
 
 /* ================================================================
+ * 単色背景の抜き取り（fal-ai/flux/dev むけ）
+ * ============================================================== */
+
+/**
+ * FLUX のように「透明背景を指定できない」モデル向けの背景抜き。
+ *
+ * プロンプトで単色の背景を描かせておき、ここで機械的に抜く。
+ * 「transparent background」と書いただけでは透明にはならないので、
+ * 文言に頼らず、必ずこの処理を通す。
+ *
+ * 抜くだけでは足りない。単色の背景と人物が接するところでは、
+ * 生成器が両者を混ぜた中間色を描くので、そのまま抜くと
+ * 白や灰色や緑の「縁取り」が残る。これを取るのが defringe。
+ */
+
+/**
+ * 透明背景を出せないモデルに描かせる、抜くための背景色。
+ *
+ * 肌・髪・生成りの白のどれからも遠い緑にしてある。
+ * 人物の色と近い背景（白や灰色）にすると、抜くときに人物まで削れる。
+ */
+export const MATTE_BACKGROUND: Rgb = [0, 177, 64];
+export const MATTE_BACKGROUND_HEX = '#00B140';
+
+/** 背景の色と、それがどれくらい一様かの見立て */
+export interface BackgroundEstimate {
+  color: Rgb;
+  /** 縁の画素のうち、その色に近いものの割合（1に近いほど一様な単色背景） */
+  uniformity: number;
+  /** 縁の画素の色のばらつき（小さいほど平らな背景） */
+  spread: number;
+}
+
+/**
+ * 画像の縁を見て、背景の色を見立てる。
+ * 中央は見ない（人物がいるため）。
+ */
+export function estimateBackground(image: RgbaImage, border = 6): BackgroundEstimate {
+  const { width, height, data } = image;
+  if (width === 0 || height === 0) {
+    return { color: [0, 0, 0], uniformity: 0, spread: 255 };
+  }
+
+  const samples: Rgb[] = [];
+  const take = (x: number, y: number) => {
+    const at = (y * width + x) * 4;
+    if (data[at + 3] === 0) return;
+    samples.push([data[at], data[at + 1], data[at + 2]]);
+  };
+  const step = Math.max(1, Math.floor(Math.min(width, height) / 128));
+  for (let x = 0; x < width; x += step) {
+    for (let d = 0; d < border; d++) {
+      take(x, Math.min(height - 1, d));
+      take(x, Math.max(0, height - 1 - d));
+    }
+  }
+  for (let y = 0; y < height; y += step) {
+    for (let d = 0; d < border; d++) {
+      take(Math.min(width - 1, d), y);
+      take(Math.max(0, width - 1 - d), y);
+    }
+  }
+  if (samples.length === 0) return { color: [0, 0, 0], uniformity: 0, spread: 255 };
+
+  // 中央値をとる（一部に人物が写り込んでいても引きずられない）
+  const median = (channel: number): number => {
+    const values = samples.map((sample) => sample[channel]).sort((a, b) => a - b);
+    return values[Math.floor(values.length / 2)];
+  };
+  const color: Rgb = [median(0), median(1), median(2)];
+
+  let near = 0;
+  let total = 0;
+  for (const sample of samples) {
+    const distance = colorDistance(sample[0], sample[1], sample[2], color);
+    if (distance <= 18) near += 1;
+    total += distance;
+  }
+  return {
+    color,
+    uniformity: near / samples.length,
+    spread: total / samples.length,
+  };
+}
+
+export interface FlatBackgroundOptions {
+  /** 完全に背景とみなす色の差（彩度の低い背景のとき使う） */
+  inner?: number;
+  /** ここを超えたら完全に人物とみなす色の差 */
+  outer?: number;
+  /** 背景の色。渡さなければ縁から見立てる */
+  background?: Rgb;
+  /** 画像の端からつながっているところだけ抜く */
+  fromEdges?: boolean;
+}
+
+/**
+ * その色が「抜くための下地」として使えるほど鮮やかか。
+ *
+ * 鮮やかな下地（緑など）なら、混ざり具合を正確に測れるので
+ * 縁が綺麗に抜ける。白や灰色の下地では、混ざり具合を測れないので
+ * 色の差から見立てるしかなく、どうしても縁が甘くなる。
+ */
+export function isKeyColor(color: Rgb): boolean {
+  const max = Math.max(color[0], color[1], color[2]);
+  const min = Math.min(color[0], color[1], color[2]);
+  return max >= 60 && (max - min) / max >= 0.45;
+}
+
+/** その色のいちばん強い成分（0=赤 1=緑 2=青） */
+function dominantChannel(color: Rgb): 0 | 1 | 2 {
+  if (color[1] >= color[0] && color[1] >= color[2]) return 1;
+  return color[0] >= color[2] ? 0 : 2;
+}
+
+/**
+ * 下地の色がどれだけ「透けて見えているか」を測る。
+ *
+ * 下地が緑なら「緑が赤と青をどれだけ上回っているか」を見る。
+ * 完全な下地なら 1、人物の色なら 0、混ざっていればその割合になる。
+ * 混ざり方は足し算なので、この値がそのまま透け具合になる。
+ */
+function keyCoverage(r: number, g: number, b: number, background: Rgb, channel: 0 | 1 | 2): number {
+  const others: [number, number] = channel === 0 ? [g, b] : channel === 1 ? [r, b] : [r, g];
+  const pixelExcess = (channel === 0 ? r : channel === 1 ? g : b) - Math.max(others[0], others[1]);
+  const backgroundOthers: [number, number] =
+    channel === 0
+      ? [background[1], background[2]]
+      : channel === 1
+        ? [background[0], background[2]]
+        : [background[0], background[1]];
+  const backgroundExcess =
+    background[channel] - Math.max(backgroundOthers[0], backgroundOthers[1]);
+  if (backgroundExcess <= 1) return 0;
+  const ratio = pixelExcess / backgroundExcess;
+  return ratio <= 0 ? 0 : ratio >= 1 ? 1 : ratio;
+}
+
+/**
+ * 単色背景を抜いて、境目になめらかなアルファを作る。
+ *
+ * 鮮やかな下地のときは、透け具合をそのまま測る（正確）。
+ * そうでないときは、色の差から見立てる（近似）。
+ */
+export function removeFlatBackground(
+  source: RgbaImage,
+  options: FlatBackgroundOptions = {},
+): { image: RgbaImage; background: Rgb; estimate: BackgroundEstimate; keyed: boolean } {
+  const estimate = estimateBackground(source);
+  const background = options.background ?? estimate.color;
+  const inner = options.inner ?? 26;
+  const outer = options.outer ?? 76;
+  const fromEdges = options.fromEdges ?? true;
+  const keyed = isKeyColor(background);
+  const channel = dominantChannel(background);
+
+  const out: RgbaImage = {
+    width: source.width,
+    height: source.height,
+    data: new Uint8Array(source.data),
+  };
+  const { width, height, data } = out;
+  if (width === 0 || height === 0) return { image: out, background, estimate, keyed };
+
+  /** その画素の「背景らしさ」（1 = 完全に背景、0 = 完全に人物） */
+  const backgroundness = (at: number): number => {
+    if (keyed) {
+      return keyCoverage(data[at], data[at + 1], data[at + 2], background, channel);
+    }
+    const distance = colorDistance(data[at], data[at + 1], data[at + 2], background);
+    if (distance <= inner) return 1;
+    if (distance >= outer) return 0;
+    return 1 - (distance - inner) / (outer - inner);
+  };
+
+  if (!fromEdges) {
+    for (let at = 0; at < data.length; at += 4) {
+      data[at + 3] = Math.round(data[at + 3] * (1 - backgroundness(at)));
+    }
+    return { image: out, background, estimate, keyed };
+  }
+
+  // 端からつながっている背景だけを抜く。
+  // 囲まれた同色（白いユニフォームなど）は残す。
+  const seen = new Uint8Array(width * height);
+  const stack: number[] = [];
+  const push = (x: number, y: number) => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return;
+    const index = y * width + x;
+    if (seen[index]) return;
+    // 完全に人物の色なら、そこで広がりを止める
+    if (backgroundness(index * 4) <= 0) {
+      seen[index] = 1;
+      return;
+    }
+    seen[index] = 1;
+    stack.push(index);
+  };
+  for (let x = 0; x < width; x++) {
+    push(x, 0);
+    push(x, height - 1);
+  }
+  for (let y = 0; y < height; y++) {
+    push(0, y);
+    push(width - 1, y);
+  }
+
+  while (stack.length > 0) {
+    const index = stack.pop()!;
+    const at = index * 4;
+    const ratio = backgroundness(at);
+    data[at + 3] = Math.round(data[at + 3] * (1 - ratio));
+    const x = index % width;
+    const y = (index - x) / width;
+    push(x - 1, y);
+    push(x + 1, y);
+    push(x, y - 1);
+    push(x, y + 1);
+  }
+  return { image: out, background, estimate, keyed };
+}
+
+/**
+ * 下地の色が人物に映り込んだぶんを抑える（スピル除去）。
+ *
+ * 緑の下地で撮ると、輪郭のあたりが緑がかる。
+ * 人物の色に、下地の色だけが突出して現れることはないので、
+ * 突出したぶんを他の成分の高さまで抑える。
+ */
+export function despill(source: RgbaImage, background: Rgb): RgbaImage {
+  const out: RgbaImage = {
+    width: source.width,
+    height: source.height,
+    data: new Uint8Array(source.data),
+  };
+  if (!isKeyColor(background)) return out;
+  const channel = dominantChannel(background);
+  const { data } = out;
+  for (let at = 0; at < data.length; at += 4) {
+    if (data[at + 3] === 0) continue;
+    const others: [number, number] =
+      channel === 0
+        ? [data[at + 1], data[at + 2]]
+        : channel === 1
+          ? [data[at], data[at + 2]]
+          : [data[at], data[at + 1]];
+    // 他の2成分の平均まで抑える（自然な肌・髪はこの範囲に収まる）
+    const limit = (others[0] + others[1]) / 2;
+    if (data[at + channel] > limit) data[at + channel] = clamp255(limit);
+  }
+  return out;
+}
+
+/**
+ * 縁に残った背景色を取り除く（ハロー除去）。
+ *
+ * 半透明の画素は「人物の色 × a + 背景の色 × (1-a)」で描かれている。
+ * ここから背景のぶんを引き算して、人物そのものの色を取り戻す。
+ * これをしないと、白い背景なら白い縁、灰色の背景なら灰色の縁が残る。
+ */
+export function defringe(source: RgbaImage, background: Rgb, strength = 1): RgbaImage {
+  const out: RgbaImage = {
+    width: source.width,
+    height: source.height,
+    data: new Uint8Array(source.data),
+  };
+  const { data } = out;
+  for (let at = 0; at < data.length; at += 4) {
+    const alpha = data[at + 3];
+    if (alpha === 0 || alpha === 255) continue;
+    const a = alpha / 255;
+    for (let c = 0; c < 3; c++) {
+      // 観測色 = 元の色 * a + 背景 * (1 - a)  →  元の色 = (観測色 - 背景*(1-a)) / a
+      const unmixed = (data[at + c] - background[c] * (1 - a)) / a;
+      data[at + c] = clamp255(data[at + c] + (unmixed - data[at + c]) * strength);
+    }
+  }
+  return out;
+}
+
+/**
+ * ほとんど透明な縁を削る（半透明のハローを消す）。
+ *
+ * defringe で色は直るが、うっすら残った膜そのものは
+ * 重ねたときに輪郭をぼやけさせるので、しきい値以下は落とす。
+ */
+export function trimHalo(source: RgbaImage, minAlpha = 40): RgbaImage {
+  const out: RgbaImage = {
+    width: source.width,
+    height: source.height,
+    data: new Uint8Array(source.data),
+  };
+  const { data } = out;
+  for (let at = 3; at < data.length; at += 4) {
+    if (data[at] > 0 && data[at] < minAlpha) data[at] = 0;
+  }
+  return out;
+}
+
+/** 白っぽい／灰色っぽい縁がどれだけ残っているか（検査に使う） */
+export interface FringeReport {
+  /** 縁の画素数 */
+  edgePixels: number;
+  /** そのうち白っぽいもの */
+  whitish: number;
+  /** そのうち灰色っぽいもの */
+  greyish: number;
+  /** そのうち半透明のもの */
+  soft: number;
+  whiteRatio: number;
+  greyRatio: number;
+  softRatio: number;
+  /** 縁の明るさの平均 */
+  edgeLuminance: number;
+  /** 内側（縁から離れたところ）の明るさの平均 */
+  coreLuminance: number;
+  /**
+   * 縁が内側よりどれだけ明るいか。
+   *
+   * これが大事。白髪や白いユニフォームは「縁も内側も白い」ので、
+   * 縁の色だけを見ると誤って弾いてしまう。
+   * 背景の消し残りは「縁だけが明るい」ので、この差で見分ける。
+   */
+  lift: number;
+  /** 内側の画素数（0 なら差を測れない） */
+  corePixels: number;
+}
+
+/**
+ * 輪郭の1〜2画素を見て、背景の消し残りを測る。
+ * 「白い縁取り」「灰色の縁取り」「半透明のハロー」の検査に使う。
+ */
+export function inspectFringe(image: RgbaImage, depth = 2): FringeReport {
+  const { width, height, data } = image;
+  let edgePixels = 0;
+  let whitish = 0;
+  let greyish = 0;
+  let soft = 0;
+  let edgeLuminanceSum = 0;
+  let corePixels = 0;
+  let coreLuminanceSum = 0;
+
+  const alphaAt = (x: number, y: number): number => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return 0;
+    return data[(y * width + x) * 4 + 3];
+  };
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const at = (y * width + x) * 4;
+      const alpha = data[at + 3];
+      if (alpha === 0) continue;
+
+      // 近くに透明な画素があれば、そこは輪郭
+      let onEdge = false;
+      for (let dy = -depth; dy <= depth && !onEdge; dy++) {
+        for (let dx = -depth; dx <= depth; dx++) {
+          if (alphaAt(x + dx, y + dy) === 0) {
+            onEdge = true;
+            break;
+          }
+        }
+      }
+
+      const r = data[at];
+      const g = data[at + 1];
+      const b = data[at + 2];
+      const value = luminance(r, g, b);
+
+      if (!onEdge) {
+        // 縁から十分に離れたところだけを「内側」として数える
+        let nearEdge = false;
+        const reach = depth * 3;
+        for (let dy = -reach; dy <= reach && !nearEdge; dy += reach) {
+          for (let dx = -reach; dx <= reach; dx += reach) {
+            if (alphaAt(x + dx, y + dy) === 0) {
+              nearEdge = true;
+              break;
+            }
+          }
+        }
+        if (!nearEdge) {
+          corePixels += 1;
+          coreLuminanceSum += value;
+        }
+        continue;
+      }
+
+      edgePixels += 1;
+      edgeLuminanceSum += value;
+      if (alpha < 250) soft += 1;
+
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const saturation = max === 0 ? 0 : (max - min) / max;
+      // 彩度が低くて明るい＝白っぽい／灰色っぽい
+      if (saturation < 0.12 && max >= 232) whitish += 1;
+      else if (saturation < 0.12 && max >= 150) greyish += 1;
+    }
+  }
+
+  const edgeLuminanceAvg = edgePixels === 0 ? 0 : edgeLuminanceSum / edgePixels;
+  const coreLuminanceAvg = corePixels === 0 ? edgeLuminanceAvg : coreLuminanceSum / corePixels;
+
+  return {
+    edgePixels,
+    whitish,
+    greyish,
+    soft,
+    whiteRatio: edgePixels === 0 ? 0 : whitish / edgePixels,
+    greyRatio: edgePixels === 0 ? 0 : greyish / edgePixels,
+    softRatio: edgePixels === 0 ? 0 : soft / edgePixels,
+    edgeLuminance: edgeLuminanceAvg,
+    coreLuminance: coreLuminanceAvg,
+    lift: edgeLuminanceAvg - coreLuminanceAvg,
+    corePixels,
+  };
+}
+
+/** 不透明な画素が1つでもあるか（アルファが機能しているか） */
+export function hasTransparency(image: RgbaImage): boolean {
+  for (let at = 3; at < image.data.length; at += 4) {
+    if (image.data[at] < 255) return true;
+  }
+  return false;
+}
+
+/** 四隅がすべて完全に透明か */
+export function cornersTransparent(image: RgbaImage): boolean {
+  return looksTransparent(image);
+}
+
+/**
+ * 単色背景の画像を、透明背景の切り抜きにする（ひとつながり）。
+ *
+ *   背景の色を見立てる
+ *     → 端からつながる背景を抜く
+ *     → 縁の背景色を引き算する（ハロー除去）
+ *     → うっすら残った膜を落とす
+ *     → 半端なアルファを整える
+ */
+export interface CutoutResult {
+  image: RgbaImage;
+  background: Rgb;
+  estimate: BackgroundEstimate;
+  steps: string[];
+}
+
+export function cutout(source: RgbaImage, options: FlatBackgroundOptions = {}): CutoutResult {
+  const steps: string[] = [];
+
+  if (looksTransparent(source)) {
+    steps.push('すでに透明背景（抜き取りは不要）');
+    return {
+      image: cleanAlpha(source),
+      background: [0, 0, 0],
+      estimate: { color: [0, 0, 0], uniformity: 1, spread: 0 },
+      steps,
+    };
+  }
+
+  const removed = removeFlatBackground(source, options);
+  steps.push(
+    `単色背景を抜いた（背景色 rgb(${removed.background.join(',')}) / 一様さ ${(
+      removed.estimate.uniformity * 100
+    ).toFixed(0)}% / ${removed.keyed ? '鮮やかな下地なので透け具合を実測' : '色の差から見立て'}）`,
+  );
+
+  let image = defringe(removed.image, removed.background);
+  steps.push('縁の背景色を引き算した（ハロー除去）');
+
+  image = despill(image, removed.background);
+  steps.push('人物に映り込んだ下地の色を抑えた（スピル除去）');
+
+  image = trimHalo(image);
+  steps.push('うっすら残った膜を落とした');
+
+  image = cleanAlpha(image);
+  steps.push('半端なアルファを整えた');
+
+  return { image, background: removed.background, estimate: removed.estimate, steps };
+}
+
+/* ================================================================
  * アルファの掃除
  * ============================================================== */
 

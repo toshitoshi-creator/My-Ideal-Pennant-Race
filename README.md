@@ -2172,22 +2172,68 @@ $ npm run assets:dry-run
 ### 使いかた
 
 ```sh
-npm run assets:dry-run                        # 何を何枚作るか。1枚も作らない
+npm run assets:generate -- --dry-run          # 何を何枚作るか。APIを1回も呼ばない
 cp .env.example .env                          # プロバイダーと鍵を設定
 npm run assets:prompts                        # そのまま貼れる文面を書き出す
 npm run assets:generate -- --master           # 見本の1枚（STYLE SHEET）
-npm run assets:generate -- --type all --count 3
-npm run assets:process                        # 背景除去・位置合わせ・色の振り分け
-npm run assets:check                          # 機械の検査
-npm run assets:audit                          # 人の目で見る（文字・ロゴ・実在人物）
+npm run assets:generate -- --type head_shape,hair_style,eyes --count 1   # まず3枚だけ
+npm run assets:remove-background              # 単色の下地を抜いて透明PNGにする
+npm run assets:normalize                      # 1024x1280 へ正規化・色の振り分け
+npm run assets:compare                        # 元 → 除去後 → 正規化後 を見比べる
+npm run assets:validate                       # 透明PNGとして検査（14項目）
 npm run assets:manifest                       # 目録を作る
+npm run assets:audit                          # 人の目で見る（文字・ロゴ・実在人物）
 npm run assets:gallery -- 300                 # 300人を組み上げて確認
 npm run assets:regenerate -- --failed         # 失敗したものだけ作り直す
 npm run e2e:images                            # 実ブラウザで確認
 ```
 
+`remove-background` → `normalize` → `validate` → `manifest` は
+`npm run assets:build` でまとめて実行できます。
+
+**まず3枚だけ作り、`assets:compare` で品質を確かめてから量産してください。**
 10枚を超える生成には `--confirm-large-batch` が要ります。
 事故で費用が膨らむのを防ぐための歯止めです。
+
+### 透明背景（fal-ai/flux/dev を使うとき）
+
+**fal-ai/flux/dev には透明背景を出す機能がありません。**
+`transparent background` と書いても透明にはならず、
+灰色の面や「絵として描かれた市松模様」が返ってきます。
+
+そこでこのパイプラインは、**プロンプトの文言に頼りません**。
+
+```
+抜きやすい単色の下地（#00B140）を描かせる
+   ↓ 端からつながる下地だけを抜く（囲まれた同色は残す）
+   ↓ 透け具合を実測してアルファを作る
+   ↓ 縁に残った下地の色を引き算する（ハロー除去）
+   ↓ 映り込んだ下地の色を抑える（スピル除去）
+   ↓ 薄い膜を切り落とす
+透明PNG
+```
+
+緑を選んでいるのは、肌・髪・生成りの白のどれからも遠く、
+かつ**鮮やかなので透け具合を正確に測れる**からです。
+白や灰色の下地では、白いユニフォームまで抜けてしまいます。
+
+実測：緑の下地の画像を通すと、縁に残る緑は **78% → 0.0%**（人物の色は変わりません）。
+
+検査は14項目です。詳しくは `assets/prompts/transparency.md`。
+
+| 項目 | | |
+| --- | --- | --- |
+| PNGである | 壊れたPNGではない | alpha channelが存在する |
+| 四隅が透明 | 背景色が残っていない | 白い縁取りがない |
+| 灰色の縁取りがない | 半透明の背景ハローがない | キャンバス外にはみ出していない |
+| bbox が小さすぎない | bbox が大きすぎない | 基準点が仕様どおり |
+| 1024×1280 | ファイルサイズ上限以内 | |
+
+**FAIL が1件でもあれば production に採用しません。**
+
+「縁が白い」だけでは落としません。白髪の素材や白いユニフォームまで
+落ちてしまうからです。消し残りは「縁だけが内側より明るい」ので、
+縁と内側の明るさの差で見分けています。
 
 ### 後処理がいちばん大事
 
@@ -2255,8 +2301,8 @@ PNG の符号化・復号（zlib の展開を含む）を書いています。
 ### 検証
 
 * 型検査 **EXIT 0**（strict / `any` なし）
-* PHASE 4.7 専用テスト **226件**（`src/domain/phase47.test.ts`）
-* 単体テスト合計 **1992件** すべて通過
+* PHASE 4.7 専用テスト **299件**（`src/domain/phase47.test.ts`）
+* 単体テスト合計 **2065件** すべて通過
 * 1000人ギャラリー：**同一の組み合わせ 0組 / 部品の偏り 0件**
 * 30シーズン × 100シードの長期検証が `base70.jsonl` と1行単位で完全一致
 * **画像モードの実ブラウザ確認**：合成した素材232点を入れた状態で、

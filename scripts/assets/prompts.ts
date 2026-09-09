@@ -13,9 +13,16 @@
  * 「どの文言で作られた素材か」が後から分かる（§17）。
  */
 import { catalogEntry, plannedCount, type CatalogEntry, type CatalogId } from './catalog';
+import { MATTE_BACKGROUND_HEX } from './pipeline';
 
-/** プロンプトの版。文言を変えたら必ず上げる */
-export const PROMPT_VERSION = 1;
+/**
+ * プロンプトの版。文言を変えたら必ず上げる。
+ *
+ * v2: 透明背景を出せないモデル（fal-ai/flux/dev など）向けに、
+ *     「transparent background」ではなく「単色の下地」を描かせる形を足した。
+ *     文言だけで透明にはならないので、背景は必ず後処理で抜く。
+ */
+export const PROMPT_VERSION = 2;
 
 /* ================================================================
  * 共通の土台
@@ -39,20 +46,35 @@ export const BASE_STYLE = [
 ].join(', ');
 
 /** 置き方の指定。ここがぶれると重ねたときに合わない（§5・§7） */
-export const FRAMING = [
+const FRAMING_COMMON = [
   'front facing, orthographic, no perspective and no tilt',
   'centred on the canvas',
-  'isolated single part on a fully transparent background',
   'no ground, no cast shadow, no backdrop, no frame',
-].join(', ');
+];
+
+/**
+ * 背景の指定。**モデルによって言うことを変える。**
+ *
+ * 透明背景を出せるモデル（OpenAI）には透明を頼む。
+ * 出せないモデル（fal-ai/flux/dev など）に「transparent background」と
+ * 書いても透明にはならない。灰色や市松模様が描かれるだけで、かえって抜きにくい。
+ * そこで、**抜きやすい単色の下地**を描かせて、後処理で抜く。
+ */
+export function framing(transparent: boolean): string {
+  const background = transparent
+    ? 'isolated single part on a fully transparent background'
+    : `isolated single part on a completely flat solid ${MATTE_BACKGROUND_HEX} chroma green background, one uniform colour with no gradient, no texture, no pattern and no shading on the background itself`;
+  return [FRAMING_COMMON[0], FRAMING_COMMON[1], background, FRAMING_COMMON[2]].join(', ');
+}
+
+/** 透明背景を出せるモデル向けの置き方（従来の文言） */
+export const FRAMING = framing(true);
 
 /**
  * 必ず外すもの（§9）。
  * 生成のたびに毎回そのまま添える。
  */
-export const NEGATIVE_PROMPT = [
-  // 背景・装飾
-  'background, backdrop, scenery, floor, ground, cast shadow, drop shadow, vignette, frame, border',
+const NEGATIVE_BASE = [
   // 文字・権利
   'text, letters, numbers, watermark, signature, logo, emblem, brand mark, team logo, sponsor patch',
   // 画風の逸脱
@@ -66,7 +88,28 @@ export const NEGATIVE_PROMPT = [
   // 権利・年齢
   'real athlete, celebrity likeness, existing video game character, existing anime character, recognisable franchise design',
   'child, toddler, infant, sexualised, gore, blood, graphic injury',
-].join(', ');
+];
+
+/**
+ * 背景まわりの「外すもの」。ここもモデルによって変える。
+ *
+ * 単色の下地を描かせるときに 'background' を丸ごと否定すると、
+ * 下地まで消えて中途半端な絵になる。否定するのは
+ * 「模様のある背景」「風景」「影」だけにする。
+ */
+function negativeBackground(transparent: boolean): string {
+  return transparent
+    ? 'background, backdrop, scenery, floor, ground, cast shadow, drop shadow, vignette, frame, border'
+    : 'scenery, landscape, room, floor, ground, furniture, gradient background, textured background, patterned background, checkerboard, transparency checker, cast shadow, drop shadow, vignette, frame, border, shadow on the background';
+}
+
+/** その生成に添えるネガティブ */
+export function negativePrompt(transparent: boolean): string {
+  return [negativeBackground(transparent), ...NEGATIVE_BASE].join(', ');
+}
+
+/** 透明背景を出せるモデル向けのネガティブ（従来の文言） */
+export const NEGATIVE_PROMPT = negativePrompt(true);
 
 /* ================================================================
  * 見本の1枚（MASTER CHARACTER STYLE SHEET）
@@ -79,7 +122,7 @@ export const NEGATIVE_PROMPT = [
  * 見本画像を渡せるプロバイダーなら参照画像として、
  * 渡せないなら「この文言」を毎回添えることで画風をそろえる。
  */
-export function masterStyleSheetPrompt(): string {
+export function masterStyleSheetPrompt(transparent = true): string {
   return [
     'A MASTER CHARACTER STYLE SHEET for a baseball management game.',
     'One adult male baseball player, 27 years old, shown from the chest up, front facing, neutral expression.',
@@ -88,7 +131,7 @@ export function masterStyleSheetPrompt(): string {
     'line weight, shading steps, eye construction, nose construction, mouth construction,',
     'ear placement, jaw rendering, hair rendering and fabric rendering.',
     BASE_STYLE,
-    FRAMING,
+    framing(transparent),
     'Render the figure only. No annotations, no callouts, no labels, no colour swatches.',
   ].join(' ');
 }
@@ -167,13 +210,20 @@ export interface PromptParts {
   /** 実際にプロバイダーへ渡す1本の文字列 */
   prompt: string;
   promptVersion: number;
+  /** 透明背景を頼んだか。false なら後処理での背景抜きが必須 */
+  transparent: boolean;
 }
 
 /**
  * 1枚ぶんのプロンプトを組み立てる。
  * 同じ引数からは必ず同じ文字列が出る（乱数を使わない）。
  */
-export function buildPrompt(category: CatalogId, variantIndex: number): PromptParts {
+export function buildPrompt(
+  category: CatalogId,
+  variantIndex: number,
+  options: { transparent?: boolean } = {},
+): PromptParts {
+  const transparent = options.transparent ?? true;
   const entry = catalogEntry(category);
   if (variantIndex < 0 || variantIndex >= entry.variants.length) {
     throw new Error(`${category} に ${variantIndex} 番目の指定はありません`);
@@ -190,15 +240,19 @@ export function buildPrompt(category: CatalogId, variantIndex: number): PromptPa
 
   const variantPrompt = `This particular variant: ${entry.variants[variantIndex]}.`;
   const exclusion = EXCLUSIONS[category];
-  const negativePrompt = exclusion ? `${NEGATIVE_PROMPT}, ${exclusion}` : NEGATIVE_PROMPT;
+  const negativeBase = negativePrompt(transparent);
+  const negative = exclusion ? `${negativeBase}, ${exclusion}` : negativeBase;
 
   const prompt = [
     categoryPrompt,
     variantPrompt,
     exclusion ? `Do not draw: ${exclusion}.` : '',
     BASE_STYLE + '.',
-    FRAMING + '.',
+    framing(transparent) + '.',
     'Canvas 1024 by 1280 pixels.',
+    transparent
+      ? ''
+      : 'The background must be one single flat colour so that it can be removed cleanly afterwards.',
   ]
     .filter(Boolean)
     .join(' ');
@@ -210,18 +264,23 @@ export function buildPrompt(category: CatalogId, variantIndex: number): PromptPa
     base: BASE_STYLE,
     categoryPrompt,
     variantPrompt,
-    negativePrompt,
+    negativePrompt: negative,
     prompt,
     promptVersion: PROMPT_VERSION,
+    transparent,
   };
 }
 
 /** その種類ぶん、まとめて組み立てる */
-export function buildPromptsFor(category: CatalogId, count?: number): PromptParts[] {
+export function buildPromptsFor(
+  category: CatalogId,
+  count?: number,
+  options: { transparent?: boolean } = {},
+): PromptParts[] {
   const entry = catalogEntry(category);
   const n = plannedCount(entry, count);
   const out: PromptParts[] = [];
-  for (let i = 0; i < n; i++) out.push(buildPrompt(category, i));
+  for (let i = 0; i < n; i++) out.push(buildPrompt(category, i, options));
   return out;
 }
 
