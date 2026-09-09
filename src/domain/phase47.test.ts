@@ -629,10 +629,20 @@ describe('PHASE4.7 プロンプト', () => {
   });
 
   it('文面に共通の絵柄が必ず入る', () => {
+    // 絵柄を「フラットなベクターアバター」に変えたので、目印もそれに合わせる
     for (const entry of imageCategories()) {
       const parts = buildPrompt(entry.id, 0);
-      expect(parts.prompt, entry.id).toContain('2D character illustration');
+      expect(parts.prompt, entry.id).toContain('flat vector avatar');
+      expect(parts.prompt, entry.id).toContain('bold uniform black outline');
       expect(parts.prompt, entry.id).toContain('transparent background');
+    }
+  });
+
+  it('文面に「記号として描く」指示が入る（写実にしない）', () => {
+    for (const entry of imageCategories()) {
+      const parts = buildPrompt(entry.id, 0);
+      expect(parts.prompt, entry.id).toContain('simple geometric symbols');
+      expect(parts.prompt, entry.id).toContain('not as realistic anatomy');
     }
   });
 
@@ -699,8 +709,37 @@ describe('PHASE4.7 プロンプト', () => {
   });
 
   it('ネガティブに画風の逸脱の禁止が入っている', () => {
-    for (const word of ['photorealistic', '3d render', 'low quality clipart', 'flat icon']) {
+    /*
+     * 「フラットなアイコン調」が狙いになったので、
+     * flat icon / clipart を禁止するのはやめた（それが欲しい絵柄なので）。
+     * 代わりに、写実・塗り込み・柔らかい陰影を禁止する。
+     */
+    for (const word of [
+      'photorealistic',
+      '3d render',
+      'realistic rendering',
+      'painterly',
+      'soft shading',
+      'gradient shading',
+      'skin texture',
+    ]) {
       expect(NEGATIVE_PROMPT, word).toContain(word);
+    }
+  });
+
+  it('ネガティブが「フラットなアイコン調」を禁止していない（それが狙いなので）', () => {
+    for (const word of ['flat icon', 'clipart', 'sticker art']) {
+      expect(NEGATIVE_PROMPT, word).not.toContain(word);
+    }
+  });
+
+  it('部品だけを描かせる念押しが入る（生成器は顔まで描きたがる）', () => {
+    // body / uniform / pose は、まわりの形があって初めて意味が通るので対象外
+    for (const entry of imageCategories()) {
+      if (['body_type', 'uniform', 'pose'].includes(entry.id)) continue;
+      const prompt = buildPrompt(entry.id, 0).prompt;
+      expect(prompt, entry.id).toContain('ONLY this one part and nothing else');
+      expect(prompt, entry.id).toContain('floats alone in empty space');
     }
   });
 
@@ -2043,7 +2082,8 @@ describe('PHASE4.7 設定と資料', () => {
     const bible = DOCS['../../assets/prompts/style-bible.md'];
     expect(bible).toContain('線');
     expect(bible).toContain('陰影');
-    expect(bible).toContain('1024px 基準で 5px');
+    // 絵柄を変えたので線も太くした（5px → 12〜16px）
+    expect(bible).toContain('1024px 基準で 12〜16px');
   });
 
   it('Style Bible が球団色を焼き込ませない', () => {

@@ -21,8 +21,15 @@ import { MATTE_BACKGROUND_HEX } from './pipeline';
  * v2: 透明背景を出せないモデル（fal-ai/flux/dev など）向けに、
  *     「transparent background」ではなく「単色の下地」を描かせる形を足した。
  *     文言だけで透明にはならないので、背景は必ず後処理で抜く。
+ * v3: 絵柄を「上質な2Dイラスト」から「フラットなベクターアバター」へ変えた。
+ *     写実に寄せると部品に分けられず、生成器も指示に従わなかったため。
+ * v4: 「その部品だけを描く」という言い方を強くした。
+ *     「髪の素材」と頼むと、生成器は親切に顔まで描いてしまう。
+ *     「画面にはこれ以外なにも無い」とはっきり言わないと伝わらない。
+ * v5: 髪に「顔の輪郭線を描くな」を足した。
+ *     重ねたときに頬の上へ二重の線が出ていたため。
  */
-export const PROMPT_VERSION = 2;
+export const PROMPT_VERSION = 5;
 
 /* ================================================================
  * 共通の土台
@@ -35,14 +42,28 @@ export const PROMPT_VERSION = 2;
  * アイコンでも、クリップアートでも、写真でもない（§1）。
  */
 export const BASE_STYLE = [
-  'high quality 2D character illustration for a modern sports management game',
-  'clean confident contour lines of even weight',
-  'natural soft shading with two to three tonal steps, no harsh gradients',
-  'restrained warm palette, muted and print-like, never neon',
-  'adult proportions, believable anatomy, mature but not photorealistic',
-  'stylised realism: more grounded than anime, more drawn than a photograph',
-  'crisp edges that stay readable when scaled down to 48 pixels',
+  'flat vector avatar illustration in a clean app-icon style',
+  'bold uniform black outline of even thickness around every shape',
+  'completely flat solid colour fills, no gradient, no texture, no airbrush',
+  'minimal shading: at most two flat tones per area, hard edges between them',
+  'highly simplified stylised features, not realistic anatomy',
+  'clear bright saturated colours',
+  'slightly enlarged head proportions, friendly character look',
+  'crisp geometric shapes that stay readable when scaled down to 48 pixels',
   'consistent series style: every part must look drawn by the same hand on the same day',
+].join(', ');
+
+/**
+ * 顔の造作をどこまで簡単にするか。
+ *
+ * 見本の絵柄では、目は角丸の四角、眉は傾いた太い線、口は横長の角丸。
+ * 写実的に描かせると、部品として重ねたときに合わなくなるので、
+ * 「記号として描く」ことを毎回はっきり言う。
+ */
+export const SIMPLIFICATION = [
+  'draw features as simple geometric symbols, not as realistic anatomy',
+  'no skin texture, no pores, no wrinkles, no blush, no highlights on skin',
+  'no nostrils drawn as holes, no visible teeth, no eyelashes',
 ].join(', ');
 
 /** 置き方の指定。ここがぶれると重ねたときに合わない（§5・§7） */
@@ -78,13 +99,12 @@ const NEGATIVE_BASE = [
   // 文字・権利
   'text, letters, numbers, watermark, signature, logo, emblem, brand mark, team logo, sponsor patch',
   // 画風の逸脱
-  'photorealistic, photograph, 3d render, cgi, ray tracing, glossy highlights, oil painting texture, visible brush strokes, paper texture, noise, grain, jpeg artifacts',
-  'low quality clipart, childrens book illustration, sticker art, flat icon, emoji',
+  'photorealistic, photograph, realistic rendering, 3d render, cgi, ray tracing, glossy highlights, oil painting, painterly, visible brush strokes, airbrush, soft shading, gradient shading, ambient occlusion, paper texture, noise, grain, jpeg artifacts',
+  'detailed realistic anatomy, skin texture, pores, wrinkles, individual hair strands, eyelashes, visible teeth',
   // 構図の逸脱
   'multiple people, second person, duplicate face, extra limbs, extra fingers, deformed anatomy',
   'cropped, cut off, out of frame, tilted, side view, three quarter view, looking away',
-  'extreme deformation, chibi proportions, oversized head, grotesque features',
-  'asymmetric to the point of deformity, mismatched pair, unnatural eyes',
+  'grotesque features, melted shapes, asymmetric to the point of deformity, mismatched pair',
   // 権利・年齢
   'real athlete, celebrity likeness, existing video game character, existing anime character, recognisable franchise design',
   'child, toddler, infant, sexualised, gore, blood, graphic injury',
@@ -125,7 +145,9 @@ export const NEGATIVE_PROMPT = negativePrompt(true);
 export function masterStyleSheetPrompt(transparent = true): string {
   return [
     'A MASTER CHARACTER STYLE SHEET for a baseball management game.',
-    'One adult male baseball player, 27 years old, shown from the chest up, front facing, neutral expression.',
+    'One adult male baseball player avatar, shown from the chest up, front facing, neutral expression.',
+    'Simple flat vector character, like a clean app avatar icon: bold black outline, flat colour fills,',
+    'eyes drawn as simple rounded shapes, eyebrows as simple strokes, mouth as one simple shape.',
     'Plain off-white baseball jersey with no logo, no number and no lettering.',
     'This sheet defines the visual language for an entire cast of players:',
     'line weight, shading steps, eye construction, nose construction, mouth construction,',
@@ -188,6 +210,36 @@ const EXCLUSIONS: Partial<Record<CatalogId, string>> = {
   special_state: 'face, body, player, head, hands, text, numbers',
 };
 
+/**
+ * 種類ごとの、いちばん間違えやすい点への念押し。
+ *
+ * 髪は「頭に合う髪」と頼むと、頭の輪郭線ごと描いてしまう。
+ * 重ねたときに顔の上へ二重の線が出るので、はっきり止める。
+ */
+const EXTRA_WARNING: Partial<Record<CatalogId, string>> = {
+  hair_style:
+    'Draw the hair as one solid silhouette shape. Do NOT draw the outline of a face, cheeks, chin, jaw, ears or neck. Below the hair there is nothing at all — the hair simply ends.',
+  hair_back:
+    'Draw only the hair volume. Do NOT draw the outline of a face, head, ears or neck.',
+  facial_hair:
+    'Draw only the hair shape itself. Do NOT draw lips, chin outline or any part of a face.',
+  eyebrow: 'Draw only two separate eyebrow shapes. Do NOT draw eyes, eyelids or a forehead.',
+  eyes: 'Draw only two separate eye shapes side by side. Do NOT draw eyebrows, a nose or a face outline.',
+  ears: 'Draw only two separate ear shapes. Do NOT draw a head outline between them.',
+};
+
+/**
+ * 「これ以外なにも無い」を言わない種類。
+ *
+ * 体・ユニフォーム・姿勢は、まわりの形があって初めて意味が通るので、
+ * 完全に孤立させると崩れる。
+ */
+const ISOLATED: Partial<Record<CatalogId, boolean>> = {
+  body_type: false,
+  uniform: false,
+  pose: false,
+};
+
 /** 色を素材に焼き込ませないための指定。移籍で色が変えられなくなるのを防ぐ（§13 uniform） */
 const NEUTRAL_COLOR: Partial<Record<CatalogId, string>> = {
   hair_style: 'Render the hair in a neutral dark base colour; colour variants are produced later.',
@@ -230,8 +282,22 @@ export function buildPrompt(
   }
 
   const id = `${entry.prefix}_${String(variantIndex + 1).padStart(3, '0')}`;
+  /*
+   * いちばん効く言い方を先頭に置く。
+   *
+   * 「髪の素材を描いて」と頼むと、生成器は親切に顔まで描いてしまう。
+   * 「画面にはこれ以外なにも無い」「宙に浮いている」「切り抜かれている」
+   * と、繰り返しはっきり言わないと伝わらない。
+   */
+  const isolation =
+    entry.kind === 'image' && ISOLATED[category] !== false
+      ? `IMPORTANT: the image must contain ONLY this one part and nothing else. ` +
+        `It floats alone in empty space, as if cut out. ` +
+        `Do not add a head, a face, a body or any other part around it. `
+      : '';
+
   const categoryPrompt = [
-    `Draw ${entry.subject}.`,
+    isolation + `Draw ${entry.subject}.`,
     PLACEMENT[category] ?? '',
     NEUTRAL_COLOR[category] ?? '',
   ]
@@ -253,7 +319,9 @@ export function buildPrompt(
   const essential = [
     categoryPrompt,
     variantPrompt,
+    EXTRA_WARNING[category] ?? '',
     exclusion ? `Do not draw: ${exclusion}.` : '',
+    SIMPLIFICATION + '.',
     framing(transparent) + '.',
     transparent
       ? ''
