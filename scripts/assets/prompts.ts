@@ -13,6 +13,7 @@
  * 「どの文言で作られた素材か」が後から分かる（§17）。
  */
 import { catalogEntry, plannedCount, type CatalogEntry, type CatalogId } from './catalog';
+import { CHARACTER_LIGHTING, CHARACTER_NEGATIVE_BASE, CHARACTER_STYLE } from './character';
 import { MATTE_BACKGROUND_HEX } from './pipeline';
 
 /**
@@ -30,8 +31,12 @@ import { MATTE_BACKGROUND_HEX } from './pipeline';
  *     重ねたときに頬の上へ二重の線が出ていたため。
  * v6: 設計を C-2 に変更（頭・髪・耳・首を1枚にまとめ、造作だけ重ねる）。
  *     あわせて、目が怖くならないよう線と色の指定を足した。
+ * v7: PHASE 4.7-A。絵柄を「フラットなベクターアバター」から
+ *     「日本のデフォルメ野球ゲーム風」へ全面的に変えた。
+ *     部品もキャラクター本体も同じ絵柄でないと並べたときに揃わないので、
+ *     絵柄とネガティブは character.ts のものをそのまま使う。
  */
-export const PROMPT_VERSION = 6;
+export const PROMPT_VERSION = 7;
 
 /* ================================================================
  * 共通の土台
@@ -40,32 +45,22 @@ export const PROMPT_VERSION = 6;
 /**
  * すべての素材に共通する絵柄。Style Bible（assets/prompts/style-bible.md）の要約。
  *
- * 目指しているのは「上質なスポーツゲームの2Dキャラクターイラスト」であって、
- * アイコンでも、クリップアートでも、写真でもない（§1）。
+ * PHASE 4.7-A から、部品もキャラクター本体も **同じ文言** を使う。
+ * 別々に持つと、並べたときに絵柄が揃わなくなるため（§21）。
  */
-export const BASE_STYLE = [
-  'flat vector avatar illustration in a clean app-icon style',
-  'bold uniform black outline of even thickness around every shape',
-  'completely flat solid colour fills, no gradient, no texture, no airbrush',
-  'minimal shading: at most two flat tones per area, hard edges between them',
-  'highly simplified stylised features, not realistic anatomy',
-  'clear bright saturated colours',
-  'slightly enlarged head proportions, friendly character look',
-  'crisp geometric shapes that stay readable when scaled down to 48 pixels',
-  'consistent series style: every part must look drawn by the same hand on the same day',
-].join(', ');
+export const BASE_STYLE = [CHARACTER_STYLE, CHARACTER_LIGHTING].join(', ');
 
 /**
- * 顔の造作をどこまで簡単にするか。
+ * 顔の造作をどこまで簡単にするか（§2・§8）。
  *
- * 見本の絵柄では、目は角丸の四角、眉は傾いた太い線、口は横長の角丸。
- * 写実的に描かせると、部品として重ねたときに合わなくなるので、
- * 「記号として描く」ことを毎回はっきり言う。
+ * 大きすぎるアニメ目は禁止。瞳の描き込みも増やさない。
+ * 小さく表示しても表情が読めることを優先する。
  */
 export const SIMPLIFICATION = [
-  'draw features as simple geometric symbols, not as realistic anatomy',
-  'no skin texture, no pores, no wrinkles, no blush, no highlights on skin',
-  'no nostrils drawn as holes, no visible teeth, no eyelashes',
+  'simple clean facial features, not realistic anatomy',
+  'no oversized anime eyes, no heavy iris detail',
+  'no skin texture, no pores, no wrinkles beyond age lines',
+  'left and right eyes symmetrical',
 ].join(', ');
 
 /** 置き方の指定。ここがぶれると重ねたときに合わない（§5・§7） */
@@ -94,23 +89,20 @@ export function framing(transparent: boolean): string {
 export const FRAMING = framing(true);
 
 /**
- * 必ず外すもの（§9）。
- * 生成のたびに毎回そのまま添える。
+ * 必ず外すもの（§14）。
+ *
+ * 本体は character.ts の §14 の一覧をそのまま使う。
+ * そこに、仕様が挙げていない **権利と年齢の歯止め** を足す。
+ * §14 は「必ず入れるもの」を挙げたもので、
+ * 「これ以外を入れるな」という意味ではないため。
  */
-const NEGATIVE_BASE = [
-  // 文字・権利
-  'text, letters, numbers, watermark, signature, logo, emblem, brand mark, team logo, sponsor patch',
-  // 画風の逸脱
-  'photorealistic, photograph, realistic rendering, 3d render, cgi, ray tracing, glossy highlights, oil painting, painterly, visible brush strokes, airbrush, soft shading, gradient shading, ambient occlusion, paper texture, noise, grain, jpeg artifacts',
-  'detailed realistic anatomy, skin texture, pores, wrinkles, individual hair strands, eyelashes, visible teeth',
-  // 構図の逸脱
-  'multiple people, second person, duplicate face, extra limbs, extra fingers, deformed anatomy',
-  'cropped, cut off, out of frame, tilted, side view, three quarter view, looking away',
-  'grotesque features, melted shapes, asymmetric to the point of deformity, mismatched pair',
-  // 権利・年齢
-  'real athlete, celebrity likeness, existing video game character, existing anime character, recognisable franchise design',
+const NEGATIVE_EXTRA = [
+  'real athlete, celebrity likeness, existing video game character, existing anime character',
   'child, toddler, infant, sexualised, gore, blood, graphic injury',
+  'grotesque features, melted shapes, asymmetric to the point of deformity, mismatched pair',
 ];
+
+const NEGATIVE_BASE = [...CHARACTER_NEGATIVE_BASE, ...NEGATIVE_EXTRA];
 
 /**
  * 背景まわりの「外すもの」。ここもモデルによって変える。

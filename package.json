@@ -34,7 +34,10 @@
     "assets:validate:files": "node scripts/validate-assets.mjs",
     "assets:compare": "npx tsx scripts/assets/compare-gallery.mjs",
     "assets:build": "npm run assets:remove-background && npm run assets:normalize && npm run assets:validate && npm run assets:manifest",
-    "audit:secrets": "node scripts/audit-secrets.mjs"
+    "audit:secrets": "node scripts/audit-secrets.mjs",
+    "assets:style-test": "npx tsx scripts/assets-cli.ts style-test",
+    "assets:style-test:100": "npx tsx scripts/assets-cli.ts style-test --count 100",
+    "assets:audit:style": "npx tsx scripts/assets/audit-style-test.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

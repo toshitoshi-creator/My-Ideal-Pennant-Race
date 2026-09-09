@@ -505,23 +505,29 @@ export const CATALOG: CatalogEntry[] = [
     kind: 'image',
     prefix: 'expression',
     dir: 'expressions',
-    min: 9,
-    target: 9,
+    min: 10,
+    target: 10,
     max: 15,
     required: false,
     zIndex: 19,
     subject:
       'an expression overlay only — a pair of eyebrows, a pair of eyes and a mouth, with no face, no skin and no nose',
+    /*
+     * PHASE 4.7-A §9 の10種類。
+     * 顔そのものは変えず、眉・目・口の変化だけで感情を出す。
+     * 表情が変わっても同じ選手だと分かることが条件（§16）。
+     */
     variants: [
-      'focused: narrowed determined eyes, level brows, firmly closed mouth',
-      'confident: steady bright eyes, slightly raised brows, small confident smile',
-      'happy: crescent smiling eyes, raised brows, open joyful smile',
-      'angry: hard glaring eyes, low drawn brows, tight set mouth',
-      'tired: heavy half closed eyes, slack brows, slightly open weary mouth',
-      'disappointed: downcast eyes, inner brows raised, flat downturned mouth',
-      'surprised: wide open eyes, high raised brows, small open mouth',
-      'injured: tightly shut eyes, deeply furrowed brows, clenched grimacing mouth',
-      'celebrating: eyes shut in joy, high brows, wide open shouting mouth',
+      'neutral: level brows, calm open eyes, relaxed closed mouth',
+      'happy: raised brows, crescent smiling eyes, open smile',
+      'confident: slightly raised brows, steady eyes, small assured smile',
+      'focused: level brows drawn in, narrowed eyes, firmly closed mouth',
+      'angry: low drawn brows, hard eyes, tight set mouth',
+      'worried: inner brows raised, uneasy eyes, small flat mouth',
+      'tired: slack brows, heavy half closed eyes, slightly open weary mouth',
+      'sad: inner brows raised, downcast eyes, downturned mouth',
+      'surprised: high raised brows, wide open eyes, small open mouth',
+      'determined: level brows, firm eyes, jaw set and mouth closed hard',
     ],
   },
   {

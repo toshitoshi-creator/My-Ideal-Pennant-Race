@@ -82,6 +82,19 @@ import {
   recolor,
 } from './assets/pipeline';
 import { inspect, type QualityReport } from './assets/quality';
+import {
+  STYLE_TEST,
+  buildCharacterPrompt,
+  countDiversity,
+  diversityPlan,
+  CHARACTER_PROMPT_VERSION,
+  type CharacterSpec,
+} from './assets/character';
+import {
+  NEEDS_EYE,
+  checkCharacter,
+  type CharacterReport,
+} from './assets/character-quality';
 import { ANCHORS, CANVAS_HEIGHT, CANVAS_WIDTH, OUTPUT_SIZES } from './assets/anchors';
 import type { GenerationRequest, GenerationResult } from './assets/provider';
 
@@ -99,6 +112,8 @@ const DIR = {
   state: join(ROOT, 'assets/state'),
   /** ゲームに入るもの */
   production: join(ROOT, 'src/assets/players'),
+  /** 絵柄と多様性の検証。ゲームには入れない（§17・§18） */
+  styleTest: join(ROOT, 'assets/style-test'),
 };
 
 const FAILED_QUEUE = join(DIR.state, 'failed.json');
@@ -796,6 +811,225 @@ function commandPrompts(args: Args): void {
   console.log(`${out} に書き出しました（${categories.length}種類）`);
 }
 
+
+/* ================================================================
+ * STYLE TEST（PHASE 4.7-A §17・§18）
+ * ============================================================== */
+
+/**
+ * 絵柄がそろっているかを見るための生成。
+ *
+ * ここで作るものは **ゲームには入れません**。assets/style-test/ に置いて、
+ * 目で見比べるためだけに使います。
+ *
+ *   npm run assets:style-test          10人（§17）
+ *   npm run assets:style-test:100      100人（§18）
+ *
+ * 100人は API を100回叩きます。§24 のとおり、
+ * 10人の結果を確かめるまでは走らせないでください。
+ */
+async function commandStyleTest(args: Args): Promise<void> {
+  const wanted = args.count ?? STYLE_TEST.length;
+  const diversity = wanted > STYLE_TEST.length;
+  const specs: CharacterSpec[] = diversity ? diversityPlan(wanted) : STYLE_TEST.slice(0, wanted);
+
+  console.log(
+    diversity
+      ? `=== 多様性テスト（§18）：${specs.length}人 ===\n`
+      : `=== STYLE TEST（§17）：${specs.length}人 ===\n`,
+  );
+  console.log(`  キャラクターの版: v${CHARACTER_PROMPT_VERSION}`);
+  console.log(`  書き出し先: ${DIR.styleTest}（ゲームには入りません）\n`);
+
+  /* ---- 下見。1枚も作らない ---- */
+  if (args.dryRun) {
+    for (const spec of specs.slice(0, 4)) {
+      const built = buildCharacterPrompt(spec);
+      console.log(`── ${spec.id} ──`);
+      console.log(built.prompt);
+      console.log();
+    }
+    if (specs.length > 4) console.log(`   … ほか ${specs.length - 4}人\n`);
+    printDiversity(specs);
+    console.log('\n=== 下見はここまで。1枚も作っていません ===');
+    return;
+  }
+
+  const resolution = resolve();
+  if (!resolution.available) {
+    console.error('=== BLOCKED: 画像を作れません ===\n');
+    console.error(`  理由: ${resolution.reason}`);
+    if (resolution.missing.length > 0) {
+      console.error(`  足りない環境変数: ${resolution.missing.join(', ')}`);
+    }
+    console.error(`  ${resolution.hint}\n`);
+    console.error('  画像は1枚も作っていません。');
+    process.exit(1);
+  }
+
+  /*
+   * 費用の歯止め（§24）。
+   * 10人を超えるときは --confirm-large-batch を要求する。
+   */
+  const costsMoney = resolution.id !== 'local';
+  if (costsMoney && specs.length > STYLE_TEST.length && !args.confirmLargeBatch) {
+    console.error(`=== 中止: ${specs.length}人はまとめて作りすぎです ===\n`);
+    console.error('  まず npm run assets:style-test（10人）で絵柄を確かめてください。');
+    console.error('  そのうえで進めるときは --confirm-large-batch を付けてください。');
+    process.exit(1);
+  }
+
+  const provider = resolution.provider;
+  const transparent = provider.supportsTransparency();
+  const promptLimit =
+    'promptLimit' in provider && typeof provider.promptLimit === 'function'
+      ? (provider.promptLimit as () => number | undefined)()
+      : undefined;
+
+  console.log(`  プロバイダー: ${resolution.id} / ${provider.model}`);
+  if (!transparent) {
+    console.log('  このモデルは透明背景を出せません。単色の下地を描かせて後で抜きます。');
+  }
+  console.log();
+
+  ensureDir(DIR.styleTest);
+
+  const started = Date.now();
+  const reports: CharacterReport[] = [];
+  const known: string[] = [];
+  let apiCalls = 0;
+  let failed = 0;
+
+  for (const spec of specs) {
+    const built = buildCharacterPrompt(spec, {
+      transparent,
+      ...(promptLimit === undefined ? {} : { maxLength: promptLimit }),
+    });
+    const request: GenerationRequest = {
+      id: built.id,
+      prompt: built.prompt,
+      negativePrompt: built.negativePrompt,
+      width: CANVAS_WIDTH,
+      height: CANVAS_HEIGHT,
+      transparent,
+    };
+    apiCalls += 1;
+    const result = await provider.generateImage(request);
+    if (!result.ok) {
+      failed += 1;
+      console.log(`  ❌ ${spec.id}: ${result.reason}`);
+      continue;
+    }
+    const path = join(DIR.styleTest, `${built.id}.png`);
+    writeFile(path, result.bytes);
+
+    let report: CharacterReport | null = null;
+    try {
+      report = checkCharacter({ id: built.id, image: decodePng(result.bytes), known: [...known] });
+    } catch (error) {
+      console.log(`  ⚠️ ${spec.id}: 検査できませんでした（${(error as Error).message}）`);
+    }
+    if (report) {
+      reports.push(report);
+      known.push(report.hash);
+      const bad = report.checks.filter((check) => check.level === 'FAIL');
+      const warn = report.checks.filter((check) => check.level === 'WARN');
+      const mark = report.accepted ? '✅' : '❌';
+      const heads = report.metrics ? `${report.metrics.headsTall.toFixed(1)}頭身` : '頭身不明';
+      console.log(
+        `  ${mark} ${built.id}: ${heads} / ${(result.bytes.length / 1024).toFixed(0)}KB` +
+          (bad.length > 0 ? ` / FAIL ${bad.length}` : '') +
+          (warn.length > 0 ? ` / WARN ${warn.length}` : ''),
+      );
+      for (const check of bad) console.log(`       ✗ ${check.label}: ${check.detail}`);
+      for (const check of warn) console.log(`       ! ${check.label}: ${check.detail}`);
+    }
+  }
+
+  const elapsed = (Date.now() - started) / 1000;
+  printStyleTestReport(specs, reports, {
+    apiCalls,
+    failed,
+    elapsed,
+  });
+}
+
+/** 組み合わせの偏りを表にする（§18・§23） */
+function printDiversity(specs: CharacterSpec[]): void {
+  console.log('── 組み合わせの偏り ──');
+  for (const key of ['body', 'hair', 'eyes', 'age', 'facialHair'] as Array<keyof CharacterSpec>) {
+    const count = countDiversity(specs, key);
+    if (count.counts.length === 0) continue;
+    console.log(
+      `  ${String(key).padEnd(11)} ${String(count.counts.length).padStart(2)}種類 / ` +
+        `いちばん多いもの ${(count.topShare * 100).toFixed(0)}%`,
+    );
+  }
+}
+
+/** §23 の報告 */
+function printStyleTestReport(
+  specs: CharacterSpec[],
+  reports: CharacterReport[],
+  totals: { apiCalls: number; failed: number; elapsed: number },
+): void {
+  const accepted = reports.filter((report) => report.accepted);
+  const rejected = reports.filter((report) => !report.accepted);
+  const bytes = readDirSize(DIR.styleTest);
+
+  console.log('\n── 報告（§23）──');
+  console.log(`  生成枚数        ${reports.length + totals.failed}`);
+  console.log(`  採用枚数        ${accepted.length}`);
+  console.log(`  Reject枚数      ${rejected.length}`);
+  console.log(`  生成失敗        ${totals.failed}`);
+  console.log(`  API使用回数     ${totals.apiCalls}`);
+  console.log(
+    `  平均生成時間    ${totals.apiCalls === 0 ? '-' : (totals.elapsed / totals.apiCalls).toFixed(1)}秒`,
+  );
+  console.log(`  素材容量        ${(bytes / 1024 / 1024).toFixed(1)}MB`);
+
+  const transparentOk = reports.filter((report) =>
+    report.checks.some((check) => check.id === 'background-removable' && check.level === 'PASS'),
+  ).length;
+  console.log(
+    `  背景の処理可否  ${reports.length === 0 ? '-' : ((transparentOk / reports.length) * 100).toFixed(0)}%`,
+  );
+
+  const duplicates = reports.filter((report) =>
+    report.checks.some((check) => check.id === 'duplicate' && check.level === 'FAIL'),
+  ).length;
+  console.log(`  顔の重複        ${duplicates}件`);
+
+  const heads = reports.map((report) => report.metrics?.headsTall ?? 0).filter((value) => value > 0);
+  if (heads.length > 0) {
+    const min = Math.min(...heads);
+    const max = Math.max(...heads);
+    const avg = heads.reduce((a, b) => a + b, 0) / heads.length;
+    console.log(`  頭身            平均 ${avg.toFixed(1)} / ${min.toFixed(1)}〜${max.toFixed(1)}`);
+  }
+
+  printDiversity(specs);
+
+  console.log('\n── 目で見ないと分からないこと ──');
+  for (const item of NEEDS_EYE) console.log(`  ・${item}`);
+  console.log(`\n  ${DIR.styleTest} を開いて確かめてください。`);
+  console.log('  10枚のうち3枚以上が別ゲームの絵柄に見えたら、');
+  console.log('  MASTER PROMPT（scripts/assets/character.ts）を直してやり直します（§17）。');
+  console.log('\n=== ここで止まります。量産はしません（§24）===');
+}
+
+/** そのフォルダの中身の合計サイズ */
+function readDirSize(dir: string): number {
+  if (!existsSync(dir)) return 0;
+  let total = 0;
+  for (const name of readdirSync(dir)) {
+    const path = join(dir, name);
+    const stat = statSync(path);
+    if (stat.isFile()) total += stat.size;
+  }
+  return total;
+}
+
 /* ================================================================
  * 入口
  * ============================================================== */
@@ -821,9 +1055,14 @@ async function main(): Promise<void> {
     case 'prompts':
       commandPrompts(args);
       return;
+    case 'style-test':
+      await commandStyleTest(args);
+      return;
     default:
       console.error(`知らない命令です: ${args.command}`);
-      console.error('使えるのは: dry-run / generate / regenerate / process / check / prompts');
+      console.error(
+      '使えるのは: dry-run / generate / regenerate / process / check / prompts / style-test',
+    );
       process.exit(2);
   }
 }
