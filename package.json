@@ -33,7 +33,8 @@
     "assets:normalize": "npx tsx scripts/assets/normalize-alpha.mjs",
     "assets:validate:files": "node scripts/validate-assets.mjs",
     "assets:compare": "npx tsx scripts/assets/compare-gallery.mjs",
-    "assets:build": "npm run assets:remove-background && npm run assets:normalize && npm run assets:validate && npm run assets:manifest"
+    "assets:build": "npm run assets:remove-background && npm run assets:normalize && npm run assets:validate && npm run assets:manifest",
+    "audit:secrets": "node scripts/audit-secrets.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

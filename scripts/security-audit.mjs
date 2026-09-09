@@ -47,6 +47,8 @@ const SECRET_PATTERNS = [
   { name: 'GitHub のトークン', re: /\bgh[pousr]_[A-Za-z0-9]{20,}/ },
   { name: 'Google の鍵', re: /\bAIza[0-9A-Za-z_-]{30,}/ },
   { name: 'private key', re: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
+  // fal.ai の鍵は「UUID:32桁の16進」の形をしている
+  { name: 'fal.ai の鍵', re: /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{32}/ },
 ];
 for (const pattern of SECRET_PATTERNS) {
   const hit = texts.find((file) => pattern.re.test(file.body));
