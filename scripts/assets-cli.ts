@@ -378,6 +378,11 @@ async function commandGenerate(args: Args): Promise<void> {
    * 抜くのは後処理（assets:remove-background）の仕事。
    */
   const transparent = provider.supportsTransparency();
+  // モデルによってはプロンプトに文字数の上限がある（Recraft は1000字）
+  const promptLimit =
+    'promptLimit' in provider && typeof provider.promptLimit === 'function'
+      ? (provider.promptLimit as () => number | undefined)()
+      : undefined;
   if (!transparent) {
     console.log('  このモデルは透明背景を出せません。');
     console.log('  単色の下地を描かせて、あとで npm run assets:remove-background で抜きます。\n');
@@ -419,7 +424,10 @@ async function commandGenerate(args: Args): Promise<void> {
     const entry = catalogEntry(category);
     if (entry.kind === 'recolor') continue;
 
-    const prompts = buildPromptsFor(category, args.count, { transparent });
+    const prompts = buildPromptsFor(category, args.count, {
+      transparent,
+      ...(promptLimit === undefined ? {} : { maxLength: promptLimit }),
+    });
     if (prompts.length === 0) continue;
     console.log(`── ${category}（${prompts.length}枚）──`);
 

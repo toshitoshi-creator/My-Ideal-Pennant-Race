@@ -28,6 +28,97 @@ import {
 const DEFAULT_MODEL = 'fal-ai/flux/dev';
 const DEFAULT_BASE_URL = 'https://fal.run';
 
+/**
+ * fal は1つの窓口でたくさんのモデルを扱うが、**受け付ける形はモデルごとに違う**。
+ *
+ *   flux 系      image_size は { width, height }。sync_mode で応答に画像を入れられる
+ *   gpt-image-1  image_size は決まった文字列だけ。透明背景をそのまま出せる
+ *   recraft-v3   プロンプトは1000字まで。絵柄を style で指定する
+ *
+ * ここを間違えると 422 で弾かれるだけなので、モデルごとに組み立て方を持っておく。
+ */
+interface FalModelProfile {
+  /** そのモデルかどうか */
+  matches(model: string): boolean;
+  /** 透明背景をそのまま出せるか */
+  transparent: boolean;
+  /** プロンプトの文字数の上限 */
+  maxPromptLength?: number;
+  /** 画像を応答に直接入れてもらえるか（配信ホストを経由しなくて済む） */
+  inlineImage: boolean;
+  build(request: GenerationRequest, prompt: string): Record<string, unknown>;
+}
+
+const MODEL_PROFILES: FalModelProfile[] = [
+  {
+    // OpenAI の GPT Image。指示の読み取りが強く、透明背景をそのまま出せる
+    matches: (model) => model.includes('gpt-image'),
+    transparent: true,
+    inlineImage: false,
+    build: (request, prompt) => ({
+      prompt,
+      // 決まった文字列しか受け付けない。縦長はこれ
+      image_size: request.height > request.width ? '1024x1536' : '1024x1024',
+      background: request.transparent ? 'transparent' : 'opaque',
+      output_format: 'png',
+      quality: 'high',
+      num_images: 1,
+    }),
+  },
+  {
+    // Recraft V3。線画・ベクター調が得意
+    matches: (model) => model.includes('recraft'),
+    transparent: false,
+    maxPromptLength: 1000,
+    inlineImage: false,
+    build: (request, prompt) => ({
+      prompt,
+      image_size: { width: request.width, height: request.height },
+      style: 'vector_illustration',
+    }),
+  },
+  {
+    // flux 系（dev / pro / schnell）
+    matches: () => true,
+    transparent: false,
+    inlineImage: true,
+    build: (request, prompt) => ({
+      prompt,
+      negative_prompt: request.negativePrompt,
+      image_size: { width: request.width, height: request.height },
+      num_images: 1,
+      // PNG 固定。JPEG にすると縁がにじんで、背景を綺麗に抜けなくなる
+      output_format: 'png',
+      enable_safety_checker: true,
+      /*
+       * 画像を応答そのものに入れてもらう。
+       *
+       * これを付けないと、fal は配信用のホスト（v3b.fal.media など）の
+       * URL を返してきて、こちらが取りに行くことになる。
+       * 配信ホストは要求ごとに変わるうえ、閉じた環境では許可リストに
+       * 入っていないことが多く、「生成はできたのに取ってこられない」
+       * という失敗になる。
+       */
+      sync_mode: true,
+      ...(request.seed === undefined ? {} : { seed: request.seed }),
+    }),
+  },
+];
+
+function profileFor(model: string): FalModelProfile {
+  return MODEL_PROFILES.find((profile) => profile.matches(model)) ?? MODEL_PROFILES[MODEL_PROFILES.length - 1];
+}
+
+/** そのモデルが透明背景をそのまま出せるか（CLI がプロンプトを切り替えるのに使う） */
+export function falModelSupportsTransparency(model: string): boolean {
+  return profileFor(model).transparent;
+}
+
+/** そのモデルのプロンプト文字数の上限（無ければ undefined） */
+export function falModelPromptLimit(model: string): number | undefined {
+  return profileFor(model).maxPromptLength;
+}
+
 export class FalProvider extends BaseImageProvider {
   readonly name = 'fal';
   readonly model: string;
@@ -46,39 +137,27 @@ export class FalProvider extends BaseImageProvider {
   }
 
   /**
-   * false。fal-ai/flux/dev は透明背景を返せない。
-   * ここで true を返すと、抜けていない背景がそのまま取り込まれる。
+   * モデルによる。
+   * flux 系は返せない（false）。GPT Image は返せる（true）。
+   * ここを間違えると、抜けていない背景がそのまま取り込まれる。
    */
   override supportsTransparency(): boolean {
-    return false;
+    return profileFor(this.model).transparent;
+  }
+
+  /** そのモデルのプロンプト文字数の上限 */
+  promptLimit(): number | undefined {
+    return profileFor(this.model).maxPromptLength;
   }
 
   async generateImage(request: GenerationRequest): Promise<GenerationResult> {
+    const profile = profileFor(this.model);
+    const prompt = profile.maxPromptLength
+      ? request.prompt.slice(0, profile.maxPromptLength)
+      : request.prompt;
     const response = await this.post(
       `${this.baseUrl}/${this.model}`,
-      {
-        prompt: request.prompt,
-        negative_prompt: request.negativePrompt,
-        image_size: { width: request.width, height: request.height },
-        num_images: 1,
-        // PNG 固定。JPEG にすると縁がにじんで、背景を綺麗に抜けなくなる
-        output_format: 'png',
-        // 生成をプロンプトに素直に従わせる（下地を単色に保つため）
-        enable_safety_checker: true,
-        /*
-         * 画像を応答そのものに入れてもらう。
-         *
-         * これを付けないと、fal は配信用のホスト（v3b.fal.media など）の
-         * URL を返してきて、こちらが取りに行くことになる。
-         * 配信ホストは要求ごとに変わるうえ、閉じた環境では許可リストに
-         * 入っていないことが多く、「生成はできたのに取ってこられない」
-         * という失敗になる（実際にこれで詰まりました）。
-         *
-         * 応答に直接入れてもらえば、通信は1回で済み、宛先も1つで済む。
-         */
-        sync_mode: true,
-        ...(request.seed === undefined ? {} : { seed: request.seed }),
-      },
+      profile.build(request, prompt),
       { authorization: `Key ${this.apiKey}` },
     );
 

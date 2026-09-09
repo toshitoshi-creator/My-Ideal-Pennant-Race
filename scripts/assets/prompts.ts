@@ -221,7 +221,7 @@ export interface PromptParts {
 export function buildPrompt(
   category: CatalogId,
   variantIndex: number,
-  options: { transparent?: boolean } = {},
+  options: { transparent?: boolean; maxLength?: number } = {},
 ): PromptParts {
   const transparent = options.transparent ?? true;
   const entry = catalogEntry(category);
@@ -243,19 +243,32 @@ export function buildPrompt(
   const negativeBase = negativePrompt(transparent);
   const negative = exclusion ? `${negativeBase}, ${exclusion}` : negativeBase;
 
-  const prompt = [
+  /*
+   * 並べる順番が大事。
+   *
+   * モデルによっては文字数の上限があり（Recraft は1000字）、後ろが切られる。
+   * 「何を描くか」と「何を描くな」を先に置き、絵柄の細かい指定を後ろに置く。
+   * こうしておけば、切られても大事な指定だけは残る。
+   */
+  const essential = [
     categoryPrompt,
     variantPrompt,
     exclusion ? `Do not draw: ${exclusion}.` : '',
-    BASE_STYLE + '.',
     framing(transparent) + '.',
-    'Canvas 1024 by 1280 pixels.',
     transparent
       ? ''
       : 'The background must be one single flat colour so that it can be removed cleanly afterwards.',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  ].filter(Boolean);
+
+  const decoration = [BASE_STYLE + '.', 'Canvas 1024 by 1280 pixels.'];
+
+  let prompt = [...essential, ...decoration].join(' ');
+  const limit = options.maxLength;
+  if (limit && prompt.length > limit) {
+    // まず飾りを削る。それでも長ければ末尾を落とす（大事な指定は先頭にある）
+    prompt = essential.join(' ');
+    if (prompt.length > limit) prompt = prompt.slice(0, limit).trimEnd();
+  }
 
   return {
     id,
@@ -275,7 +288,7 @@ export function buildPrompt(
 export function buildPromptsFor(
   category: CatalogId,
   count?: number,
-  options: { transparent?: boolean } = {},
+  options: { transparent?: boolean; maxLength?: number } = {},
 ): PromptParts[] {
   const entry = catalogEntry(category);
   const n = plannedCount(entry, count);
