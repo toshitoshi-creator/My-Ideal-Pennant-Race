@@ -59,19 +59,35 @@ export const CHARACTER_LIGHTING = [
   'no strong rim light, no backlight, no lens flare',
 ].join(', ');
 
-/** 置き方（§11）。ここがぶれると一覧に並べたときに揃わない */
+/**
+ * 置き方（§11）。ここがぶれると一覧に並べたときに揃わない。
+ *
+ * 「頭を切るな」だけでは足りなかった。
+ * STYLE TEST の10枚のうち1枚は頭が画面の上端に接し、
+ * ほかにも余白が3px・5pxしかないものが出た。
+ * 「切るな」ではなく「**余白を空けろ**」と頼むほうが効く。
+ */
 export const CHARACTER_FRAMING = [
   'single character centered in frame',
   'full body visible from head to feet',
+  'clear empty margin above the head and below the feet, the character does not touch any edge of the image',
+  'the whole figure fits well inside the frame with room to spare',
   'front facing or subtle three-quarter view, eye level',
   'no cropping of the head, no cropping of the feet',
   'no extreme low angle, no extreme high angle, no fisheye, no wide angle distortion',
 ].join(', ');
 
-/** 背景（§12）。透明を出せないモデルには単色の下地を描かせて後で抜く */
+/**
+ * 背景（§12）。透明を出せないモデルには単色の下地を描かせて後で抜く。
+ *
+ * 透明を出せると言っているモデルでも、10枚中2枚は薄い灰色の下地で返ってきた。
+ * 灰色とオフホワイトのユニフォームは分けにくいので、
+ * 透明を頼むときも「灰色や白の下地を描くな」と念を押す。
+ */
 export function characterBackground(transparent: boolean): string {
   return transparent
-    ? 'isolated character on a fully transparent background, no environment'
+    ? 'isolated character on a fully transparent background, no environment, ' +
+        'the background must be genuinely empty — do not paint a grey, white or coloured backdrop behind the character'
     : `isolated character on a completely flat solid ${MATTE_BACKGROUND_HEX} chroma green background, ` +
         'one uniform colour with no gradient, no texture, no pattern and no shading on the background itself, ' +
         'no environment';

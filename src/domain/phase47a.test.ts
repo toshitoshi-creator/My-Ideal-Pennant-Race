@@ -333,6 +333,18 @@ describe('PHASE4.7-A 1人ぶんのプロンプト', () => {
     }
   });
 
+  it('余白を空けるよう頼む（「切るな」だけでは頭が上端に接した）', () => {
+    const built = buildCharacterPrompt(STYLE_TEST[0]);
+    expect(built.prompt).toContain('clear empty margin above the head and below the feet');
+    expect(built.prompt).toContain('does not touch any edge of the image');
+  });
+
+  it('透明を頼むときも灰色や白の下地を描かせない', () => {
+    // 透明を出せるモデルでも、10枚中2枚は薄い灰色の下地で返ってきた
+    const built = buildCharacterPrompt(STYLE_TEST[0], { transparent: true });
+    expect(built.prompt).toContain('do not paint a grey, white or coloured backdrop');
+  });
+
   it('透明を出せないモデルには単色の下地を頼む（§12）', () => {
     const flat = buildCharacterPrompt(STYLE_TEST[0], { transparent: false });
     expect(flat.prompt).toContain('chroma green background');
