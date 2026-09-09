@@ -80,6 +80,20 @@ function loadQuality() {
 
 const QUALITY = loadQuality();
 
+/** 透明PNGの検査（assets:validate）の結果。不合格のものは採用しない */
+function loadTransparency() {
+  const path = 'assets/state/transparency.json';
+  if (!existsSync(path)) return new Map();
+  try {
+    const parsed = JSON.parse(readFileSync(path, 'utf8'));
+    return new Map((parsed.reports ?? []).map((report) => [report.id, report]));
+  } catch {
+    return new Map();
+  }
+}
+
+const TRANSPARENCY = loadTransparency();
+
 const parts = {};
 let total = 0;
 const problems = [];
@@ -100,6 +114,8 @@ for (const category of CONFIG.categories) {
     if (!size) problems.push(`${full}: 画像の大きさを読めません（壊れている可能性）`);
 
     const report = QUALITY.get(base);
+    // 自分自身と、色違いのもとになった形の両方を見る
+    const transparency = TRANSPARENCY.get(id) ?? TRANSPARENCY.get(base);
     const entry = byId.get(id) ?? {
       id,
       // 色違いなら、形のもとになった素材のID
@@ -117,8 +133,9 @@ for (const category of CONFIG.categories) {
       zIndex: category.layer,
       // 機械検査の点数（§40）。検査していなければ null
       quality: report ? report.score : null,
-      // 採用してよいか。REJECT のものはゲームに出さない（§15）
-      approved: report ? report.grade !== 'REJECT' : true,
+      // 採用してよいか。透明PNGの検査に落ちたもの・REJECT のものはゲームに出さない
+      approved:
+        (transparency ? transparency.ok : true) && (report ? report.grade !== 'REJECT' : true),
       // 出所（§17）。鍵・利用者情報は入れない
       source: 'external-ai',
       version: CONFIG.version,
@@ -145,6 +162,14 @@ for (const category of CONFIG.categories) {
   }
 }
 
+// 採用されなかった素材の数（報告に使う）
+let notApproved = 0;
+for (const list of Object.values(parts)) {
+  for (const entry of list) {
+    if (entry.approved === false) notApproved += 1;
+  }
+}
+
 // 色違いを除いた「形」の数。素材の充実度はこれで測る
 const structural = {};
 for (const [category, list] of Object.entries(parts)) {
@@ -165,6 +190,9 @@ const manifest = {
 
 writeFileSync(OUT, `${JSON.stringify(manifest, null, 2)}\n`);
 console.log(`${OUT} を書き出しました（${total}点 / ${Object.keys(parts).length}種類）`);
+if (notApproved > 0) {
+  console.log(`  うち ${notApproved}点は検査に落ちているので、ゲームには出しません（approved: false）`);
+}
 for (const p of problems) console.warn(`  警告: ${p}`);
 if (total === 0) {
   console.log('  素材はまだありません。ゲームは PHASE 4.5 の SVG で選手を描きます。');

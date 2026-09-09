@@ -179,10 +179,28 @@ export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** 例外を人が読める1行にする。鍵らしき文字は落とす */
+/**
+ * 例外を人が読める1行にする。鍵らしき文字は落とす。
+ *
+ * fetch の失敗は "fetch failed" としか言ってくれないので、
+ * cause をたどって本当の理由（接続拒否・証明書・名前解決）まで出す。
+ * ここが1行で分かるかどうかで、原因を突き止める時間が何倍も変わる。
+ */
 export function describeError(error: unknown): string {
-  const text = error instanceof Error ? error.message : String(error);
-  return redact(text);
+  const parts: string[] = [];
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && current; depth++) {
+    if (current instanceof Error) {
+      // cause は ES2022 で入った。tsconfig の lib は ES2020 なので自分で読む
+      const extra = current as Error & { code?: string; cause?: unknown };
+      parts.push(`${current.message}${extra.code ? `（${extra.code}）` : ''}`);
+      current = extra.cause;
+    } else {
+      parts.push(String(current));
+      break;
+    }
+  }
+  return redact(parts.join(' ← '));
 }
 
 /**

@@ -22,6 +22,33 @@ import {
 } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { deflateSync } from 'node:zlib';
+import { spawnSync } from 'node:child_process';
+
+/*
+ * 会社や実行環境のプロキシごしに動けるようにする。
+ *
+ * Node の fetch は、HTTPS_PROXY があっても既定では**使いません**。
+ * 直に出ようとして、途中の関所に 403 で止められます。
+ * しかもその 403 は「許可リストに無い」という文面なので、
+ * 設定が足りないように見えて、実際にはプロキシを通っていないだけ、
+ * という分かりにくい失敗になります（実際にこれで時間を使いました）。
+ *
+ * NODE_USE_ENV_PROXY は Node の起動時にしか効かないので、
+ * 立っていなければ自分自身を立て直す。
+ * プロキシが設定されていない環境では何もしない。
+ */
+const PROXY_ENV = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'];
+if (
+  !process.env.NODE_USE_ENV_PROXY &&
+  PROXY_ENV.some((name) => (process.env[name] ?? '').trim() !== '')
+) {
+  // execArgv も渡さないと、TypeScript を読む仕掛け（tsx）が外れてしまう
+  const result = spawnSync(process.execPath, [...process.execArgv, ...process.argv.slice(1)], {
+    stdio: 'inherit',
+    env: { ...process.env, NODE_USE_ENV_PROXY: '1' },
+  });
+  process.exit(result.status ?? 1);
+}
 import {
   CATALOG,
   catalogEntry,

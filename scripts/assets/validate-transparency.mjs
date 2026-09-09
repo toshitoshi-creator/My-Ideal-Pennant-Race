@@ -97,14 +97,32 @@ for (const entry of categories()) {
   }
 }
 
-if (asJson) {
+/*
+ * 結果は必ず書き出す。
+ * 目録を作るときにこれを読んで、不合格の素材を採用しないようにする。
+ * （要件: 透明PNG以外は production 素材として採用しない）
+ */
+if (stageName === 'production') {
   const out = join(ROOT, 'assets/state');
   mkdirSync(out, { recursive: true });
   writeFileSync(
     join(out, 'transparency.json'),
-    JSON.stringify({ stage: stageName, reports }, null, 2),
+    JSON.stringify(
+      {
+        stage: stageName,
+        reports: reports.map((report) => ({
+          id: report.id,
+          category: report.category,
+          ok: report.ok,
+          failures: report.failures,
+          checks: report.checks.filter((check) => check.level !== 'PASS'),
+        })),
+      },
+      null,
+      2,
+    ),
   );
-  console.log(`assets/state/transparency.json に書き出しました（${reports.length}件）`);
+  if (asJson) console.log(`assets/state/transparency.json に書き出しました（${reports.length}件）`);
 }
 
 console.log(`=== 透明PNGの検査（${stage.label}）===\n`);
