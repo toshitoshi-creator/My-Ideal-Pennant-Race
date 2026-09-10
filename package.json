@@ -40,7 +40,8 @@
     "assets:audit:style": "npx tsx scripts/assets/audit-style-test.mjs",
     "assets:style-test:caps": "npx tsx scripts/assets-cli.ts style-test --caps",
     "assets:hundred": "npx tsx scripts/assets/hundred-check.mjs",
-    "assets:import": "npx tsx scripts/assets/import-handmade.mjs"
+    "assets:import": "npx tsx scripts/assets/import-handmade.mjs",
+    "character:gallery": "npx tsx scripts/character-gallery.tsx"
   },
   "dependencies": {
     "react": "^18.3.1",

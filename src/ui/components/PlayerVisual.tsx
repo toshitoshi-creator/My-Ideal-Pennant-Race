@@ -1,35 +1,32 @@
 /**
- * PHASE 4.7 選手のビジュアル（表示側の唯一の入口）。
+ * 選手のビジュアル（表示側の唯一の入口）。
  *
- * 4段階で描く（PHASE 4.7 §35）：
+ * PHASE 4.8-A から、描き方は3段階になった（§29）。
  *
- *   1. 画像素材（外部の画像生成AIで作ったパーツを重ねる）
- *   2. 画像素材の別バリエーション（低い解像度・別サイズ）
- *   3. PHASE 4.5 の SVG
- *   4. 名前だけの安全な代替（SVG も描けないとき）
+ *   1. 自作SVG（CharacterRenderer）… ふだんはここ
+ *   2. PHASE 4.5 の SVG           … 1 が落ちたとき
+ *   3. 名前だけの安全な代替        … 2 も落ちたとき
  *
- * 素材が1枚も無くても、素材の読み込みに失敗しても、
- * 選手の表示そのものは絶対に壊れない。
+ * PHASE 4.7 の画像素材（外部AIで作ったPNG）は使わなくなった。
+ * 帽子のずれとキャラクターのブレを消しきれなかったため、
+ * パーツを自分で描いて決定論的に組み合わせる方式へ移った。
+ * 画像を読む道（PlayerPortraitImage）は残してあるが、
+ * ゲームの通常の描画からは呼ばれない。
+ *
+ * どの段でも、選手の表示そのものは絶対に壊れない。
  * 「画像がありません」も、壊れた画像アイコンも画面に出さない。
  */
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
 import type { Player } from '../../domain/types';
 import type { Expression, Pose } from '../../domain/playerAppearance';
-import {
-  buildVisualProfile,
-  buildVisualProfileFromId,
-  missingCategories,
-  type VisualProfile,
-  type VisualStance,
-} from '../../domain/visualProfile';
-import { assetCounts, hasAsset, imageModeAvailable } from '../visual/assetRegistry';
-import type { AssetSize } from '../visual/assetRegistry';
-import { PlayerPortraitImage } from './PlayerPortraitImage';
+import type { VisualStance } from '../../domain/visualProfile';
+import { characterProfileAtAge, type CharacterProfile } from '../../domain/characterProfile';
+import { CharacterRenderer, partCount } from '../character';
+import type { CharacterExpression } from '../character';
 import { PlayerPortrait, PlayerPortraitById } from './PlayerPortrait';
 import { PlayerPortraitFallback } from './PlayerPortraitFallback';
 import type { PortraitSize } from '../portrait';
-import { useOptionalGameState } from '../store';
 
 /** 表示サイズ。SVG 側と同じ呼び名にそろえる */
 export type VisualSize = PortraitSize;
@@ -42,21 +39,51 @@ const WIDTH: Record<VisualSize, number> = {
   hero: 260,
 };
 
-/** 表示サイズ → 読み込む素材の解像度（一覧で巨大画像を読まないため。§49） */
-const ASSET_SIZE: Record<VisualSize, AssetSize> = {
-  small: 'small',
-  medium: 'medium',
-  large: 'large',
-  hero: 'hero',
+/**
+ * 表情の対応。
+ *
+ * ゲーム側の表情（PHASE 4.5）と、自作SVGの表情（PHASE 4.8-A）は
+ * 種類が違うので、ここで橋渡しする。無い表情は neutral に落とす。
+ */
+const EXPRESSION_MAP: Record<string, CharacterExpression> = {
+  neutral: 'neutral',
+  happy: 'smile',
+  confident: 'smile',
+  focused: 'serious',
+  determined: 'serious',
+  angry: 'serious',
+  tired: 'neutral',
+  sad: 'neutral',
+  disappointed: 'neutral',
+  surprised: 'surprised',
+  celebrating: 'grin',
+  injured: 'open',
 };
 
-/** 段階が落ちるときの次の解像度（§21 の「別バリエーション」） */
-const NEXT_ASSET_SIZE: Record<AssetSize, AssetSize | null> = {
-  hero: 'large',
-  large: 'medium',
-  medium: 'small',
-  small: null,
-};
+function toCharacterExpression(expression: Expression | 'auto' | undefined): CharacterExpression {
+  if (!expression || expression === 'auto') return 'neutral';
+  return EXPRESSION_MAP[expression] ?? 'neutral';
+}
+
+/**
+ * 実際に作ってあるパーツの数を、設計図づくりに渡す。
+ *
+ * ドメイン側は既定値を持っているが、パーツを増やしたときに
+ * 設計図がその数を知らないと、新しいパーツが選ばれない。
+ */
+function partCounts() {
+  return {
+    head: partCount('head'),
+    body: partCount('body'),
+    hair: partCount('hairFront'),
+    eyes: partCount('eye'),
+    eyebrow: partCount('eyebrow'),
+    nose: partCount('nose'),
+    mouth: partCount('mouth'),
+    ears: partCount('ear'),
+    cap: partCount('cap'),
+  };
+}
 
 export interface PlayerVisualProps {
   player: Player;
@@ -82,7 +109,8 @@ export const PlayerVisual = memo(function PlayerVisual({
   player,
   size = 'medium',
   expression = 'auto',
-  stance = 'auto',
+  // stance は PHASE 4.5 の SVG 側の引数。自作SVGでは姿勢をまだ扱わない（§35）
+  stance: _stance = 'auto',
   pose,
   showCap = true,
   showUniform = true,
@@ -90,30 +118,20 @@ export const PlayerVisual = memo(function PlayerVisual({
   teamColor,
   className,
 }: PlayerVisualProps) {
-  const state = useOptionalGameState();
-
-  const profile = useMemo(
-    () =>
-      buildVisualProfile(
-        {
-          player,
-          state: state ?? undefined,
-          expression: expression === 'auto' ? undefined : expression,
-          stance: stance === 'auto' ? undefined : stance,
-        },
-        assetCounts(),
-      ),
-    [player, state, expression, stance],
+  const character = useMemo(
+    () => characterProfileAtAge(player.id, player.age, partCounts()),
+    [player.id, player.age],
   );
 
   return (
     <VisualLayers
-      profile={profile}
+      character={character}
       name={player.name}
       size={size}
+      expression={toCharacterExpression(expression)}
+      showCap={showCap}
       teamColor={teamColor}
       className={className}
-      animate={animate}
       renderSvg={() => (
         <PlayerPortrait
           player={player}
@@ -160,19 +178,20 @@ export const PlayerVisualById = memo(function PlayerVisualById({
   teamColor,
   className,
 }: PlayerVisualByIdProps) {
-  const profile = useMemo(
-    () => buildVisualProfileFromId({ playerId, age, isPitcher, expression }, assetCounts()),
-    [playerId, age, isPitcher, expression],
+  const character = useMemo(
+    () => characterProfileAtAge(playerId, age, partCounts()),
+    [playerId, age],
   );
 
   return (
     <VisualLayers
-      profile={profile}
+      character={character}
       name={name}
       size={size}
+      expression={toCharacterExpression(expression)}
+      showCap={showCap}
       teamColor={teamColor}
       className={className}
-      animate={false}
       renderSvg={() => (
         <PlayerPortraitById
           playerId={playerId}
@@ -192,81 +211,73 @@ export const PlayerVisualById = memo(function PlayerVisualById({
 });
 
 interface VisualLayersProps {
-  profile: VisualProfile;
+  /** 自作SVGの設計図（PHASE 4.8-A） */
+  character: CharacterProfile;
   name: string;
   size: VisualSize;
-  teamColor?: string;
-  className?: string;
-  animate: boolean;
-  /** 素材で描けないときに描くもの（PHASE 4.5 の SVG） */
+  expression: CharacterExpression;
+  showCap: boolean;
+  teamColor?: string | undefined;
+  className?: string | undefined;
+  /** 自作SVGが描けないときに描くもの（PHASE 4.5 の SVG） */
   renderSvg: () => ReactElement;
 }
 
 /**
- * 4段階の選び分けだけを受け持つ（§35）。
- *   0 = 画像素材 / 1 = 画像素材の別解像度 / 2 = SVG / 3 = 名前だけの代替
+ * 3段階の選び分けだけを受け持つ（§29）。
+ *   0 = 自作SVG / 1 = PHASE 4.5 の SVG / 2 = 名前だけの代替
+ *
+ * 段を落とすのは「描けなかったとき」だけ。
+ * 自作SVGは外部に何も頼らないので、ふつうは段0のまま。
  */
 function VisualLayers({
-  profile,
+  character,
   name,
   size,
+  expression,
+  showCap,
   teamColor,
   className,
-  animate,
   renderSvg,
 }: VisualLayersProps) {
   const [tier, setTier] = useState(0);
 
-  // 必要な種類がひとつでも欠けていれば、最初から SVG で描く
-  const complete = useMemo(
-    () => imageModeAvailable() && missingCategories(profile, hasAsset).length === 0,
-    [profile],
-  );
-
-  const assetSize = ASSET_SIZE[size];
-  const fallbackSize = NEXT_ASSET_SIZE[assetSize];
-  const dropTier = useCallback(() => setTier((t) => t + 1), []);
-
-  if (complete && tier === 0) {
-    return (
-      <PlayerPortraitImage
-        profile={profile}
-        name={name}
-        size={assetSize}
-        width={WIDTH[size]}
-        teamColor={teamColor}
-        className={className}
-        animate={animate}
-        onFail={dropTier}
-      />
-    );
-  }
-
-  if (complete && tier === 1 && fallbackSize) {
-    return (
-      <PlayerPortraitImage
-        profile={profile}
-        name={name}
-        size={fallbackSize}
-        width={WIDTH[size]}
-        teamColor={teamColor}
-        className={className}
-        animate={false}
-        onFail={dropTier}
-      />
-    );
-  }
-
-  // ここまで来たら SVG で描く。素材が1枚も無いときはいつもここ
-  if (tier <= 2) {
+  if (tier === 0) {
     try {
-      return renderSvg();
+      return (
+        <CharacterRenderer
+          profile={character}
+          width={WIDTH[size]}
+          expression={expression}
+          showCap={showCap}
+          teamColor={teamColor}
+          /*
+           * PHASE 4.5 の肖像と同じ印を付ける。
+           *
+           * 画面の CSS（大きさ・並び）も E2E も `portrait` を目印にしている。
+           * 中身を自作SVGへ入れ替えても、外から見た名前は変えない。
+           */
+          className={['portrait', `portrait-${size}`, `portrait-x-${expression}`, className ?? '']
+            .filter(Boolean)
+            .join(' ')}
+          title={`${name}の肖像`}
+        />
+      );
     } catch {
-      // SVG の組み立てで落ちても、選手の行そのものは残す
+      // 組み立てで落ちても、選手の行そのものは残す
+      setTier(1);
     }
   }
 
-  // 最後の砦。名前の頭文字だけを出す（§35 safe placeholder）
+  if (tier <= 1) {
+    try {
+      return renderSvg();
+    } catch {
+      // ここも落ちたら、最後の砦へ
+    }
+  }
+
+  // 名前の頭文字だけを出す
   return <PlayerPortraitFallback name={name} size={size} className={className} />;
 }
 
