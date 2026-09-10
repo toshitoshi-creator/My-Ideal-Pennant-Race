@@ -38,7 +38,8 @@
     "assets:style-test": "npx tsx scripts/assets-cli.ts style-test",
     "assets:style-test:100": "npx tsx scripts/assets-cli.ts style-test --count 100",
     "assets:audit:style": "npx tsx scripts/assets/audit-style-test.mjs",
-    "assets:style-test:caps": "npx tsx scripts/assets-cli.ts style-test --caps"
+    "assets:style-test:caps": "npx tsx scripts/assets-cli.ts style-test --caps",
+    "assets:hundred": "npx tsx scripts/assets/hundred-check.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
