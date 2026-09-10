@@ -699,9 +699,14 @@ export const CAP_TYPES: CapType[] = [
   { id: 'cap_04', prompt: 'a baseball cap with a very short stubby brim, barely longer than the crown, and a small compact crown' },
   { id: 'cap_05', prompt: 'a baseball cap with an unusually long wide brim and a broad crown' },
   {
+    /*
+     * 「very tall dome standing well above the head」と書いたら、
+     * 縦横比1.62の筒のような帽子（コック帽のような形）が出た。
+     * 「ふつうより少し深い」くらいに抑える。
+     */
     id: 'cap_06',
     prompt:
-      'a baseball cap with a very tall dome shaped crown standing well above the head, paired with a short brim',
+      'a baseball cap with a deeper than usual crown, tall from the brim to the top but still clearly a baseball cap, paired with a short brim',
   },
   {
     id: 'cap_07',

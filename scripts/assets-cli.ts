@@ -994,7 +994,13 @@ async function commandStyleTest(args: Args): Promise<void> {
  * 帽子は10種類を全選手で使い回すので、選手ごとに作り直さない（§14）。
  */
 async function commandCapTest(args: Args): Promise<void> {
-  const ids = capPlan(args.count ?? CAP_TYPES.length);
+  /*
+   * --id を渡せば、その帽子だけを作り直せる。
+   * 1つだけ形を直したいときに、合格しているものまで作り直さずに済む（§26）。
+   */
+  const ids = args.id
+    ? args.id.split(',').map((part) => part.trim())
+    : capPlan(args.count ?? CAP_TYPES.length);
   console.log(`=== 帽子の STYLE TEST（§11）：${ids.length}種類 ===\n`);
   console.log(`  キャラクターの版: v${CHARACTER_PROMPT_VERSION}`);
   console.log(`  書き出し先: ${DIR.styleTestCaps}（ゲームには入りません）\n`);
