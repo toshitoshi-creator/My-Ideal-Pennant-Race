@@ -328,21 +328,24 @@ describe('PHASE4.7-A 1人ぶんのプロンプト', () => {
   it('全身が入ることを毎回頼む（§11）', () => {
     for (const spec of STYLE_TEST) {
       const built = buildCharacterPrompt(spec);
-      expect(built.prompt, spec.id).toContain('full body visible from head to feet');
-      expect(built.prompt, spec.id).toContain('no cropping of the head');
+      expect(built.prompt, spec.id).toContain('FULL CHARACTER VISIBLE');
+      expect(built.prompt, spec.id).toContain('HEAD FULLY INSIDE CANVAS');
+      expect(built.prompt, spec.id).toContain('FEET FULLY INSIDE CANVAS');
+      expect(built.prompt, spec.id).toContain('NO CUT OFF HEAD');
     }
   });
 
   it('余白を空けるよう頼む（「切るな」だけでは頭が上端に接した）', () => {
     const built = buildCharacterPrompt(STYLE_TEST[0]);
-    expect(built.prompt).toContain('clear empty margin above the head and below the feet');
-    expect(built.prompt).toContain('does not touch any edge of the image');
+    expect(built.prompt).toContain('GENEROUS EMPTY MARGIN ABOVE THE HEAD');
+    expect(built.prompt).toContain('GENEROUS EMPTY MARGIN BELOW THE FEET');
+    expect(built.prompt).toContain('NO BODY PART TOUCHING THE IMAGE EDGE');
   });
 
   it('透明を頼むときも灰色や白の下地を描かせない', () => {
     // 透明を出せるモデルでも、10枚中2枚は薄い灰色の下地で返ってきた
     const built = buildCharacterPrompt(STYLE_TEST[0], { transparent: true });
-    expect(built.prompt).toContain('do not paint a grey, white or coloured backdrop');
+    expect(built.prompt).toContain('do not paint a grey, white, off-white or coloured backdrop');
   });
 
   it('透明を出せないモデルには単色の下地を頼む（§12）', () => {
@@ -350,15 +353,15 @@ describe('PHASE4.7-A 1人ぶんのプロンプト', () => {
     expect(flat.prompt).toContain('chroma green background');
     expect(flat.prompt).toContain('can be removed cleanly afterwards');
     const clear = buildCharacterPrompt(STYLE_TEST[0], { transparent: true });
-    expect(clear.prompt).toContain('fully transparent background');
+    expect(clear.prompt).toContain('FULLY TRANSPARENT background');
   });
 
   it('文字数の上限があるモデルでは、大事な指定が残る', () => {
     const built = buildCharacterPrompt(STYLE_TEST[0], { maxLength: 700 });
     expect(built.prompt.length).toBeLessThanOrEqual(700);
-    // 「誰を描くか」と「全身」は先頭に置いてあるので残る
+    // 「誰を描くか」と「帽子を描くな」は先頭に置いてあるので残る
     expect(built.prompt).toContain('A single male baseball player');
-    expect(built.prompt).toContain('full body visible from head to feet');
+    expect(built.prompt).toContain('NO HAT, NO CAP');
   });
 });
 

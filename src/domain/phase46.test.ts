@@ -15,6 +15,7 @@ import type { GameState, Player, PositionId } from './types';
 import {
   DEFAULT_CATEGORY_COUNTS,
   HEADWEAR_ASSET,
+  capAssetOf,
   REQUIRED_CATEGORIES,
   STANCE_EQUIPMENT,
   STANCE_GEAR_ASSET,
@@ -727,9 +728,15 @@ describe('PHASE4.6 守備位置と構え', () => {
     expect(headwearOf('OUTFIELDER')).toBe('cap');
   });
 
-  it('かぶり物の素材IDが3つとも別々になっている', () => {
+  it('ヘルメットとマスクの素材IDが別々になっている', () => {
+    /*
+     * PHASE 4.7-B から、ふつうの帽子は選手ごとに選ぶようになったので
+     * HEADWEAR_ASSET が持つのはヘルメットとマスクだけになった（§9）。
+     * ふつうの帽子は capAssetOf が返す。
+     */
     const ids = Object.values(HEADWEAR_ASSET);
-    expect(new Set(ids).size).toBe(3);
+    expect(new Set(ids).size).toBe(2);
+    expect(ids).not.toContain(capAssetOf('anyone'));
   });
 
   it('構えごとに装備が決まっている', () => {

@@ -588,21 +588,32 @@ export const CATALOG: CatalogEntry[] = [
     kind: 'image',
     prefix: 'cap',
     dir: 'equipment',
-    min: 3,
-    target: 3,
-    max: 8,
+    min: 10,
+    target: 10,
+    max: 20,
     required: false,
     zIndex: 16,
-    subject: 'headwear only, worn on an invisible head, plain, no logo and no lettering',
+    /*
+     * PHASE 4.7-B §2・§3。
+     *
+     * 帽子は本体に描かせず、必ず別素材にする。
+     * 本体に描かせると、あり・なし・形違い・食い込みのブレが必ず出るため。
+     * 中身は scripts/assets/character.ts の CAP_TYPES と同じ10種類。
+     * 派手なものは作らない。同じ架空リーグの標準的な野球帽に見えること。
+     * ヘルメットとマスクは別枠（cap_101 / cap_102 を予約）。
+     */
+    subject: 'a baseball cap only, floating on its own with no head underneath, plain, no logo and no lettering',
     variants: [
-      'baseball cap, plain crown and brim',
-      'batting helmet, plain shell with one ear flap',
-      'catcher mask and helmet, transparent behind the cage bars',
-      'winter cap, knitted',
-      'cap worn backwards',
-      'sun visor, open crown',
-      'helmet with two ear flaps',
-      'cap with a flat brim',
+      'six panel cap, gently curved brim, medium height crown',
+      'flat straight brim, tall boxy crown',
+      'strongly curved brim, low rounded crown sitting close to the head',
+      'short stubby brim, compact crown',
+      'long wide brim, broad crown',
+      'clearly visible panel seams, small button at the top of the crown',
+      'smooth seamless crown, no visible stitching',
+      'slightly squared front panel standing up straight',
+      'well worn cap, softly creased crown, bent brim',
+      'deep crown, brim angled slightly downward',
     ],
   },
   {

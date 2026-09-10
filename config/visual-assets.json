@@ -8,17 +8,80 @@
   },
   "anchors": {
     "$comment": "共通キャンバス上の基準点。すべてのパーツはこの位置に合わせて描く",
-    "head": { "centerX": 512, "centerY": 470, "topY": 210, "chinY": 800, "leftX": 244, "rightX": 780 },
-    "eyes": { "leftEyeX": 408, "rightEyeX": 616, "eyeY": 496 },
-    "brows": { "leftX": 404, "rightX": 620, "y": 428 },
-    "nose": { "x": 512, "y": 600 },
-    "mouth": { "x": 512, "y": 712 },
-    "ears": { "leftX": 250, "rightX": 774, "y": 512 },
-    "hair": { "anchorTop": 200, "anchorLeft": 232, "anchorRight": 792 },
-    "beard": { "x": 512, "y": 740 },
-    "body": { "neckX": 512, "neckY": 856, "shoulderLeft": 236, "shoulderRight": 788 },
-    "cap": { "x": 512, "brimY": 306 },
-    "equipment": { "x": 512, "y": 980 }
+    "head": {
+      "centerX": 512,
+      "centerY": 470,
+      "topY": 210,
+      "chinY": 800,
+      "leftX": 244,
+      "rightX": 780
+    },
+    "eyes": {
+      "leftEyeX": 408,
+      "rightEyeX": 616,
+      "eyeY": 496
+    },
+    "brows": {
+      "leftX": 404,
+      "rightX": 620,
+      "y": 428
+    },
+    "nose": {
+      "x": 512,
+      "y": 600
+    },
+    "mouth": {
+      "x": 512,
+      "y": 712
+    },
+    "ears": {
+      "leftX": 250,
+      "rightX": 774,
+      "y": 512
+    },
+    "hair": {
+      "anchorTop": 200,
+      "anchorLeft": 232,
+      "anchorRight": 792
+    },
+    "beard": {
+      "x": 512,
+      "y": 740
+    },
+    "body": {
+      "neckX": 512,
+      "neckY": 856,
+      "shoulderLeft": 236,
+      "shoulderRight": 788
+    },
+    "cap": {
+      "$comment": "帽子は本体とは別素材（PHASE 4.7-B §2）。頭の基準点から相対配置する",
+      "x": 512,
+      "brimY": 306,
+      "capCenterX": 512,
+      "capCenterY": 268,
+      "capBrimY": 306,
+      "crownTopY": 150,
+      "headContactY": 330,
+      "widthAtHead": 560
+    },
+    "equipment": {
+      "x": 512,
+      "y": 980
+    },
+    "figure": {
+      "$comment": "全身キャラクター（PHASE 4.7-B）。頭の大きさが違っても帽子が合うように、頭の基準点から相対で置く",
+      "headTopY": 150,
+      "headCenterX": 512,
+      "headCenterY": 470,
+      "faceCenterX": 512,
+      "faceCenterY": 496,
+      "bodyCenterX": 512,
+      "bodyCenterY": 1000,
+      "leftShoulderX": 236,
+      "rightShoulderX": 788,
+      "feetBaselineY": 1240
+    }
   },
   "formats": {
     "master": "png",
@@ -33,25 +96,177 @@
     "hero": 1024
   },
   "categories": [
-    { "id": "head", "dir": "base", "prefix": "head", "min": 10, "max": 60, "required": true, "layer": 7 },
-    { "id": "hair", "dir": "hair", "prefix": "hair", "min": 10, "max": 60, "required": true, "layer": 15 },
-    { "id": "hairBack", "dir": "hair", "prefix": "hairback", "min": 0, "max": 20, "required": false, "layer": 8 },
-    { "id": "eyebrows", "dir": "eyebrows", "prefix": "brow", "min": 10, "max": 15, "required": true, "layer": 10 },
-    { "id": "eyes", "dir": "eyes", "prefix": "eye", "min": 12, "max": 16, "required": true, "layer": 11 },
-    { "id": "nose", "dir": "nose", "prefix": "nose", "min": 10, "max": 15, "required": true, "layer": 12 },
-    { "id": "mouth", "dir": "mouth", "prefix": "mouth", "min": 10, "max": 15, "required": true, "layer": 13 },
-    { "id": "ears", "dir": "face", "prefix": "ear", "min": 0, "max": 10, "required": false, "layer": 6 },
-    { "id": "jaw", "dir": "face", "prefix": "jaw", "min": 0, "max": 10, "required": false, "layer": 9 },
-    { "id": "beard", "dir": "beard", "prefix": "beard", "min": 8, "max": 12, "required": false, "layer": 14 },
-    { "id": "body", "dir": "body", "prefix": "body", "min": 8, "max": 12, "required": true, "layer": 3 },
-    { "id": "neck", "dir": "body", "prefix": "neck", "min": 0, "max": 8, "required": false, "layer": 5 },
-    { "id": "uniform", "dir": "uniforms", "prefix": "uniform", "min": 1, "max": 8, "required": true, "layer": 4 },
-    { "id": "cap", "dir": "equipment", "prefix": "cap", "min": 1, "max": 8, "required": false, "layer": 16 },
-    { "id": "glasses", "dir": "equipment", "prefix": "glasses", "min": 0, "max": 10, "required": false, "layer": 17 },
-    { "id": "equipment", "dir": "equipment", "prefix": "gear", "min": 0, "max": 24, "required": false, "layer": 18 },
-    { "id": "expression", "dir": "expressions", "prefix": "expression", "min": 0, "max": 15, "required": false, "layer": 19 },
-    { "id": "pose", "dir": "poses", "prefix": "pose", "min": 0, "max": 12, "required": false, "layer": 2 },
-    { "id": "special", "dir": "special", "prefix": "special", "min": 0, "max": 10, "required": false, "layer": 20 }
+    {
+      "id": "head",
+      "dir": "base",
+      "prefix": "head",
+      "min": 10,
+      "max": 60,
+      "required": true,
+      "layer": 7
+    },
+    {
+      "id": "hair",
+      "dir": "hair",
+      "prefix": "hair",
+      "min": 10,
+      "max": 60,
+      "required": true,
+      "layer": 15
+    },
+    {
+      "id": "hairBack",
+      "dir": "hair",
+      "prefix": "hairback",
+      "min": 0,
+      "max": 20,
+      "required": false,
+      "layer": 8
+    },
+    {
+      "id": "eyebrows",
+      "dir": "eyebrows",
+      "prefix": "brow",
+      "min": 10,
+      "max": 15,
+      "required": true,
+      "layer": 10
+    },
+    {
+      "id": "eyes",
+      "dir": "eyes",
+      "prefix": "eye",
+      "min": 12,
+      "max": 16,
+      "required": true,
+      "layer": 11
+    },
+    {
+      "id": "nose",
+      "dir": "nose",
+      "prefix": "nose",
+      "min": 10,
+      "max": 15,
+      "required": true,
+      "layer": 12
+    },
+    {
+      "id": "mouth",
+      "dir": "mouth",
+      "prefix": "mouth",
+      "min": 10,
+      "max": 15,
+      "required": true,
+      "layer": 13
+    },
+    {
+      "id": "ears",
+      "dir": "face",
+      "prefix": "ear",
+      "min": 0,
+      "max": 10,
+      "required": false,
+      "layer": 6
+    },
+    {
+      "id": "jaw",
+      "dir": "face",
+      "prefix": "jaw",
+      "min": 0,
+      "max": 10,
+      "required": false,
+      "layer": 9
+    },
+    {
+      "id": "beard",
+      "dir": "beard",
+      "prefix": "beard",
+      "min": 8,
+      "max": 12,
+      "required": false,
+      "layer": 14
+    },
+    {
+      "id": "body",
+      "dir": "body",
+      "prefix": "body",
+      "min": 8,
+      "max": 12,
+      "required": true,
+      "layer": 3
+    },
+    {
+      "id": "neck",
+      "dir": "body",
+      "prefix": "neck",
+      "min": 0,
+      "max": 8,
+      "required": false,
+      "layer": 5
+    },
+    {
+      "id": "uniform",
+      "dir": "uniforms",
+      "prefix": "uniform",
+      "min": 1,
+      "max": 8,
+      "required": true,
+      "layer": 4
+    },
+    {
+      "id": "cap",
+      "dir": "equipment",
+      "prefix": "cap",
+      "min": 10,
+      "max": 20,
+      "required": false,
+      "layer": 16
+    },
+    {
+      "id": "glasses",
+      "dir": "equipment",
+      "prefix": "glasses",
+      "min": 0,
+      "max": 10,
+      "required": false,
+      "layer": 17
+    },
+    {
+      "id": "equipment",
+      "dir": "equipment",
+      "prefix": "gear",
+      "min": 0,
+      "max": 24,
+      "required": false,
+      "layer": 18
+    },
+    {
+      "id": "expression",
+      "dir": "expressions",
+      "prefix": "expression",
+      "min": 0,
+      "max": 15,
+      "required": false,
+      "layer": 19
+    },
+    {
+      "id": "pose",
+      "dir": "poses",
+      "prefix": "pose",
+      "min": 0,
+      "max": 12,
+      "required": false,
+      "layer": 2
+    },
+    {
+      "id": "special",
+      "dir": "special",
+      "prefix": "special",
+      "min": 0,
+      "max": 10,
+      "required": false,
+      "layer": 20
+    }
   ],
   "skinTones": 8,
   "hairColors": 10,
@@ -61,6 +276,15 @@
   },
   "forbidden": {
     "$comment": "取り込み前に必ず取り除くもの",
-    "items": ["背景", "文字", "ロゴ", "透かし", "ウォーターマーク", "床の影", "別人物", "枠線"]
+    "items": [
+      "背景",
+      "文字",
+      "ロゴ",
+      "透かし",
+      "ウォーターマーク",
+      "床の影",
+      "別人物",
+      "枠線"
+    ]
   }
 }

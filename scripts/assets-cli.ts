@@ -83,16 +83,21 @@ import {
 } from './assets/pipeline';
 import { inspect, type QualityReport } from './assets/quality';
 import {
+  CAP_TYPES,
   STYLE_TEST,
+  buildCapPrompt,
   buildCharacterPrompt,
   countDiversity,
   diversityPlan,
+  capPlan,
   CHARACTER_PROMPT_VERSION,
   type CharacterSpec,
 } from './assets/character';
 import {
   NEEDS_EYE,
+  checkCap,
   checkCharacter,
+  type CapReport,
   type CharacterReport,
 } from './assets/character-quality';
 import { ANCHORS, CANVAS_HEIGHT, CANVAS_WIDTH, OUTPUT_SIZES } from './assets/anchors';
@@ -114,6 +119,9 @@ const DIR = {
   production: join(ROOT, 'src/assets/players'),
   /** 絵柄と多様性の検証。ゲームには入れない（§17・§18） */
   styleTest: join(ROOT, 'assets/style-test'),
+  /** PHASE 4.7-B §15: 本体と帽子は置き場所を分ける */
+  styleTestPlayers: join(ROOT, 'assets/style-test/players'),
+  styleTestCaps: join(ROOT, 'assets/style-test/caps'),
 };
 
 const FAILED_QUEUE = join(DIR.state, 'failed.json');
@@ -134,6 +142,16 @@ interface Args {
   json: boolean;
   /** true なら API を一切呼ばず、予定枚数だけ表示する */
   dryRun: boolean;
+  /** PHASE 4.7-B: 帽子だけを作る */
+  caps: boolean;
+  /**
+   * PHASE 4.7-B §6: 透明を頼まず、抜きやすい単色の下地を描かせる。
+   *
+   * 透明を出せると言っているモデルでも、実際には薄い灰色で返ってくることがある。
+   * 灰色とオフホワイトのユニフォームは分けにくいので、
+   * 「必ず緑」と決めてしまったほうが、あとの背景除去が確実になる。
+   */
+  matte: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -145,6 +163,8 @@ function parseArgs(argv: string[]): Args {
     master: false,
     json: false,
     dryRun: false,
+    caps: false,
+    matte: false,
   };
   for (let i = 1; i < argv.length; i++) {
     const arg = argv[i];
@@ -159,6 +179,8 @@ function parseArgs(argv: string[]): Args {
     else if (arg === '--master') out.master = true;
     else if (arg === '--json') out.json = true;
     else if (arg === '--dry-run') out.dryRun = true;
+    else if (arg === '--caps') out.caps = true;
+    else if (arg === '--matte') out.matte = true;
   }
   return out;
 }
@@ -829,6 +851,10 @@ function commandPrompts(args: Args): void {
  * 10人の結果を確かめるまでは走らせないでください。
  */
 async function commandStyleTest(args: Args): Promise<void> {
+  if (args.caps) {
+    await commandCapTest(args);
+    return;
+  }
   const wanted = args.count ?? STYLE_TEST.length;
   const diversity = wanted > STYLE_TEST.length;
   const specs: CharacterSpec[] = diversity ? diversityPlan(wanted) : STYLE_TEST.slice(0, wanted);
@@ -839,7 +865,7 @@ async function commandStyleTest(args: Args): Promise<void> {
       : `=== STYLE TEST（§17）：${specs.length}人 ===\n`,
   );
   console.log(`  キャラクターの版: v${CHARACTER_PROMPT_VERSION}`);
-  console.log(`  書き出し先: ${DIR.styleTest}（ゲームには入りません）\n`);
+  console.log(`  書き出し先: ${DIR.styleTestPlayers}（ゲームには入りません）\n`);
 
   /* ---- 下見。1枚も作らない ---- */
   if (args.dryRun) {
@@ -880,7 +906,8 @@ async function commandStyleTest(args: Args): Promise<void> {
   }
 
   const provider = resolution.provider;
-  const transparent = provider.supportsTransparency();
+  // --matte なら、透明を出せるモデルでも下地を描かせる（§6）
+  const transparent = args.matte ? false : provider.supportsTransparency();
   const promptLimit =
     'promptLimit' in provider && typeof provider.promptLimit === 'function'
       ? (provider.promptLimit as () => number | undefined)()
@@ -888,11 +915,15 @@ async function commandStyleTest(args: Args): Promise<void> {
 
   console.log(`  プロバイダー: ${resolution.id} / ${provider.model}`);
   if (!transparent) {
-    console.log('  このモデルは透明背景を出せません。単色の下地を描かせて後で抜きます。');
+    console.log(
+      args.matte
+        ? '  --matte: 透明ではなく緑の下地を描かせます（あとで確実に抜くため）。'
+        : '  このモデルは透明背景を出せません。単色の下地を描かせて後で抜きます。',
+    );
   }
   console.log();
 
-  ensureDir(DIR.styleTest);
+  ensureDir(DIR.styleTestPlayers);
 
   const started = Date.now();
   const reports: CharacterReport[] = [];
@@ -920,7 +951,7 @@ async function commandStyleTest(args: Args): Promise<void> {
       console.log(`  ❌ ${spec.id}: ${result.reason}`);
       continue;
     }
-    const path = join(DIR.styleTest, `${built.id}.png`);
+    const path = join(DIR.styleTestPlayers, `${built.id}.png`);
     writeFile(path, result.bytes);
 
     let report: CharacterReport | null = null;
@@ -954,6 +985,120 @@ async function commandStyleTest(args: Args): Promise<void> {
   });
 }
 
+
+/**
+ * 帽子だけを作る（PHASE 4.7-B §3・§4・§11）。
+ *
+ *   npm run assets:style-test -- --caps
+ *
+ * 帽子は10種類を全選手で使い回すので、選手ごとに作り直さない（§14）。
+ */
+async function commandCapTest(args: Args): Promise<void> {
+  const ids = capPlan(args.count ?? CAP_TYPES.length);
+  console.log(`=== 帽子の STYLE TEST（§11）：${ids.length}種類 ===\n`);
+  console.log(`  キャラクターの版: v${CHARACTER_PROMPT_VERSION}`);
+  console.log(`  書き出し先: ${DIR.styleTestCaps}（ゲームには入りません）\n`);
+
+  if (args.dryRun) {
+    for (const id of ids.slice(0, 3)) {
+      console.log(`── ${id} ──`);
+      console.log(buildCapPrompt(id).prompt);
+      console.log();
+    }
+    if (ids.length > 3) console.log(`   … ほか ${ids.length - 3}種類\n`);
+    console.log('=== 下見はここまで。1枚も作っていません ===');
+    return;
+  }
+
+  const resolution = resolve();
+  if (!resolution.available) {
+    console.error('=== BLOCKED: 画像を作れません ===\n');
+    console.error(`  理由: ${resolution.reason}`);
+    console.error(`  ${resolution.hint}\n`);
+    console.error('  画像は1枚も作っていません。');
+    process.exit(1);
+  }
+
+  const provider = resolution.provider;
+  const transparent = args.matte ? false : provider.supportsTransparency();
+  const promptLimit =
+    'promptLimit' in provider && typeof provider.promptLimit === 'function'
+      ? (provider.promptLimit as () => number | undefined)()
+      : undefined;
+  console.log(`  プロバイダー: ${resolution.id} / ${provider.model}`);
+  if (!transparent && args.matte) {
+    console.log('  --matte: 透明ではなく緑の下地を描かせます（あとで確実に抜くため）。');
+  }
+  console.log();
+
+  ensureDir(DIR.styleTestCaps);
+
+  const started = Date.now();
+  const reports: CapReport[] = [];
+  const known: string[] = [];
+  let apiCalls = 0;
+  let failed = 0;
+
+  for (const id of ids) {
+    const built = buildCapPrompt(id, {
+      transparent,
+      ...(promptLimit === undefined ? {} : { maxLength: promptLimit }),
+    });
+    apiCalls += 1;
+    const result = await provider.generateImage({
+      id: built.id,
+      prompt: built.prompt,
+      negativePrompt: built.negativePrompt,
+      // 帽子は正方形でよい（§4）
+      width: CANVAS_WIDTH,
+      height: CANVAS_WIDTH,
+      transparent,
+    });
+    if (!result.ok) {
+      failed += 1;
+      console.log(`  ❌ ${id}: ${result.reason}`);
+      continue;
+    }
+    writeFile(join(DIR.styleTestCaps, `${built.id}.png`), result.bytes);
+
+    try {
+      const report = checkCap({ id: built.id, image: decodePng(result.bytes), known: [...known] });
+      reports.push(report);
+      known.push(report.hash);
+      const bad = report.checks.filter((check) => check.level === 'FAIL');
+      const warn = report.checks.filter((check) => check.level === 'WARN');
+      console.log(
+        `  ${report.accepted ? '✅' : '❌'} ${built.id}: ${report.width}x${report.height} / ` +
+          `${(result.bytes.length / 1024).toFixed(0)}KB` +
+          (bad.length > 0 ? ` / FAIL ${bad.length}` : '') +
+          (warn.length > 0 ? ` / WARN ${warn.length}` : ''),
+      );
+      for (const check of bad) console.log(`       ✗ ${check.label}: ${check.detail}`);
+      for (const check of warn) console.log(`       ! ${check.label}: ${check.detail}`);
+    } catch (error) {
+      console.log(`  ⚠️ ${id}: 検査できませんでした（${(error as Error).message}）`);
+    }
+  }
+
+  const elapsed = (Date.now() - started) / 1000;
+  const accepted = reports.filter((report) => report.accepted);
+  console.log('\n── 帽子の報告（§27）──');
+  console.log(`  生成枚数        ${reports.length + failed}`);
+  console.log(`  採用枚数        ${accepted.length}`);
+  console.log(`  Reject枚数      ${reports.length - accepted.length}`);
+  console.log(`  API使用回数     ${apiCalls}`);
+  console.log(`  平均生成時間    ${apiCalls === 0 ? '-' : (elapsed / apiCalls).toFixed(1)}秒`);
+  console.log(`  素材容量        ${(readDirSize(DIR.styleTestCaps) / 1024 / 1024).toFixed(1)}MB`);
+  const bgOk = reports.filter((report) =>
+    report.checks.some((check) => check.id === 'cap-background' && check.level === 'PASS'),
+  ).length;
+  console.log(
+    `  背景の処理可否  ${reports.length === 0 ? '-' : ((bgOk / reports.length) * 100).toFixed(0)}%`,
+  );
+  console.log('\n  帽子に頭や顔が写り込んでいないかは、目で見て確かめてください。');
+  console.log('\n=== ここで止まります。量産はしません（§26）===');
+}
+
 /** 組み合わせの偏りを表にする（§18・§23） */
 function printDiversity(specs: CharacterSpec[]): void {
   console.log('── 組み合わせの偏り ──');
@@ -975,7 +1120,7 @@ function printStyleTestReport(
 ): void {
   const accepted = reports.filter((report) => report.accepted);
   const rejected = reports.filter((report) => !report.accepted);
-  const bytes = readDirSize(DIR.styleTest);
+  const bytes = readDirSize(DIR.styleTestPlayers);
 
   console.log('\n── 報告（§23）──');
   console.log(`  生成枚数        ${reports.length + totals.failed}`);
@@ -1012,7 +1157,7 @@ function printStyleTestReport(
 
   console.log('\n── 目で見ないと分からないこと ──');
   for (const item of NEEDS_EYE) console.log(`  ・${item}`);
-  console.log(`\n  ${DIR.styleTest} を開いて確かめてください。`);
+  console.log(`\n  ${DIR.styleTestPlayers} を開いて確かめてください。`);
   console.log('  10枚のうち3枚以上が別ゲームの絵柄に見えたら、');
   console.log('  MASTER PROMPT（scripts/assets/character.ts）を直してやり直します（§17）。');
   console.log('\n=== ここで止まります。量産はしません（§24）===');

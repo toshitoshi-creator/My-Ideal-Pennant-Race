@@ -127,6 +127,8 @@ for (const category of CONFIG.categories) {
       height: size?.height ?? 0,
       bytes: 0,
       sha1: '',
+      // PHASE 4.7-B §16。素材の同一性を確かめるのに使う
+      sha256: '',
       variants: {},
       anchor: CONFIG.anchors[category.id] ?? null,
       // 重ねる順（§8）。素材ごとに変えられる
@@ -136,8 +138,12 @@ for (const category of CONFIG.categories) {
       // 採用してよいか。透明PNGの検査に落ちたもの・REJECT のものはゲームに出さない
       approved:
         (transparency ? transparency.ok : true) && (report ? report.grade !== 'REJECT' : true),
-      // 出所（§17）。鍵・利用者情報は入れない
-      source: 'external-ai',
+      /*
+       * 出所（§17・PHASE 4.7-B §16）。
+       * 外部の画像生成AIで作ったことを明示する。
+       * **APIキーも利用者情報も、ここには絶対に書かない。**
+       */
+      source: 'external-ai-generated',
       version: CONFIG.version,
       compatibleTypes: [],
       tags: [],
@@ -151,6 +157,7 @@ for (const category of CONFIG.categories) {
       entry.height = size?.height ?? 0;
       entry.bytes = statSync(full).size;
       entry.sha1 = createHash('sha1').update(buffer).digest('hex');
+      entry.sha256 = createHash('sha256').update(buffer).digest('hex');
     }
     byId.set(id, entry);
   }

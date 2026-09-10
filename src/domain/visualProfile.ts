@@ -147,12 +147,35 @@ export function headwearOf(stance: VisualStance): 'cap' | 'helmet' | 'mask' {
   return 'cap';
 }
 
-/** かぶり物ごとの素材ID。cap 種類の中で番号を固定して割り当てる */
-export const HEADWEAR_ASSET: Record<'cap' | 'helmet' | 'mask', string> = {
-  cap: 'cap_001',
-  helmet: 'cap_002',
-  mask: 'cap_003',
+/**
+ * ヘルメットとマスクの素材ID。
+ *
+ * PHASE 4.7-B から、ふつうの帽子は cap_001 以降を
+ * **選手ごとに選ぶ**ようになった（§9）。番号がぶつからないように、
+ * ヘルメットとマスクは十分に離れた番号を予約しておく。
+ */
+export const HEADWEAR_ASSET: Record<'helmet' | 'mask', string> = {
+  helmet: 'cap_101',
+  mask: 'cap_102',
 };
+
+/** 帽子の種類の既定数（素材がまだ無いときの見込み。§3 の10種類） */
+export const DEFAULT_CAP_COUNT = 10;
+
+/**
+ * その選手がいつもかぶる帽子（PHASE 4.7-B §9）。
+ *
+ * **player.id だけ**から決める。専用のハッシュを使うので、
+ * 顔や体型の割り当てが変わっても帽子は動かない。
+ * 球団が変わっても形は同じまま。色はゲーム側で塗る（§10）。
+ *
+ * Math.random も Date.now もゲームのRNGも使わない（§8）。
+ */
+export function capAssetOf(playerId: string, count = DEFAULT_CAP_COUNT): string {
+  const total = Math.max(1, count);
+  const seed = visualHash(`player-cap-v1:${playerId}`);
+  return assetId('cap', visualPick(seed, SALT.cap, total));
+}
 
 /** 立ち姿ごとの姿勢素材のID（§18） */
 export const STANCE_POSE_ASSET: Record<VisualStance, string> = {
@@ -313,6 +336,8 @@ const SALT: Record<string, number> = {
   glassesChance: 16,
   greyChance: 17,
   hairBack: 18,
+  // PHASE 4.7-B: 帽子は専用のハッシュから引くので、塩も別に持つ
+  cap: 19,
 };
 
 /** 年齢段階ごとのひげの出やすさ（§16） */
@@ -439,7 +464,15 @@ function buildProfileCore(input: ProfileCoreInput, counts: CategoryCounts): Visu
   const headwear = headwearOf(stance);
 
   // ここから下は任意の種類。素材が無ければ描画側が黙って飛ばす（§21）
-  parts.cap = HEADWEAR_ASSET[headwear];
+  /*
+   * 帽子は本体に描き込まない（PHASE 4.7-B §2）。別素材を重ねる。
+   * ふつうの帽子の形は player.id だけで決まるので、
+   * 移籍しても成長しても、その選手はいつも同じ形の帽子をかぶる（§9）。
+   */
+  parts.cap =
+    headwear === 'cap'
+      ? capAssetOf(input.playerId, n('cap', DEFAULT_CAP_COUNT))
+      : HEADWEAR_ASSET[headwear];
   parts.pose = STANCE_POSE_ASSET[stance];
   parts.equipment = STANCE_GEAR_ASSET[stance];
   const expressionOverlay = expressionAsset(expression);

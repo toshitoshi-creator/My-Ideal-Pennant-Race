@@ -37,7 +37,8 @@
     "audit:secrets": "node scripts/audit-secrets.mjs",
     "assets:style-test": "npx tsx scripts/assets-cli.ts style-test",
     "assets:style-test:100": "npx tsx scripts/assets-cli.ts style-test --count 100",
-    "assets:audit:style": "npx tsx scripts/assets/audit-style-test.mjs"
+    "assets:audit:style": "npx tsx scripts/assets/audit-style-test.mjs",
+    "assets:style-test:caps": "npx tsx scripts/assets-cli.ts style-test --caps"
   },
   "dependencies": {
     "react": "^18.3.1",

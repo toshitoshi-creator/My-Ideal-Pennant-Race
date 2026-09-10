@@ -19,8 +19,24 @@ import { MATTE_BACKGROUND_HEX } from './pipeline';
  * v1: PHASE 4.7-A。部品ではなく全身のキャラクターとして頼む形にした。
  *     絵柄を「フラットなアバター」から
  *     「日本のデフォルメ野球ゲーム風」へ変えた。
+ * v2: PHASE 4.7-B。**帽子を本体に描かせない**ことを絶対条件にした。
+ *     10枚中2枚だけ帽子が無い、という品質のブレが出たため。
+ *     帽子は別素材として作り、ゲーム側で重ねる。
+ *     あわせて余白を割合で指定し、透明背景の念押しを強めた。
+ *     絵柄そのものは 4.7-A のまま変えていない（§1）。
  */
-export const CHARACTER_PROMPT_VERSION = 1;
+export const CHARACTER_PROMPT_VERSION = 2;
+
+/**
+ * 余白の目安（§5）。キャンバスに対する割合。
+ *
+ * 「切るな」と言うだけでは、生成器はぎりぎりまで描いてくる。
+ * 4.7-A では上3px・下5pxしか空いていないものが出た。
+ * 割合で言い切るほうが効く。
+ */
+export const MARGIN_TOP_RATIO = 0.10;
+export const MARGIN_BOTTOM_RATIO = 0.10;
+export const MARGIN_SIDE_RATIO = 0.08;
 
 /* ================================================================
  * 1. 共通の絵柄（§13 MASTER PROMPT）
@@ -68,13 +84,29 @@ export const CHARACTER_LIGHTING = [
  * 「切るな」ではなく「**余白を空けろ**」と頼むほうが効く。
  */
 export const CHARACTER_FRAMING = [
-  'single character centered in frame',
-  'full body visible from head to feet',
-  'clear empty margin above the head and below the feet, the character does not touch any edge of the image',
-  'the whole figure fits well inside the frame with room to spare',
+  'FULL CHARACTER VISIBLE, single character centered in frame',
+  'HEAD FULLY INSIDE CANVAS, FEET FULLY INSIDE CANVAS',
+  'GENEROUS EMPTY MARGIN ABOVE THE HEAD — the top eighth of the image is completely empty',
+  'GENEROUS EMPTY MARGIN BELOW THE FEET — the bottom eighth of the image is completely empty',
+  'empty space on the left and the right as well, the outer eighth of the image is empty on each side',
+  'the character occupies only the middle three quarters of the frame, seen from a little way back',
+  'NO BODY PART TOUCHING THE IMAGE EDGE, NO CROPPING, NO CUT OFF HEAD, NO CUT OFF FEET',
+  'the character is drawn small enough to sit comfortably inside the frame, not filling it edge to edge',
   'front facing or subtle three-quarter view, eye level',
-  'no cropping of the head, no cropping of the feet',
   'no extreme low angle, no extreme high angle, no fisheye, no wide angle distortion',
+].join(', ');
+
+/**
+ * 帽子を描かせない指定（§2・§5）。**このPHASEの絶対条件**。
+ *
+ * 本体に帽子を描かせると、帽子あり・なし・形違い・食い込み・ずれ、
+ * といったブレが必ず出る。4.7-A では10枚中2枚に帽子が無かった。
+ * 帽子は別素材にして、ゲーム側で重ねる。
+ */
+export const NO_HEADWEAR = [
+  'NO HAT, NO CAP, NO HELMET, NO HEADWEAR of any kind',
+  'BARE HEAD — the top of the head is uncovered',
+  'HAIR FULLY VISIBLE, the whole hairline and the crown of the head can be seen',
 ].join(', ');
 
 /**
@@ -86,8 +118,9 @@ export const CHARACTER_FRAMING = [
  */
 export function characterBackground(transparent: boolean): string {
   return transparent
-    ? 'isolated character on a fully transparent background, no environment, ' +
-        'the background must be genuinely empty — do not paint a grey, white or coloured backdrop behind the character'
+    ? 'isolated character on a FULLY TRANSPARENT background, no environment, ' +
+        'the background must be genuinely empty — do not paint a grey, white, off-white or coloured backdrop, ' +
+        'no floor, no cast shadow under the feet'
     : `isolated character on a completely flat solid ${MATTE_BACKGROUND_HEX} chroma green background, ` +
         'one uniform colour with no gradient, no texture, no pattern and no shading on the background itself, ' +
         'no environment';
@@ -151,14 +184,34 @@ export const CHARACTER_NEGATIVE_BASE = [
   'motion blur',
   'fisheye',
   'wide angle',
+  // かぶり物（§2 の絶対条件。本体には描かせない）
+  'hat',
+  'cap',
+  'baseball cap',
+  'helmet',
+  'headwear',
+  'visor',
+  'headband',
   // 破綻
   'cropped head',
   'cropped feet',
+  'body cut off',
+  'touching canvas edge',
+  'extra arms',
+  'extra legs',
   'extra fingers',
   'missing fingers',
   'deformed hands',
   'duplicate limbs',
   'duplicate face',
+  'asymmetrical eyes',
+  'broken anatomy',
+  // 背景（透明にならない事故が実際に起きた）
+  'gray background',
+  'white background',
+  'colored background',
+  'floor shadow',
+  'cast shadow',
 ];
 
 /**
@@ -503,6 +556,8 @@ export function buildCharacterPrompt(
     `Expression: ${look(EXPRESSIONS, spec.expression) ?? 'a calm neutral expression'}.`,
     `Pose: ${look(POSES, spec.pose) ?? 'standing straight, arms relaxed at his sides'}.`,
     'Wearing a plain baseball uniform with no logo, no number and no lettering.',
+    // 帽子は別素材。ここで描かせてはいけない（§2）
+    NO_HEADWEAR + '.',
     CHARACTER_FRAMING + '.',
     characterBackground(transparent) + '.',
     transparent
@@ -611,4 +666,167 @@ export function countDiversity(specs: CharacterSpec[], key: keyof CharacterSpec)
     .sort((a, b) => b.n - a.n || a.id.localeCompare(b.id));
   const total = counts.reduce((sum, item) => sum + item.n, 0);
   return { key, counts, topShare: total === 0 ? 0 : counts[0].n / total };
+}
+
+/* ================================================================
+ * 12. 帽子（PHASE 4.7-B §2・§3・§4・§20）
+ * ============================================================== */
+
+/**
+ * 帽子は **本体とは別に作る**。
+ *
+ * 本体に描かせると、あり・なし・形違い・食い込み・ずれが必ず出る。
+ * 別素材にすれば、10種類を作って全選手で使い回せるので、
+ * 品質が安定して、生成回数も 100回ではなく 10回で済む（§14）。
+ */
+export interface CapType {
+  id: string;
+  /** 何が他と違うのか（人間向け。プロンプトにも入る） */
+  prompt: string;
+}
+
+/**
+ * 帽子10種類（§3）。
+ *
+ * 形・つば・高さ・クラウン・縫い目・正面の見え方で差を付ける。
+ * 派手なものは作らない。**同じ架空リーグの標準的な野球帽**に見えること。
+ * 実在球団のロゴも文字も入れない。色はゲーム側で付ける（§10）。
+ */
+export const CAP_TYPES: CapType[] = [
+  { id: 'cap_01', prompt: 'a standard six panel baseball cap with a gently curved brim and a medium height crown' },
+  { id: 'cap_02', prompt: 'a baseball cap with a flat straight brim and a tall boxy crown' },
+  { id: 'cap_03', prompt: 'a baseball cap with a strongly curved brim and a low rounded crown that sits close to the head' },
+  { id: 'cap_04', prompt: 'a baseball cap with a short stubby brim and a compact crown' },
+  { id: 'cap_05', prompt: 'a baseball cap with a long wide brim and a broad crown' },
+  { id: 'cap_06', prompt: 'a baseball cap with clearly visible panel seams and a small button at the top of the crown' },
+  { id: 'cap_07', prompt: 'a baseball cap with a smooth seamless crown and no visible stitching' },
+  { id: 'cap_08', prompt: 'a baseball cap with a slightly squared front panel that stands up straight' },
+  { id: 'cap_09', prompt: 'a well worn baseball cap with a softly creased crown and a bent brim' },
+  { id: 'cap_10', prompt: 'a baseball cap with a deep crown and a brim angled slightly downward' },
+];
+
+/** 帽子の置き方（§4）。正面〜わずかな3/4に統一する */
+export const CAP_FRAMING = [
+  'the cap alone, floating in empty space as if photographed on its own',
+  'front view or only a very slight three-quarter turn, eye level',
+  'centered in the frame with generous empty margin on every side',
+  'the cap does not touch any edge of the image',
+  'no head, no face, no hair, no person underneath',
+].join(', ');
+
+/** 帽子の絵柄。本体と同じ絵柄でないと、重ねたときに浮く（§1） */
+export const CAP_STYLE = [
+  'drawn in exactly the same style as the player characters',
+  'high quality original Japanese baseball video game asset',
+  'clean bold linework, subtle three-dimensional volume, soft controlled shading',
+  'simple and readable at small UI sizes',
+  'plain off-white and neutral grey only — no team colour, no logo, no lettering, no emblem',
+].join(', ');
+
+/** 帽子の照明。本体と同じ考え方だが「顔」の話は要らない */
+export const CAP_LIGHTING = [
+  'neutral even lighting',
+  'soft gentle shading, no harsh shadows',
+  'no strong rim light, no backlight, no lens flare',
+].join(', ');
+
+/** 帽子の背景（§4）。白も灰色も禁止 */
+export function capBackground(transparent: boolean): string {
+  return transparent
+    ? 'on a FULLY TRANSPARENT background, nothing behind the cap, ' +
+        'do not paint a white, grey, off-white or coloured backdrop, no floor, no cast shadow'
+    : `on a completely flat solid ${MATTE_BACKGROUND_HEX} chroma green background, ` +
+        'one uniform colour with no gradient, no texture and no shading on the background itself, no cast shadow';
+}
+
+/** 帽子の「必ず外すもの」（§20 帽子） */
+export const CAP_NEGATIVE_BASE = [
+  'photorealistic',
+  'real person',
+  'celebrity',
+  'existing baseball team',
+  'existing sports logo',
+  'copyrighted character',
+  'text',
+  'letters',
+  'numbers',
+  'watermark',
+  'brand logo',
+  'team logo',
+  'emblem',
+  'stadium',
+  'person',
+  'head',
+  'face',
+  'hair',
+  'helmet',
+  'cropped cap',
+  'broken brim',
+  'deformed brim',
+  'two caps',
+  'gray background',
+  'white background',
+  'colored background',
+  'shadow',
+];
+
+export function capNegative(transparent: boolean): string {
+  const background = transparent
+    ? 'background, backdrop, scenery, floor, ground, cast shadow, drop shadow, vignette, frame, border'
+    : 'scenery, landscape, room, floor, furniture, gradient background, textured background, ' +
+      'patterned background, checkerboard, cast shadow, drop shadow, vignette, frame, border';
+  return [background, ...CAP_NEGATIVE_BASE].join(', ');
+}
+
+export interface CapPrompt {
+  id: string;
+  prompt: string;
+  negativePrompt: string;
+  promptVersion: number;
+  transparent: boolean;
+}
+
+/**
+ * 帽子1つぶんのプロンプトを組み立てる。
+ * 同じ指定からは必ず同じ文字列が出る（乱数を使わない）。
+ */
+export function buildCapPrompt(
+  capId: string,
+  options: { transparent?: boolean; maxLength?: number } = {},
+): CapPrompt {
+  const transparent = options.transparent ?? true;
+  const type = CAP_TYPES.find((cap) => cap.id === capId);
+  if (!type) throw new Error(`知らない帽子です: ${capId}`);
+
+  const essential = [
+    `${type.prompt}, and nothing else.`,
+    CAP_FRAMING + '.',
+    capBackground(transparent) + '.',
+    'No logo, no lettering, no numbers, no team mark of any kind.',
+    transparent
+      ? ''
+      : 'The background must be one single flat colour so that it can be removed cleanly afterwards.',
+  ].filter(Boolean);
+
+  const decoration = [CAP_STYLE + '.', CAP_LIGHTING + '.'];
+
+  let prompt = [...essential, ...decoration].join(' ');
+  const limit = options.maxLength;
+  if (limit && prompt.length > limit) {
+    prompt = essential.join(' ');
+    if (prompt.length > limit) prompt = prompt.slice(0, limit).trimEnd();
+  }
+
+  return {
+    id: type.id,
+    prompt,
+    negativePrompt: capNegative(transparent),
+    promptVersion: CHARACTER_PROMPT_VERSION,
+    transparent,
+  };
+}
+
+/** 帽子10種類ぶんの計画（§11 の STYLE TEST で使う） */
+export function capPlan(count = CAP_TYPES.length): string[] {
+  return CAP_TYPES.slice(0, count).map((cap) => cap.id);
 }
