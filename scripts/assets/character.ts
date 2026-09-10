@@ -694,15 +694,41 @@ export interface CapType {
  */
 export const CAP_TYPES: CapType[] = [
   { id: 'cap_01', prompt: 'a standard six panel baseball cap with a gently curved brim and a medium height crown' },
-  { id: 'cap_02', prompt: 'a baseball cap with a flat straight brim and a tall boxy crown' },
-  { id: 'cap_03', prompt: 'a baseball cap with a strongly curved brim and a low rounded crown that sits close to the head' },
-  { id: 'cap_04', prompt: 'a baseball cap with a short stubby brim and a compact crown' },
-  { id: 'cap_05', prompt: 'a baseball cap with a long wide brim and a broad crown' },
-  { id: 'cap_06', prompt: 'a baseball cap with clearly visible panel seams and a small button at the top of the crown' },
-  { id: 'cap_07', prompt: 'a baseball cap with a smooth seamless crown and no visible stitching' },
-  { id: 'cap_08', prompt: 'a baseball cap with a slightly squared front panel that stands up straight' },
-  { id: 'cap_09', prompt: 'a well worn baseball cap with a softly creased crown and a bent brim' },
-  { id: 'cap_10', prompt: 'a baseball cap with a deep crown and a brim angled slightly downward' },
+  { id: 'cap_02', prompt: 'a baseball cap with a perfectly flat straight brim and a tall boxy crown' },
+  { id: 'cap_03', prompt: 'a baseball cap with a strongly curved brim that wraps around, and a low rounded crown sitting close to the head' },
+  { id: 'cap_04', prompt: 'a baseball cap with a very short stubby brim, barely longer than the crown, and a small compact crown' },
+  { id: 'cap_05', prompt: 'a baseball cap with an unusually long wide brim and a broad crown' },
+  {
+    id: 'cap_06',
+    prompt:
+      'a baseball cap with a very tall dome shaped crown standing well above the head, paired with a short brim',
+  },
+  {
+    id: 'cap_07',
+    prompt:
+      'a baseball cap with a very flat low profile crown hugging the head, paired with a long brim',
+  },
+  { id: 'cap_08', prompt: 'a baseball cap with a squared off front panel standing straight up, giving a boxy front silhouette' },
+  {
+    id: 'cap_09',
+    prompt:
+      'a baseball cap whose brim angles sharply downward, pointing down toward the ground at the tip',
+  },
+  {
+    id: 'cap_10',
+    prompt:
+      'a baseball cap whose brim curls upward at the outer edge, turning up away from the face',
+  },
+  {
+    id: 'cap_11',
+    prompt:
+      'a baseball cap with a wide flaring crown noticeably wider than the head, and a small neat brim',
+  },
+  {
+    id: 'cap_12',
+    prompt:
+      'a baseball cap with a narrow tapered crown that narrows toward the top, and a long straight brim',
+  },
 ];
 
 /** 帽子の置き方（§4）。正面〜わずかな3/4に統一する */

@@ -20,7 +20,7 @@ import {
   HEADWEAR_ASSET,
   VISUAL_PROFILE_VERSION,
   buildVisualProfile,
-  capAssetOf,
+  capAssetOfTeam,
   headwearOf,
   missingCategories,
   visualHash,
@@ -68,6 +68,9 @@ function newGame(seed = 470470): GameState {
   GAMES.set(seed, state);
   return state;
 }
+
+/** この作品の球団。帽子は球団の数だけ用意する */
+const TEAM_IDS = newGame().teams.map((team) => team.id);
 
 function fakePlayer(id: string, over: Partial<Player> = {}): Player {
   return { ...newGame().players[0], id, ...over };
@@ -372,8 +375,12 @@ describe('PHASE4.7-B 帽子の素材', () => {
   });
 
   it('形・つば・クラウンの違いが文面に出ている', () => {
+    /*
+     * 「縫い目」の差はこの大きさでは効かなかったのでやめた。
+     * 輪郭で見える違い（つばの長さ・角度、クラウンの高さ・広がり）だけを見る。
+     */
     const all = CAP_TYPES.map((cap) => cap.prompt).join(' ');
-    for (const word of ['brim', 'crown', 'flat', 'curved', 'seam']) {
+    for (const word of ['brim', 'crown', 'flat', 'curved', 'tall', 'short', 'long', 'downward', 'upward']) {
       expect(all, word).toContain(word);
     }
   });
@@ -537,61 +544,72 @@ describe('PHASE4.7-B 帽子の検査', () => {
  * ============================================================== */
 
 describe('PHASE4.7-B 帽子の割り当て', () => {
-  it('同じ選手はいつも同じ帽子', () => {
-    for (const id of ['p-1', 'p-2', 'player-abc', '日本語のID']) {
-      expect(capAssetOf(id)).toBe(capAssetOf(id));
+  it('同じ球団はいつも同じ帽子', () => {
+    for (const team of ['phoenix', 'bluewave', 'grandvers']) {
+      expect(capAssetOfTeam(team, 'p-1')).toBe(capAssetOfTeam(team, 'p-2'));
     }
   });
 
   it('1000回呼んでも同じ（乱数を使っていない）', () => {
-    const first = capAssetOf('p-42');
-    for (let i = 0; i < 1000; i++) expect(capAssetOf('p-42')).toBe(first);
+    const first = capAssetOfTeam('phoenix', 'p-42');
+    for (let i = 0; i < 1000; i++) expect(capAssetOfTeam('phoenix', 'p-42')).toBe(first);
   });
 
-  it('違う選手には違う帽子が配られる（全員同じにならない）', () => {
+  it('球団が違えば違う帽子が配られる（全球団同じにならない）', () => {
     const seen = new Set<string>();
-    for (let i = 0; i < 300; i++) seen.add(capAssetOf(`p-${i}`));
+    for (const team of TEAM_IDS) seen.add(capAssetOfTeam(team, 'p-1'));
     expect(seen.size).toBeGreaterThan(1);
   });
 
-  it('帽子は10種類ぶんに散らばる', () => {
-    const seen = new Set<string>();
-    for (let i = 0; i < 2000; i++) seen.add(capAssetOf(`p-${i}`, 10));
-    expect(seen.size).toBe(10);
+  it('移籍したら新しい球団の帽子になる', () => {
+    // §9 の当初案は「移籍しても同じ帽子」だったが、
+    // 帽子は球団のものなので、移籍すれば変わるのが正しい
+    const before = buildVisualProfile2(fakePlayer('p-move', { teamId: 'phoenix' })).parts.cap;
+    const after = buildVisualProfile2(fakePlayer('p-move', { teamId: 'whitefox' })).parts.cap;
+    expect(before).not.toBe(after);
   });
 
-  it('どの帽子も極端に偏らない', () => {
-    const counts = new Map<string, number>();
-    for (let i = 0; i < 2000; i++) {
-      const id = capAssetOf(`p-${i}`, 10);
-      counts.set(id, (counts.get(id) ?? 0) + 1);
+  it('同じ球団の選手は全員同じ帽子', () => {
+    const caps = new Set<string>();
+    for (let i = 0; i < 30; i++) {
+      caps.add(buildVisualProfile2(fakePlayer(`p-${i}`, { teamId: 'phoenix' })).parts.cap ?? '');
     }
-    for (const n of counts.values()) expect(n).toBeGreaterThan(100);
+    expect(caps.size).toBe(1);
+  });
+
+  it('帽子の種類は球団の数だけ用意する', () => {
+    expect(DEFAULT_CAP_COUNT).toBe(TEAM_IDS.length);
+    expect(CAP_TYPES.length).toBe(TEAM_IDS.length);
+  });
+
+  it('無所属の選手は選手ごとの帽子になる（全員同じにならない）', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 200; i++) seen.add(capAssetOfTeam(null, `free-${i}`));
+    expect(seen.size).toBeGreaterThan(1);
   });
 
   it('素材が1種類でも壊れない', () => {
-    expect(capAssetOf('p-1', 1)).toBe('cap_001');
+    expect(capAssetOfTeam('phoenix', 'p-1', 1)).toBe('cap_001');
   });
 
   it('素材が0種類と言われても壊れない', () => {
-    expect(capAssetOf('p-1', 0)).toBe('cap_001');
+    expect(capAssetOfTeam('phoenix', 'p-1', 0)).toBe('cap_001');
   });
 
   it('帽子のIDは命名規則に合う', () => {
-    for (let i = 0; i < 50; i++) expect(capAssetOf(`p-${i}`)).toMatch(/^cap_\d{3}$/);
+    for (const team of TEAM_IDS) expect(capAssetOfTeam(team ?? null, 'p-1')).toMatch(/^cap_\d{3}$/);
   });
 
   it('顔の割り当てとは別のハッシュを使う（顔が変わっても帽子は動かない）', () => {
-    // 専用のハッシュなので、見た目の版が変わっても帽子の種は同じ
-    expect(visualHash('player-cap-v1:p-1')).not.toBe(
-      visualHash(`player-appearance-v${VISUAL_PROFILE_VERSION}:p-1`),
+    expect(visualHash('team-cap-v1:phoenix')).not.toBe(
+      visualHash(`player-appearance-v${VISUAL_PROFILE_VERSION}:phoenix`),
     );
   });
 
   it('ヘルメットとマスクは帽子と番号がぶつからない', () => {
     const reserved = Object.values(HEADWEAR_ASSET);
-    for (let i = 0; i < 200; i++) {
-      expect(reserved).not.toContain(capAssetOf(`p-${i}`, DEFAULT_CAP_COUNT));
+    for (const team of TEAM_IDS) {
+      expect(reserved).not.toContain(capAssetOfTeam(team, 'p-1', DEFAULT_CAP_COUNT));
     }
   });
 
@@ -602,19 +620,12 @@ describe('PHASE4.7-B 帽子の割り当て', () => {
   });
 
   it('設計図に帽子が必ず入る', () => {
-    const profile = buildVisualProfile2(fakePlayer('p-cap-1'));
-    expect(profile.parts.cap).toBeTruthy();
-  });
-
-  it('球団が変わっても帽子の形は変わらない（§9）', () => {
-    const a = buildVisualProfile2(fakePlayer('p-move', { teamId: 'phoenix' }));
-    const b = buildVisualProfile2(fakePlayer('p-move', { teamId: 'dragons' }));
-    expect(a.parts.cap).toBe(b.parts.cap);
+    expect(buildVisualProfile2(fakePlayer('p-cap-1')).parts.cap).toBeTruthy();
   });
 
   it('年齢が変わっても帽子の形は変わらない', () => {
-    const young = buildVisualProfile2(fakePlayer('p-age', { age: 19 }));
-    const old = buildVisualProfile2(fakePlayer('p-age', { age: 39 }));
+    const young = buildVisualProfile2(fakePlayer('p-age', { age: 19, teamId: 'phoenix' }));
+    const old = buildVisualProfile2(fakePlayer('p-age', { age: 39, teamId: 'phoenix' }));
     expect(young.parts.cap).toBe(old.parts.cap);
   });
 });
@@ -698,7 +709,9 @@ describe('PHASE4.7-B ゲームに触らない', () => {
       let state = createNewGame(PLAYER_TEAM, 10, 20250910);
       for (let day = 0; day < 12; day++) {
         if (withCaps) {
-          for (const player of state.players.slice(0, 40)) capAssetOf(player.id);
+          for (const player of state.players.slice(0, 40)) {
+            capAssetOfTeam(player.teamId ?? null, player.id);
+          }
         }
         state = advanceDay(state).state;
       }

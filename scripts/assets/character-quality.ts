@@ -11,14 +11,17 @@
  *
  * 純粋な計算だけ。ファイルも通信も知りません（テストから読めます）。
  */
-import type { RgbaImage } from './png';
+import { createImage, type RgbaImage } from './png';
 import {
+  compose,
   contentBounds,
   estimateBackground,
   looksTransparent,
   luminance,
+  resize,
   type Bounds,
 } from './pipeline';
+import { CANVAS_HEIGHT, CANVAS_WIDTH } from './anchors';
 
 /** 目で見ないと判断できないもの（自動検査では見ていない） */
 export const NEEDS_EYE = [
@@ -755,4 +758,132 @@ export function classifyBackground(image: RgbaImage): { level: CheckLevel; detai
   }
   if (estimate.uniformity < 0.9) return { level: 'WARN', detail };
   return { level: 'PASS', detail };
+}
+
+/* ================================================================
+ * 6. 全身キャラクターの正規化と帽子の合成（PHASE 4.7-B §7）
+ * ============================================================== */
+
+/**
+ * 全身キャラクターを共通キャンバスへそろえる。
+ *
+ * §7 は「単純な left/top 固定は禁止。頭部基準点から相対配置する」と言う。
+ * 生成された絵は1枚ごとに頭の大きさも位置も違うので、そのまま重ねると帽子が合わない。
+ *
+ * そこで **頭の幅を基準に** そろえる。全身の高さでそろえないのは、
+ * 帽子が合うかどうかを決めるのは頭の幅だからで、
+ * 身長の差（長身・短躯）はそのまま残したいからでもある。
+ *
+ * これを通しておけば、どの選手でも頭は同じ大きさ・同じ位置に来るので、
+ * 帽子は決まった場所に置くだけで必ず合う。
+ */
+export interface FigureFitOptions {
+  /** 頭の天辺を、この y に合わせる */
+  headTopY: number;
+  /** 頭の幅を、この値にそろえる */
+  headWidth: number;
+  /** 頭の左右の中心を、この x に合わせる */
+  centerX: number;
+  canvasWidth?: number;
+  canvasHeight?: number;
+}
+
+export interface FigureFitResult {
+  image: RgbaImage;
+  metrics: FigureMetrics | null;
+  scale: number;
+  /** 足がキャンバスからはみ出したか（縮めたあとで見る。ふつうは false） */
+  feetOverflow: boolean;
+  /** 足を収めるために縮めたか */
+  shrunk: boolean;
+}
+
+export function fitFigureToCanvas(source: RgbaImage, options: FigureFitOptions): FigureFitResult {
+  const canvasWidth = options.canvasWidth ?? CANVAS_WIDTH;
+  const canvasHeight = options.canvasHeight ?? CANVAS_HEIGHT;
+  const metrics = figureMetrics(source);
+  if (!metrics || metrics.headWidth <= 0) {
+    return {
+      image: createImage(canvasWidth, canvasHeight),
+      metrics: null,
+      scale: 1,
+      feetOverflow: false,
+      shrunk: false,
+    };
+  }
+
+  /*
+   * まず頭の幅でそろえる。
+   * ただし、それだと背の高い選手の足がキャンバスから出てしまうことがある。
+   * そのときだけ、足が収まるところまで全体を縮める。
+   * 頭が少し小さくなるが、足が切れるよりはよい。
+   */
+  let scale = options.headWidth / metrics.headWidth;
+  const figureHeight = metrics.bounds.bottom - metrics.bounds.top + 1;
+  const room = canvasHeight - 1 - options.headTopY;
+  let shrunk = false;
+  if (figureHeight * scale > room) {
+    scale = room / figureHeight;
+    shrunk = true;
+  }
+  const width = Math.max(1, Math.round(source.width * scale));
+  const height = Math.max(1, Math.round(source.height * scale));
+  const scaled = resize(source, width, height);
+
+  const left = Math.round(options.centerX - metrics.centerX * scale);
+  const top = Math.round(options.headTopY - metrics.bounds.top * scale);
+
+  const out = createImage(canvasWidth, canvasHeight);
+  compose(out, scaled, left, top);
+
+  const feetY = top + metrics.bounds.bottom * scale;
+  return { image: out, metrics, scale, feetOverflow: feetY > canvasHeight - 1, shrunk };
+}
+
+/**
+ * 正規化した本体の上に、正規化した帽子を重ねる。
+ *
+ * どちらも頭の幅を基準にそろえてあるので、
+ * ここは決まった場所へ置くだけでよい。
+ */
+export interface CapPlacement {
+  /** 帽子の幅を、頭の幅の何倍にするか */
+  widthRatio: number;
+  /** つばの高さ。頭の天辺からどれだけ下げるか（頭の幅に対する割合） */
+  dropRatio: number;
+}
+
+/** 実測で合わせた既定値。帽子は頭より少し広く、浅くかぶらないよう下げる */
+export const DEFAULT_CAP_PLACEMENT: CapPlacement = { widthRatio: 1.16, dropRatio: 0.30 };
+
+export function placeCap(
+  figure: RgbaImage,
+  cap: RgbaImage,
+  options: {
+    headTopY: number;
+    headWidth: number;
+    centerX: number;
+    placement?: CapPlacement;
+  },
+): RgbaImage {
+  const placement = options.placement ?? DEFAULT_CAP_PLACEMENT;
+  const capBounds = contentBoundsOver(cap, backgroundColor(cap));
+  if (capBounds.empty) return figure;
+
+  const targetWidth = Math.max(1, Math.round(options.headWidth * placement.widthRatio));
+  const scale = targetWidth / capBounds.width;
+  const scaled = resize(cap, Math.round(cap.width * scale), Math.round(cap.height * scale));
+
+  const left = Math.round(options.centerX - targetWidth / 2 - capBounds.left * scale);
+  const top = Math.round(
+    options.headTopY - options.headWidth * placement.dropRatio - capBounds.top * scale,
+  );
+
+  const out: RgbaImage = {
+    width: figure.width,
+    height: figure.height,
+    data: new Uint8Array(figure.data),
+  };
+  compose(out, scaled, left, top);
+  return out;
 }

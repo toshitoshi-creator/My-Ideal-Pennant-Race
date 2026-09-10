@@ -15,7 +15,7 @@ import type { GameState, Player, PositionId } from './types';
 import {
   DEFAULT_CATEGORY_COUNTS,
   HEADWEAR_ASSET,
-  capAssetOf,
+  capAssetOfTeam,
   REQUIRED_CATEGORIES,
   STANCE_EQUIPMENT,
   STANCE_GEAR_ASSET,
@@ -736,7 +736,7 @@ describe('PHASE4.6 守備位置と構え', () => {
      */
     const ids = Object.values(HEADWEAR_ASSET);
     expect(new Set(ids).size).toBe(2);
-    expect(ids).not.toContain(capAssetOf('anyone'));
+    expect(ids).not.toContain(capAssetOfTeam('phoenix', 'anyone'));
   });
 
   it('構えごとに装備が決まっている', () => {

@@ -159,21 +159,38 @@ export const HEADWEAR_ASSET: Record<'helmet' | 'mask', string> = {
   mask: 'cap_102',
 };
 
-/** 帽子の種類の既定数（素材がまだ無いときの見込み。§3 の10種類） */
-export const DEFAULT_CAP_COUNT = 10;
+/**
+ * 帽子の種類の既定数。**球団の数だけ**用意する。
+ *
+ * 帽子は選手ではなく球団のものなので、球団数を超えて作る意味がない。
+ */
+export const DEFAULT_CAP_COUNT = 12;
 
 /**
- * その選手がいつもかぶる帽子（PHASE 4.7-B §9）。
+ * その球団の帽子（PHASE 4.7-B §9 の運用変更）。
  *
- * **player.id だけ**から決める。専用のハッシュを使うので、
+ * 当初の仕様は「player.id から決め、移籍しても同じ帽子」だった。
+ * 実際の野球では同じ球団の選手はみな同じ帽子をかぶるので、
+ * **球団に紐づける**ことにした。移籍したら新しい球団の帽子になる。
+ *
+ * teamId だけから決まる。専用のハッシュを使うので、
  * 顔や体型の割り当てが変わっても帽子は動かない。
- * 球団が変わっても形は同じまま。色はゲーム側で塗る（§10）。
+ * 形だけを決め、色はゲーム側で塗る（§10）。
+ *
+ * 無所属（teamId が null）のときは、選手ごとの帽子に落とす。
+ * 自由契約の選手が全員同じ帽子になってしまうのを避けるため。
  *
  * Math.random も Date.now もゲームのRNGも使わない（§8）。
  */
-export function capAssetOf(playerId: string, count = DEFAULT_CAP_COUNT): string {
+export function capAssetOfTeam(
+  teamId: string | null,
+  playerId: string,
+  count = DEFAULT_CAP_COUNT,
+): string {
   const total = Math.max(1, count);
-  const seed = visualHash(`player-cap-v1:${playerId}`);
+  const seed = teamId
+    ? visualHash(`team-cap-v1:${teamId}`)
+    : visualHash(`player-cap-v1:${playerId}`);
   return assetId('cap', visualPick(seed, SALT.cap, total));
 }
 
@@ -466,12 +483,12 @@ function buildProfileCore(input: ProfileCoreInput, counts: CategoryCounts): Visu
   // ここから下は任意の種類。素材が無ければ描画側が黙って飛ばす（§21）
   /*
    * 帽子は本体に描き込まない（PHASE 4.7-B §2）。別素材を重ねる。
-   * ふつうの帽子の形は player.id だけで決まるので、
-   * 移籍しても成長しても、その選手はいつも同じ形の帽子をかぶる（§9）。
+   * ふつうの帽子の形は所属球団だけで決まる。
+   * 同じ球団の選手はみな同じ帽子をかぶり、移籍すれば帽子も変わる。
    */
   parts.cap =
     headwear === 'cap'
-      ? capAssetOf(input.playerId, n('cap', DEFAULT_CAP_COUNT))
+      ? capAssetOfTeam(input.teamId, input.playerId, n('cap', DEFAULT_CAP_COUNT))
       : HEADWEAR_ASSET[headwear];
   parts.pose = STANCE_POSE_ASSET[stance];
   parts.equipment = STANCE_GEAR_ASSET[stance];
