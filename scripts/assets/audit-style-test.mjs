@@ -11,9 +11,16 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { decodePng, isPng } from './png.ts';
-import { NEEDS_EYE, checkCharacter } from './character-quality.ts';
+import { NEEDS_EYE, checkCap, checkCharacter } from './character-quality.ts';
 
-const DIR = join(process.cwd(), 'assets/style-test');
+/*
+ * PHASE 4.7-B §15: 本体と帽子は置き場所が分かれている。
+ * 古い置き方（assets/style-test 直下）にも対応しておく。
+ */
+const ROOT = join(process.cwd(), 'assets/style-test');
+const PLAYERS = join(ROOT, 'players');
+const CAPS = join(ROOT, 'caps');
+const DIR = existsSync(PLAYERS) ? PLAYERS : ROOT;
 
 if (!existsSync(DIR)) {
   console.log(`${DIR} がありません。先に npm run assets:style-test を実行してください。`);
@@ -98,3 +105,59 @@ if (heads.length > 0) {
 
 console.log('\n── 目で見ないと分からないこと ──');
 for (const item of NEEDS_EYE) console.log(`  ・${item}`);
+
+/* ================================================================
+ * 帽子（PHASE 4.7-B §12）
+ * ============================================================== */
+
+if (existsSync(CAPS)) {
+  const capFiles = readdirSync(CAPS)
+    .filter((name) => name.toLowerCase().endsWith('.png'))
+    .sort();
+  if (capFiles.length > 0) {
+    console.log(`\n=== 帽子の検査（${capFiles.length}枚）===\n`);
+    const capKnown = [];
+    const capReports = [];
+    let capBytes = 0;
+    for (const name of capFiles) {
+      const path = join(CAPS, name);
+      const raw = new Uint8Array(readFileSync(path));
+      capBytes += statSync(path).size;
+      if (!isPng(raw)) {
+        console.log(`  ❌ ${name}: PNG ではありません`);
+        continue;
+      }
+      let image;
+      try {
+        image = decodePng(raw);
+      } catch (error) {
+        console.log(`  ❌ ${name}: 読めません（${error.message}）`);
+        continue;
+      }
+      const report = checkCap({ id: name.replace(/\.png$/i, ''), image, known: [...capKnown] });
+      capKnown.push(report.hash);
+      capReports.push(report);
+      const fails = report.checks.filter((check) => check.level === 'FAIL');
+      const warns = report.checks.filter((check) => check.level === 'WARN');
+      console.log(
+        `  ${report.accepted ? '✅' : '❌'} ${report.id}: ${report.width}x${report.height} / ` +
+          `${(raw.length / 1024).toFixed(0)}KB`,
+      );
+      for (const check of fails) console.log(`       ✗ ${check.label}: ${check.detail}`);
+      for (const check of warns) console.log(`       ! ${check.label}: ${check.detail}`);
+    }
+    const capAccepted = capReports.filter((report) => report.accepted);
+    const capBgOk = capReports.filter((report) =>
+      report.checks.some((check) => check.id === 'cap-background' && check.level === 'PASS'),
+    ).length;
+    console.log('\n── 帽子の報告（§27）──');
+    console.log(`  検査した枚数    ${capReports.length}`);
+    console.log(`  採用枚数        ${capAccepted.length}`);
+    console.log(`  Reject枚数      ${capReports.length - capAccepted.length}`);
+    console.log(`  素材容量        ${(capBytes / 1024 / 1024).toFixed(1)}MB`);
+    console.log(
+      `  背景の処理可否  ${capReports.length === 0 ? '-' : ((capBgOk / capReports.length) * 100).toFixed(0)}%`,
+    );
+    console.log('\n  帽子に頭や顔が写り込んでいないかは、目で見て確かめてください。');
+  }
+}

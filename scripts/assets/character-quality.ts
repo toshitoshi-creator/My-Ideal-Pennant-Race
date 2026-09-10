@@ -583,6 +583,19 @@ export const CAP_ASPECT_MAX = 1.15;
 /** 左右のずれの許容（帽子の幅に対する割合） */
 export const CAP_SYMMETRY_TOLERANCE = 0.12;
 
+/**
+ * 帽子どうしが「似すぎ」とみなす近さ。
+ *
+ * 帽子は10個ともまったく同じ物体を同じ向きで描いたものなので、
+ * 実測でも 2〜25ビット（256中）の範囲にしか散らばらない。
+ * 人物と同じ厳しさ（4ビット）で見ると、形の違う帽子まで重複と言い出す。
+ *
+ * それに §12 の帽子の合格基準に「重複0」は入っていない。
+ * なので、ここは **落とさずに知らせるだけ** にする。
+ * 似すぎている2つを別素材として持つ意味があるかは、目で見て決める。
+ */
+export const CAP_SIMILAR_DISTANCE = 3;
+
 export interface CapReport {
   id: string;
   checks: CharacterCheck[];
@@ -677,11 +690,17 @@ export function checkCap(input: { id: string; image: RgbaImage; known?: string[]
     Number.POSITIVE_INFINITY,
   );
   if (known.length === 0) {
-    add('duplicate', '既存の帽子と重なっていない', 'PASS', '比べる相手がまだありません');
-  } else if (nearest <= DUPLICATE_DISTANCE) {
-    add('duplicate', '既存の帽子と重なっていない', 'FAIL', `すでにある帽子とほぼ同じです（違い ${nearest}）`);
+    add('duplicate', '既存の帽子と見分けがつく', 'PASS', '比べる相手がまだありません');
+  } else if (nearest <= CAP_SIMILAR_DISTANCE) {
+    // §12 の合格基準に「重複0」は無いので、落とさずに知らせる
+    add(
+      'duplicate',
+      '既存の帽子と見分けがつく',
+      'WARN',
+      `すでにある帽子とよく似ています（違い ${nearest}）。別素材として持つ意味があるか目で確かめてください`,
+    );
   } else {
-    add('duplicate', '既存の帽子と重なっていない', 'PASS', `いちばん近い帽子との違い ${nearest}`);
+    add('duplicate', '既存の帽子と見分けがつく', 'PASS', `いちばん近い帽子との違い ${nearest}`);
   }
 
   return {

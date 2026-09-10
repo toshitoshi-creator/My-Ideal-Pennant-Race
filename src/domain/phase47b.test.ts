@@ -499,9 +499,13 @@ describe('PHASE4.7-B 帽子の検査', () => {
     expect(check(createImage(512, 512)).accepted).toBe(false);
   });
 
-  it('同じ帽子が2枚あれば重複として落とす', () => {
+  it('同じ帽子が2枚あれば知らせる（落とすまではしない）', () => {
+    /*
+     * 帽子は10個とも同じ物体なので、どうしても似る（実測 2〜25ビット）。
+     * §12 の合格基準に「重複0」は無いので、WARN にとどめて目視にまわす。
+     */
     const first = check(capImage());
-    expect(levelOf(check(capImage(), [first.hash]), 'duplicate')).toBe('FAIL');
+    expect(levelOf(check(capImage(), [first.hash]), 'duplicate')).toBe('WARN');
   });
 
   it('形の違う帽子は重複にしない', () => {
