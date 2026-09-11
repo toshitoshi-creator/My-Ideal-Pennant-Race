@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g data-part="cap_06" data-category="cap" data-label="1号">
-    <path d="M 62 82 C 62 50, 92 38, 128 38 C 164 38, 194 50, 194 82 Z"
+    <path d="M 62 74 C 62 42, 92 30, 128 30 C 164 30, 194 42, 194 74 Z"
           fill="token:cap" stroke="token:outline" stroke-width="4" stroke-linejoin="round"/>
-    <rect x="123" y="50" width="10" height="26" rx="4" fill="token:uniform"/>
-    <path d="M 62 78 L 194 78 L 194 87 Q 128 93 62 87 Z"
-          fill="token:capSecondary" stroke="token:outline" stroke-width="3" stroke-linejoin="round"/>
-    <path d="M 58 86 Q 128 102 198 86 Q 128 92 58 86 Z"
+    <rect x="122" y="42" width="11" height="26" rx="5" fill="token:uniform"/>
+    <path d="M 62 70 L 194 70 L 194 82 Q 128 90 62 82 Z"
+          fill="token:capSecondary" stroke="token:outline" stroke-width="3.5" stroke-linejoin="round"/>
+    <path d="M 54 82 Q 128 104 202 82 Q 128 88 54 82 Z"
           fill="token:capShadow" stroke="token:outline" stroke-width="4" stroke-linejoin="round"/>
   </g>
 </svg>

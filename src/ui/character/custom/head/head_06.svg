@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g data-part="head_06" data-category="head" data-label="1号"
-     data-half-width="62" data-face-scale-y="1" data-chin-shift="0">
-    <path d="M 66 105
-             C 66 66, 94 48, 128 48
-             C 162 48, 190 66, 190 105
-             C 190 134, 178 160, 156 171
-             C 147 176, 134 178, 128 178
-             C 122 178, 109 176, 100 171
-             C 78 160, 66 134, 66 105 Z"
+     data-half-width="60" data-face-scale-y="1" data-chin-shift="0">
+    <path d="M 68 104
+             C 68 66, 95 48, 128 48
+             C 161 48, 188 66, 188 104
+             C 188 136, 176 162, 154 172
+             C 145 177, 134 179, 128 179
+             C 122 179, 111 177, 102 172
+             C 80 162, 68 136, 68 104 Z"
           fill="token:skin" stroke="token:outline" stroke-width="4" stroke-linejoin="round"/>
   </g>
 </svg>

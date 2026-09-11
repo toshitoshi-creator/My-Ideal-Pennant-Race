@@ -1,16 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g data-part="uniform_02" data-category="uniform" data-label="1号">
-    <path d="M 103 197 L 128 236 L 153 197" fill="none"
+    <path d="M 104 197 L 128 238 L 152 197" fill="none"
           stroke="token:outline" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
-    <path d="M 110 199 L 128 228 L 146 199" fill="none"
+    <path d="M 112 200 L 128 229 L 144 200" fill="none"
           stroke="token:uniformSecondary" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
-    <path d="M 128 236 L 128 320" fill="none"
-          stroke="token:outline" stroke-width="3.5"/>
-    <path d="M 121 240 L 121 320" fill="none"
-          stroke="token:uniformSecondary" stroke-width="3.5"/>
-    <circle cx="128" cy="256" r="4" fill="token:uniform" stroke="token:outline" stroke-width="2.5"/>
-    <circle cx="128" cy="284" r="4" fill="token:uniform" stroke="token:outline" stroke-width="2.5"/>
-    <circle cx="128" cy="312" r="4" fill="token:uniform" stroke="token:outline" stroke-width="2.5"/>
+    <path d="M 128 238 L 128 320" fill="none" stroke="token:outline" stroke-width="3.5"/>
+    <path d="M 120 242 L 120 320" fill="none" stroke="token:uniformSecondary" stroke-width="3.5"/>
+    <circle cx="128" cy="258" r="4" fill="token:uniform" stroke="token:outline" stroke-width="2.5"/>
+    <circle cx="128" cy="286" r="4" fill="token:uniform" stroke="token:outline" stroke-width="2.5"/>
+    <circle cx="128" cy="314" r="4" fill="token:uniform" stroke="token:outline" stroke-width="2.5"/>
   </g>
 </svg>
