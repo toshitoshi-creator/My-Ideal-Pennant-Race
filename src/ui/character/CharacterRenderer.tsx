@@ -25,7 +25,12 @@ import {
 } from './coordinates';
 import { buildPalette } from './palette';
 import { partAt } from './registry';
-import type { CharacterExpression, CharacterPartCategory, CharacterRenderContext } from './types';
+import type {
+  CharacterExpression,
+  CharacterPart,
+  CharacterPartCategory,
+  CharacterRenderContext,
+} from './types';
 
 /** どの層をどの種類のパーツが埋めるか。ここだけが対応を知っている */
 const LAYER_SOURCE: Record<CharacterLayer, CharacterPartCategory | null> = {
@@ -96,6 +101,13 @@ export interface CharacterRendererProps {
   /** 開発時だけ。基準線を重ねて見せる（§24） */
   debug?: boolean;
   title?: string;
+  /**
+   * 開発時だけ。その種類のパーツを差し替える（PHASE 4.8-B の Workshop 用）。
+   *
+   * 描いたばかりのパーツを、**登録する前に** 実際のキャラクターへ載せて
+   * 確かめるためのものです。ゲーム本体からは渡しません。
+   */
+  overrideParts?: Partial<Record<CharacterPartCategory, CharacterPart>>;
 }
 
 /**
@@ -112,12 +124,13 @@ export const CharacterRenderer = memo(function CharacterRenderer({
   className,
   debug = false,
   title,
+  overrideParts,
 }: CharacterRendererProps) {
   const height = Math.round((width * 320) / 256);
 
   const { layers, context } = useMemo(() => {
     // 1. 頭を先に引く。頭が基準線を動かすので、他より先に決める必要がある
-    const head = partAt('head', profile.head);
+    const head = overrideParts?.head ?? partAt('head', profile.head);
 
     // 2. 基準線を頭に合わせて調整し、アンカーを導く
     const guides = head?.guideAdjustment
@@ -150,7 +163,7 @@ export const CharacterRenderer = memo(function CharacterRenderer({
 
       const key = PROFILE_KEY[category];
       const index = key ? (profile[key] as number) : 0;
-      const part = partAt(category, index);
+      const part = overrideParts?.[category] ?? partAt(category, index);
       if (!part) continue;
 
       const node = part.render(renderContext);
@@ -164,7 +177,7 @@ export const CharacterRenderer = memo(function CharacterRenderer({
     }
 
     return { layers: drawn, context: renderContext };
-  }, [profile, expression, showCap, teamColor]);
+  }, [profile, expression, showCap, teamColor, overrideParts]);
 
   return (
     <svg

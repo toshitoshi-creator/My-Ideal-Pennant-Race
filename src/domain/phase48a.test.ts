@@ -35,7 +35,7 @@ import {
   headCenterY,
   layerOrder,
 } from '../ui/character/coordinates';
-import { CHARACTER_PARTS, partAt, partById, partCount } from '../ui/character/registry';
+import { CHARACTER_PARTS, builtInCount, partAt, partById, partCount } from '../ui/character/registry';
 import { CHARACTER_PART_CATEGORIES } from '../ui/character/types';
 import { buildPalette } from '../ui/character/palette';
 
@@ -534,28 +534,42 @@ describe('PHASE4.8-A K. アンカーの追従', () => {
  * ============================================================== */
 
 describe('PHASE4.8-A L. パーツ表', () => {
-  it('§34 の数がそろっている', () => {
-    expect(partCount('head')).toBe(5);
-    expect(partCount('body')).toBe(5);
-    expect(partCount('hairFront')).toBe(8);
-    expect(partCount('hairBack')).toBe(8);
-    expect(partCount('eye')).toBe(6);
-    expect(partCount('eyebrow')).toBe(5);
-    expect(partCount('nose')).toBe(4);
-    expect(partCount('mouth')).toBe(6);
-    expect(partCount('cap')).toBe(5);
-    expect(partCount('ear')).toBe(1);
+  /*
+   * ここは **はじめから入っているもの** だけを数える（builtInCount）。
+   *
+   * PHASE 4.8-B から、自分で描いたSVGを custom/ に置くと
+   * そのままパーツとして増える。partCount で数えると、
+   * 絵を1枚足しただけで検査が赤くなってしまい、
+   * 「足すと怒られる」という一番やってはいけない体験になる。
+   */
+  it('§34 の数がそろっている（はじめから入っているぶん）', () => {
+    expect(builtInCount('head')).toBe(5);
+    expect(builtInCount('body')).toBe(5);
+    expect(builtInCount('hairFront')).toBe(8);
+    expect(builtInCount('hairBack')).toBe(8);
+    expect(builtInCount('eye')).toBe(6);
+    expect(builtInCount('eyebrow')).toBe(5);
+    expect(builtInCount('nose')).toBe(4);
+    expect(builtInCount('mouth')).toBe(6);
+    expect(builtInCount('cap')).toBe(5);
+    expect(builtInCount('ear')).toBe(1);
   });
 
-  it('設計図の数とパーツの数が一致している', () => {
-    expect(DEFAULT_PART_COUNTS.head).toBe(partCount('head'));
-    expect(DEFAULT_PART_COUNTS.body).toBe(partCount('body'));
-    expect(DEFAULT_PART_COUNTS.hair).toBe(partCount('hairFront'));
-    expect(DEFAULT_PART_COUNTS.eyes).toBe(partCount('eye'));
-    expect(DEFAULT_PART_COUNTS.eyebrow).toBe(partCount('eyebrow'));
-    expect(DEFAULT_PART_COUNTS.nose).toBe(partCount('nose'));
-    expect(DEFAULT_PART_COUNTS.mouth).toBe(partCount('mouth'));
-    expect(DEFAULT_PART_COUNTS.cap).toBe(partCount('cap'));
+  it('設計図の既定値が、はじめから入っているパーツ数と一致している', () => {
+    expect(DEFAULT_PART_COUNTS.head).toBe(builtInCount('head'));
+    expect(DEFAULT_PART_COUNTS.body).toBe(builtInCount('body'));
+    expect(DEFAULT_PART_COUNTS.hair).toBe(builtInCount('hairFront'));
+    expect(DEFAULT_PART_COUNTS.eyes).toBe(builtInCount('eye'));
+    expect(DEFAULT_PART_COUNTS.eyebrow).toBe(builtInCount('eyebrow'));
+    expect(DEFAULT_PART_COUNTS.nose).toBe(builtInCount('nose'));
+    expect(DEFAULT_PART_COUNTS.mouth).toBe(builtInCount('mouth'));
+    expect(DEFAULT_PART_COUNTS.cap).toBe(builtInCount('cap'));
+  });
+
+  it('自作パーツを足してもパーツ数の数え方が壊れない', () => {
+    for (const category of CHARACTER_PART_CATEGORIES) {
+      expect(partCount(category), category).toBeGreaterThanOrEqual(builtInCount(category));
+    }
   });
 
   it('id が全体で重複しない', () => {

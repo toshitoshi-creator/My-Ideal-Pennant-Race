@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  書き方の見本（PHASE 4.8-B）
+
+  **これは絵の見本ではありません。** ファイルの書き方の見本です。
+  中身はわざと「ただの丸」にしてあります。輪郭の描き方は、
+  あなたが決めることなので、こちらからは示しません。
+
+  見てほしいのは次の4点だけです。
+
+    1. viewBox が "0 0 256 320" であること
+    2. <g data-part ...> が1つあり、その中だけが取り込まれること
+    3. 色が token: で書かれていること（直接の色は弾かれます）
+    4. 頭は data-half-width を持つこと（髪・耳・帽子がこれを見ます）
+
+  試しかた:
+    cp character-template/examples/head_99_placeholder.svg src/ui/character/custom/head/
+    npm run character:check
+    npm run character:workshop
+    （確かめたら消してください。ゲームに入ったままになります）
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
+  <g data-part="head_99" data-category="head" data-label="仮の丸"
+     data-half-width="60" data-face-scale-y="1" data-chin-shift="0">
+    <circle cx="128" cy="113" r="60"
+            fill="token:skin" stroke="token:outline" stroke-width="3"/>
+  </g>
+</svg>

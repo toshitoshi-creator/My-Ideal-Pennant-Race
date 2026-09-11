@@ -25,7 +25,22 @@ export type {
   CharacterGuides,
   CharacterLayer,
 } from './coordinates';
-export { CHARACTER_PARTS, partAt, partById, partCount } from './registry';
+export { CHARACTER_PARTS, builtInCount, partAt, partById, partCount } from './registry';
+export { CUSTOM_PARTS, CUSTOM_PART_PROBLEMS, customPartTotal } from './customParts';
+export type { CustomPartProblem } from './customParts';
+export {
+  COLOR_TOKENS,
+  TEMPLATE_ANCHORS,
+  TEMPLATE_GUIDES,
+  TEMPLATE_HALF_WIDTH,
+  isColorToken,
+  parseSvgPart,
+  partTransform,
+  toCharacterPart,
+  unsafeReason,
+  usedTokens,
+} from './svgPart';
+export type { ColorToken, ParsedSvgPart } from './svgPart';
 export { HAIR_COLORS, SKIN_TONES, buildPalette } from './palette';
 export type { CharacterPalette } from './palette';
 export {

@@ -11,6 +11,7 @@ import { EAR_PARTS, EYEBROW_PARTS, EYE_PARTS, MOUTH_PARTS, NOSE_PARTS } from './
 import { HAIR_BACK_PARTS, HAIR_FRONT_PARTS } from './parts/hair';
 import { CAP_PARTS } from './parts/cap';
 import { BODY_PARTS, NECK_PARTS, UNIFORM_PARTS } from './parts/body';
+import { CUSTOM_PARTS } from './customParts';
 
 /**
  * すべてのパーツ。
@@ -19,7 +20,7 @@ import { BODY_PARTS, NECK_PARTS, UNIFORM_PARTS } from './parts/body';
  * ここが空の種類は、まだ作っていないという意味であって、
  * 描画側はその種類を黙って飛ばす。
  */
-export const CHARACTER_PARTS: CharacterPartTable = {
+const BUILT_IN_PARTS: CharacterPartTable = {
   head: HEAD_PARTS,
   body: BODY_PARTS,
   hairBack: HAIR_BACK_PARTS,
@@ -38,9 +39,28 @@ export const CHARACTER_PARTS: CharacterPartTable = {
   accessory: [],
 };
 
-/** その種類のパーツ数 */
+/**
+ * 実際に使うパーツ表。
+ *
+ * **はじめから入っているもの → あなたが描いたもの** の順に並べます。
+ * 順番を固定するのは、同じセーブから必ず同じ顔を出すためです。
+ * 後ろに足す形なので、パーツを追加しても既存の番号はずれません。
+ */
+export const CHARACTER_PARTS: CharacterPartTable = Object.fromEntries(
+  (Object.keys(BUILT_IN_PARTS) as CharacterPartCategory[]).map((category) => [
+    category,
+    [...BUILT_IN_PARTS[category], ...CUSTOM_PARTS[category]],
+  ]),
+) as CharacterPartTable;
+
+/** その種類のパーツ数（あなたが描いたものを含む） */
 export function partCount(category: CharacterPartCategory): number {
   return CHARACTER_PARTS[category].length;
+}
+
+/** はじめから入っているパーツだけの数（検査で使う） */
+export function builtInCount(category: CharacterPartCategory): number {
+  return BUILT_IN_PARTS[category].length;
 }
 
 /**
