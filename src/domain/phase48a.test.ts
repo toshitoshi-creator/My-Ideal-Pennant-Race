@@ -518,14 +518,33 @@ describe('PHASE4.8-A K. アンカーの追従', () => {
     }
   });
 
-  it('頭ごとに輪郭の幅が違う（ただの拡大縮小ではない）', () => {
-    const widths = CHARACTER_PARTS.head.map((head) => {
-      const g = head.guideAdjustment
-        ? adjustGuides(CHARACTER_GUIDES, head.guideAdjustment)
-        : CHARACTER_GUIDES;
-      return head.anchorsFor!(g).rightTemple!.x - g.centerX;
-    });
+  const halfWidthOf = (head: (typeof CHARACTER_PARTS.head)[number]): number => {
+    const g = head.guideAdjustment
+      ? adjustGuides(CHARACTER_GUIDES, head.guideAdjustment)
+      : CHARACTER_GUIDES;
+    return head.anchorsFor!(g).rightTemple!.x - g.centerX;
+  };
+
+  it('はじめから入っている頭は、幅がそれぞれ違う（ただの拡大縮小ではない）', () => {
+    /*
+     * §12 の「単なる拡大縮小は禁止」を、こちらで作った5つについて確かめる。
+     *
+     * **自作の頭までは含めない。**
+     * 幅が同じでも輪郭が違えば別の頭として成立するので、
+     * ここに含めると「幅がぶつかったから描き直す」ことになってしまう。
+     * それは絵を検査の都合に合わせることで、順序が逆。
+     */
+    const builtIn = CHARACTER_PARTS.head.slice(0, builtInCount('head'));
+    const widths = builtIn.map(halfWidthOf);
     expect(new Set(widths).size).toBe(widths.length);
+  });
+
+  it('自作の頭も含めて、幅が常識の範囲に収まっている', () => {
+    for (const head of CHARACTER_PARTS.head) {
+      const half = halfWidthOf(head);
+      expect(half, head.id).toBeGreaterThanOrEqual(30);
+      expect(half, head.id).toBeLessThanOrEqual(90);
+    }
   });
 });
 
