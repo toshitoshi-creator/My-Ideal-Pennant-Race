@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g data-part="ear_02" data-category="ear" data-label="1号">
-    <path d="M 73 103 C 54 102, 45 118, 52 131 C 58 141, 68 142, 74 138 Z"
+    <path d="M 82 96 C 58 95, 50 116, 58 133 C 64 145, 76 146, 84 140 Z"
           fill="token:skin" stroke="token:outline" stroke-width="3.5" stroke-linejoin="round"/>
-    <path d="M 183 103 C 202 102, 211 118, 204 131 C 198 141, 188 142, 182 138 Z"
+    <path d="M 174 96 C 198 95, 206 116, 198 133 C 192 145, 180 146, 172 140 Z"
           fill="token:skin" stroke="token:outline" stroke-width="3.5" stroke-linejoin="round"/>
   </g>
 </svg>

@@ -1,16 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g data-part="body_06" data-category="body" data-label="1号">
-    <path d="M 128 194
-             C 106 195, 88 203, 78 219
-             C 68 236, 62 272, 60 320
-             L 196 320
-             C 194 272, 188 236, 178 219
-             C 168 203, 150 195, 128 194 Z"
+    <path d="M 128 212
+             C 100 213, 78 224, 64 244
+             C 50 266, 42 292, 38 320
+             L 218 320
+             C 214 292, 206 266, 192 244
+             C 178 224, 156 213, 128 212 Z"
           fill="token:uniform" stroke="token:outline" stroke-width="4" stroke-linejoin="round"/>
-    <path d="M 80 222 C 73 248, 69 286, 68 320" fill="none"
-          stroke="token:outline" stroke-width="3.5" stroke-linecap="round"/>
-    <path d="M 176 222 C 183 248, 187 286, 188 320" fill="none"
-          stroke="token:outline" stroke-width="3.5" stroke-linecap="round"/>
   </g>
 </svg>

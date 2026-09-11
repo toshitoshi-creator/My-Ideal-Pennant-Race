@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g data-part="neck_02" data-category="neck" data-label="1号">
-    <path d="M 110 165 C 109 177, 107 188, 102 198 L 154 198 C 149 188, 147 177, 146 165 Z"
+    <path d="M 110 168 C 109 184, 107 200, 102 216 L 154 216 C 149 200, 147 184, 146 168 Z"
           fill="token:skin" stroke="token:outline" stroke-width="3.5" stroke-linejoin="round"/>
   </g>
 </svg>
