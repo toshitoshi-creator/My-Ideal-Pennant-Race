@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
+  <g data-part="body_06" data-category="body" data-label="1号">
+    <path d="M 128 194
+             C 104 195, 84 204, 73 221
+             C 63 238, 57 272, 55 320
+             L 201 320
+             C 199 272, 193 238, 183 221
+             C 172 204, 152 195, 128 194 Z"
+          fill="token:uniform" stroke="token:outline" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M 73 221 C 66 246, 62 284, 61 320" fill="none"
+          stroke="token:outline" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M 183 221 C 190 246, 194 284, 195 320" fill="none"
+          stroke="token:outline" stroke-width="3.5" stroke-linecap="round"/>
+  </g>
+</svg>

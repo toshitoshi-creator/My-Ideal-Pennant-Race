@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
+  <g data-part="hairBack_09" data-category="hairBack" data-label="1号">
+    <path d="M 94 64
+             L 70 80 L 84 87 L 57 103 L 74 110 L 49 127 L 68 134 L 47 151 L 69 153 L 59 170
+             L 86 152 L 94 118 L 98 80 Z"
+          fill="token:hairShadow" stroke="token:outline" stroke-width="3.5" stroke-linejoin="round"/>
+    <path d="M 162 64
+             L 186 80 L 172 87 L 199 103 L 182 110 L 207 127 L 188 134 L 209 151 L 187 153 L 197 170
+             L 170 152 L 162 118 L 158 80 Z"
+          fill="token:hairShadow" stroke="token:outline" stroke-width="3.5" stroke-linejoin="round"/>
+  </g>
+</svg>

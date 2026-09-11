@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
+  <g data-part="hairFront_09" data-category="hairFront" data-label="1号">
+    <path d="M 63 99
+             C 63 58, 92 41, 128 41
+             C 164 41, 193 58, 193 99
+             L 185 81 L 177 96 L 169 80 L 161 95 L 153 79 L 145 95
+             L 137 78 L 128 94 L 119 78 L 111 95 L 103 79 L 95 95
+             L 87 80 L 79 96 L 71 81 Z"
+          fill="token:hair" stroke="token:outline" stroke-width="3.5" stroke-linejoin="round"/>
+  </g>
+</svg>

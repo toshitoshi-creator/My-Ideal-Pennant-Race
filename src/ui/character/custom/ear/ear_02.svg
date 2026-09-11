@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
+  <g data-part="ear_02" data-category="ear" data-label="1号">
+    <path d="M 70 105 C 55 105, 48 118, 53 128 C 58 137, 65 139, 70 136 Z"
+          fill="token:skin" stroke="token:outline" stroke-width="3.5" stroke-linejoin="round"/>
+    <path d="M 186 105 C 201 105, 208 118, 203 128 C 198 137, 191 139, 186 136 Z"
+          fill="token:skin" stroke="token:outline" stroke-width="3.5" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
+  <g data-part="mouth_07" data-category="mouth" data-label="1号">
+    <path d="M 106 157 Q 126 168 152 151" fill="none" stroke="token:mouth"
+          stroke-width="3.5" stroke-linecap="round"/>
+  </g>
+</svg>
