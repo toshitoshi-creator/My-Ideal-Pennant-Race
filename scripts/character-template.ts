@@ -1,247 +1,103 @@
 /**
- * PHASE 4.8-B 下書きテンプレートを書き出す（§2・§3・§4）。
+ * CHARACTER CREATION TEMPLATE を書き出す（§8・§20）。
  *
- *   npm run character:template
+ *   npm run character:template            まだ無いものだけ作る
+ *   npm run character:template -- --force 空のものを作り直す
  *
- * `character-template/templates/` に、種類ごとの 256x320 のSVGが出ます。
- * Illustrator / Inkscape / Figma で開いて、**枠の中に描いてください**。
+ * 作るのは **空の枠と目印だけ** です。絵は入っていません（§1・§23）。
+ * 中身はあなたが描きます。
  *
- * テンプレートは手で書きません。**コードから作ります。**
- * 基準線を手で書き写すと、コードを直したときに必ずずれるためです。
- * 基準線を1本動かしたら、このコマンドをもう一度動かせば全部揃います。
+ * すでに描かれているファイルは **絶対に上書きしません**。
+ * --force を付けても、中身があるものはそのまま残します。
+ * 作った絵が消えるのがいちばん困るので、そこは機械的に止めています。
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import {
-  CHARACTER_GUIDES,
-  CHARACTER_HEIGHT,
-  CHARACTER_VIEW_BOX,
-  CHARACTER_WIDTH,
-  anchorsFrom,
-  headCenterY,
-} from '../src/ui/character/coordinates';
-import type { CharacterAnchor } from '../src/ui/character/coordinates';
-import type { CharacterPartCategory } from '../src/ui/character/types';
-import { TEMPLATE_HALF_WIDTH } from '../src/ui/character/svgPart';
+  CENTER_X,
+  GUIDES,
+  HEIGHT,
+  LAYERS,
+  VIEW_BOX,
+  WIDTH,
+  fileNameOf,
+  groupIdOf,
+  type LayerSpec,
+} from './character/templateSpec';
 
-const OUT = fileURLToPath(new URL('../character-template/templates', import.meta.url));
-const G = CHARACTER_GUIDES;
-const A = anchorsFrom(G);
-
-/** 種類ごとに「どの線と点を濃く見せるか」。描くときに迷わないように */
-interface TemplateSpec {
-  category: CharacterPartCategory;
-  label: string;
-  /** 濃く見せる基準線 */
-  lines: Array<keyof typeof G>;
-  /** 濃く見せる基準点 */
-  points: Array<keyof typeof A>;
-  /** 描くときの注意（テンプレートの中に文字で入れる） */
-  note: string;
-  /** 頭の枠を出すか（髪・帽子・耳は頭に沿わせるため必要） */
-  showHeadFrame: boolean;
-  /** 追加で書いておく属性 */
-  extraAttrs?: string;
-}
-
-const SPECS: TemplateSpec[] = [
-  {
-    category: 'head',
-    label: '頭',
-    lines: ['headTop', 'eyebrowLine', 'eyeLine', 'noseLine', 'mouthLine', 'chinLine'],
-    points: ['headTop', 'headCenter', 'headBottom', 'leftTemple', 'rightTemple'],
-    note: '輪郭だけを描く。髪・耳・首・顔の造作は描かない',
-    showHeadFrame: true,
-    extraAttrs: ' data-half-width="62" data-face-scale-y="1" data-chin-shift="0"',
-  },
-  {
-    category: 'hairFront',
-    label: '前髪',
-    lines: ['headTop', 'eyebrowLine'],
-    points: ['hairTop', 'leftTemple', 'rightTemple', 'capBase'],
-    note: '頭の枠の外を通す。帽子の下から見える分も考えて描く',
-    showHeadFrame: true,
-  },
-  {
-    category: 'hairBack',
-    label: '後ろ髪',
-    lines: ['headTop', 'chinLine', 'shoulderLine'],
-    points: ['hairBack', 'leftTemple', 'rightTemple'],
-    note: '頭より下の層。毛先は肩の線の手前で止める',
-    showHeadFrame: true,
-  },
-  {
-    category: 'cap',
-    label: '帽子',
-    lines: ['headTop', 'eyebrowLine', 'eyeLine'],
-    points: ['headTop', 'capCenter', 'capBase', 'brim', 'leftTemple', 'rightTemple'],
-    note: 'つばは目の線より上で止める。頭の枠より少しだけ外',
-    showHeadFrame: true,
-  },
-  {
-    category: 'ear',
-    label: '耳',
-    lines: ['eyeLine', 'noseLine'],
-    points: ['leftEar', 'rightEar', 'leftTemple', 'rightTemple'],
-    note: '頭より下の層。枠の内側に描くと消えるので、外へふくらませる',
-    showHeadFrame: true,
-  },
-  {
-    category: 'eye',
-    label: '目',
-    lines: ['eyeLine'],
-    points: ['leftEye', 'rightEye'],
-    note: '左右そろえる。点を中心にすると左右がずれない',
-    showHeadFrame: true,
-  },
-  {
-    category: 'eyebrow',
-    label: '眉',
-    lines: ['eyebrowLine'],
-    points: ['leftEyebrow', 'rightEyebrow'],
-    note: '左右そろえる',
-    showHeadFrame: true,
-  },
-  {
-    category: 'nose',
-    label: '鼻',
-    lines: ['noseLine'],
-    points: ['nose'],
-    note: '写実にしない。点・短い線・小さな影で足りる',
-    showHeadFrame: true,
-  },
-  {
-    category: 'mouth',
-    label: '口',
-    lines: ['mouthLine'],
-    points: ['mouth'],
-    note: '閉じた口を描く。表情での開き方は描画側が変える',
-    showHeadFrame: true,
-  },
-  {
-    category: 'beard',
-    label: 'ひげ',
-    lines: ['noseLine', 'mouthLine', 'chinLine'],
-    points: ['mouth', 'headBottom'],
-    note: '頭より後、目より前の層',
-    showHeadFrame: true,
-  },
-  {
-    category: 'body',
-    label: '体',
-    lines: ['neckTop', 'shoulderLine', 'bodyBottom'],
-    points: ['shoulder', 'torso', 'handLeft', 'handRight'],
-    note: '肩から下だけ。首と頭は描かない',
-    showHeadFrame: false,
-  },
-  {
-    category: 'neck',
-    label: '首',
-    lines: ['chinLine', 'neckTop', 'shoulderLine'],
-    points: ['headBottom', 'neck', 'shoulder'],
-    note: 'あごから肩まで。頭より必ず細く',
-    showHeadFrame: false,
-  },
-  {
-    category: 'uniform',
-    label: 'ユニフォームの飾り',
-    lines: ['shoulderLine', 'bodyBottom'],
-    points: ['torso'],
-    note: '前立て・ベルトなど。体とは別の層',
-    showHeadFrame: false,
-  },
-  {
-    category: 'accessory',
-    label: '小物',
-    lines: ['eyeLine', 'chinLine'],
-    points: ['headCenter', 'leftEar', 'rightEar'],
-    note: 'めがねなど。いちばん上の層',
-    showHeadFrame: true,
-  },
-];
+const ROOT = fileURLToPath(new URL('../character-template', import.meta.url));
+const FORCE = process.argv.includes('--force');
 
 const GUIDE_COLOR = '#e0245e';
-const POINT_COLOR = '#1d9bf0';
-const FAINT = '#c9c6c0';
+const CENTER_COLOR = '#1d9bf0';
+const FAINT = '#b9b5ae';
 
-function guideLines(spec: TemplateSpec): string {
-  const rows: string[] = [];
-  for (const [name, y] of Object.entries(G)) {
-    if (name === 'centerX' || name === 'bodyBottom') continue;
-    const strong = (spec.lines as string[]).includes(name);
-    rows.push(
-      `    <line x1="0" y1="${y}" x2="${CHARACTER_WIDTH}" y2="${y}" ` +
-        `stroke="${strong ? GUIDE_COLOR : FAINT}" stroke-width="${strong ? 0.8 : 0.5}" ` +
-        `${strong ? '' : 'stroke-dasharray="3 3" '}opacity="${strong ? 0.9 : 0.55}"/>`,
-      `    <text x="2" y="${y - 2}" fill="${strong ? GUIDE_COLOR : FAINT}" font-size="6" ` +
-        `font-family="sans-serif">${name} ${y}</text>`,
-    );
-  }
-  rows.push(
-    `    <line x1="${G.centerX}" y1="0" x2="${G.centerX}" y2="${CHARACTER_HEIGHT}" ` +
-      `stroke="${POINT_COLOR}" stroke-width="0.6" opacity="0.6"/>`,
-  );
-  return rows.join('\n');
-}
+/* ================================================================
+ * GUIDE.svg（§8）
+ * ============================================================== */
 
-function guidePoints(spec: TemplateSpec): string {
-  const rows: string[] = [];
-  for (const name of spec.points) {
-    const point = A[name] as CharacterAnchor;
-    rows.push(
-      `    <circle cx="${point.x}" cy="${point.y}" r="2" fill="${POINT_COLOR}"/>`,
-      `    <text x="${point.x + 4}" y="${point.y + 2}" fill="${POINT_COLOR}" font-size="6" ` +
-        `font-family="sans-serif">${name}</text>`,
-    );
-  }
-  return rows.join('\n');
-}
+function guideSvg(): string {
+  const lines = (Object.entries(GUIDES) as Array<[string, number]>)
+    .map(
+      ([name, y]) =>
+        `    <line x1="0" y1="${y}" x2="${WIDTH}" y2="${y}" stroke="${GUIDE_COLOR}" stroke-width="0.8" opacity="0.85"/>\n` +
+        `    <text x="3" y="${y - 3}" fill="${GUIDE_COLOR}" font-size="7" font-family="sans-serif">${name} ${y}</text>`,
+    )
+    .join('\n');
 
-/** 頭の枠。**輪郭の見本ではありません。** 位置合わせ用の楕円です */
-function headFrame(): string {
-  const cy = headCenterY(G);
-  const ry = (G.headBottom - G.headTop) / 2;
-  return (
-    `    <ellipse cx="${G.centerX}" cy="${cy}" rx="${TEMPLATE_HALF_WIDTH}" ry="${ry}" ` +
-    `fill="none" stroke="${FAINT}" stroke-width="1" stroke-dasharray="4 4" opacity="0.8"/>`
-  );
-}
-
-function template(spec: TemplateSpec): string {
-  const idHint = `${spec.category}_01`;
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  PHASE 4.8-B 下書きテンプレート : ${spec.label}（${spec.category}）
+  GUIDE（制作用の目印）
 
-  ${spec.note}
+  **ゲーム本体では使いません**（§8）。
+  12枚を描くときに位置を合わせるためだけのものです。
 
-  描きかた
-    1. 下の <g data-part="..."> の **中** に描く
-    2. 色は書かない。fill="token:skin" のように名前で書く
-       （使える名前は character-template/NAMING.md）
-    3. data-part を正しい名前に直す（例 ${spec.category}_06）
-    4. guides のグループは消してよい（消さなくても取り込まれない）
-    5. src/ui/character/custom/${spec.category}/ に置く
-    6. npm run character:check で確かめる
-
-  やってはいけないこと
-    ・viewBox を変える
-    ・座標を別の位置にずらす（基準線の上に描けば位置は自動で合う）
-    ・画像を貼る / script を入れる / 外部URLを参照する
+  CENTER_X = ${CENTER_X}
+${(Object.entries(GUIDES) as Array<[string, number]>).map(([n, v]) => `  ${n} = ${v}`).join('\n')}
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="${CHARACTER_VIEW_BOX}" width="${CHARACTER_WIDTH}" height="${CHARACTER_HEIGHT}">
-
-  <!-- ここから下は目印です。取り込むときは読みません -->
-  <g id="guides" data-guides="true">
-    <rect x="0" y="0" width="${CHARACTER_WIDTH}" height="${CHARACTER_HEIGHT}" fill="#ffffff"/>
-${spec.showHeadFrame ? headFrame() : ''}
-${guideLines(spec)}
-${guidePoints(spec)}
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VIEW_BOX}" width="${WIDTH}" height="${HEIGHT}">
+  <g id="guide" data-guide="true">
+    <rect x="0.5" y="0.5" width="${WIDTH - 1}" height="${HEIGHT - 1}" fill="none" stroke="${FAINT}" stroke-width="1"/>
+${lines}
+    <line x1="${CENTER_X}" y1="0" x2="${CENTER_X}" y2="${HEIGHT}" stroke="${CENTER_COLOR}" stroke-width="0.8" opacity="0.85"/>
+    <text x="${CENTER_X + 3}" y="10" fill="${CENTER_COLOR}" font-size="7" font-family="sans-serif">CENTER_X ${CENTER_X}</text>
   </g>
+</svg>
+`;
+}
 
-  <!-- ここから下があなたの絵です。この中だけが取り込まれます -->
-  <g data-part="${idHint}" data-category="${spec.category}" data-label="なまえ"${spec.extraAttrs ?? ''}>
+/* ================================================================
+ * 12枚の空テンプレート（§5・§6・§7）
+ * ============================================================== */
+
+function layerSvg(layer: LayerSpec): string {
+  const guideList =
+    layer.guides.length > 0
+      ? layer.guides.map((g) => `${g} = ${GUIDES[g]}`).join(' / ')
+      : '（特に無し）';
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ${String(layer.order).padStart(2, '0')} ${layer.label}
+
+  描くもの      ${layer.draws.join(' / ')}
+  描かないもの  ${layer.never.join(' / ')}
+${layer.note ? `  memo          ${layer.note}\n` : ''}
+  目安の範囲    x ${layer.area.x[0]}〜${layer.area.x[1]} / y ${layer.area.y[0]}〜${layer.area.y[1]}
+  見る基準線    ${guideList}
+  中心          CENTER_X = ${CENTER_X}
+
+  決まりごと
+    ・viewBox は "${VIEW_BOX}" のまま変えない
+    ・背景を描かない（透明のまま）
+    ・下の <g> の **中** に描く
+    ・位置は自分で合わせる。あとから自動で寄せたり縮めたりはしません（§13）
+
+  このファイルには絵が入っていません。中身はあなたが描きます。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VIEW_BOX}" width="${WIDTH}" height="${HEIGHT}">
+  <g id="${groupIdOf(layer)}" data-layer="${String(layer.order).padStart(2, '0')}_${layer.slug}">
 
     <!-- ここに描く -->
 
@@ -250,17 +106,69 @@ ${guidePoints(spec)}
 `;
 }
 
-mkdirSync(OUT, { recursive: true });
-const written: string[] = [];
-for (const spec of SPECS) {
-  const file = join(OUT, `${spec.category}.svg`);
-  writeFileSync(file, template(spec), 'utf8');
-  written.push(`${spec.category}.svg`);
+/** その g の中に絵があるか（コメントだけなら空とみなす） */
+function hasDrawing(source: string): boolean {
+  const body = source.replace(/<!--[\s\S]*?-->/g, '');
+  const group = /<g\b[^>]*>([\s\S]*)<\/g>/.exec(body);
+  if (!group) return false;
+  return group[1].trim().length > 0;
 }
 
-console.log('\n=== 下書きテンプレート（PHASE 4.8-B）===\n');
-console.log(`  ${written.length}種類を書き出しました`);
-console.log(`  場所: character-template/templates/`);
-for (const name of written) console.log(`    ${name}`);
+/* ================================================================
+ * 実行
+ * ============================================================== */
+
+mkdirSync(ROOT, { recursive: true });
+mkdirSync(join(ROOT, 'preview'), { recursive: true });
+
+interface Result {
+  file: string;
+  action: 'created' | 'kept-drawn' | 'rewritten' | 'kept';
+}
+
+const results: Result[] = [];
+
+function put(file: string, content: string): void {
+  const path = join(ROOT, file);
+  if (!existsSync(path)) {
+    writeFileSync(path, content, 'utf8');
+    results.push({ file, action: 'created' });
+    return;
+  }
+  const current = readFileSync(path, 'utf8');
+  if (hasDrawing(current)) {
+    // 描かれているものは何があっても残す
+    results.push({ file, action: 'kept-drawn' });
+    return;
+  }
+  if (FORCE || current !== content) {
+    writeFileSync(path, content, 'utf8');
+    results.push({ file, action: 'rewritten' });
+    return;
+  }
+  results.push({ file, action: 'kept' });
+}
+
+put('GUIDE.svg', guideSvg());
+for (const layer of LAYERS) put(fileNameOf(layer), layerSvg(layer));
+
+const LABEL: Record<Result['action'], string> = {
+  created: '新規作成',
+  rewritten: '作り直し',
+  kept: 'そのまま',
+  'kept-drawn': '描いてあるので触っていません',
+};
+
+console.log('\n=== CHARACTER CREATION TEMPLATE ===\n');
+console.log(`  キャンバス  ${WIDTH} x ${HEIGHT} / viewBox "${VIEW_BOX}"`);
+console.log(`  中心        CENTER_X = ${CENTER_X}`);
+console.log('  基準線      ' + (Object.entries(GUIDES) as Array<[string, number]>).map(([n, v]) => `${n}=${v}`).join(' '));
+console.log('');
+for (const r of results) {
+  console.log(`  ${r.file.padEnd(20)} ${LABEL[r.action]}`);
+}
+const drawn = results.filter((r) => r.action === 'kept-drawn').length;
+console.log(`\n  ${results.length}枚 / うち描きかけ・描き終わり ${drawn}枚`);
 console.log('\n  絵は入っていません。枠と目印だけです。');
-console.log('  この中に、あなたが描いてください。\n');
+console.log('  中身はあなたが描いてください。');
+console.log('\n  次: npm run character:preview  で重ねて確認できます\n');

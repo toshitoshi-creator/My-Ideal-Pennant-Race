@@ -210,7 +210,7 @@ function emptyGuide(): string {
   <p>この道具は、<strong>あなたが描いたパーツ</strong>を実際のキャラクターに載せて見るためのものです。</p>
   <ol>
     <li><code>npm run character:template</code> … 下書きを作る</li>
-    <li><code>character-template/templates/</code> から1枚開いて、枠の中に描く</li>
+    <li><code>character-template/</code> の 01〜12 のSVGを開いて、枠の中に描く</li>
     <li><code>src/ui/character/custom/&lt;種類&gt;/</code> に置く</li>
     <li><code>npm run character:check</code> … 壊れていないか見る</li>
     <li><code>npm run character:workshop</code> … ここへ戻る</li>

@@ -44,7 +44,9 @@
     "character:gallery": "npx tsx scripts/character-gallery.tsx",
     "character:template": "npx tsx scripts/character-template.ts",
     "character:check": "npx tsx scripts/character-check.ts",
-    "character:workshop": "npx tsx scripts/character-workshop.tsx"
+    "character:workshop": "npx tsx scripts/character-workshop.tsx",
+    "character:preview": "npx tsx scripts/character-preview.ts",
+    "character:template:check": "npx tsx scripts/character-template-check.ts"
   },
   "dependencies": {
     "react": "^18.3.1",

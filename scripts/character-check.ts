@@ -213,7 +213,7 @@ if (rows.length === 0) {
   console.log('  src/ui/character/custom/ に SVG がまだありません。\n');
   console.log('  はじめかた:');
   console.log('    1. npm run character:template   下書きを作る');
-  console.log('    2. character-template/templates/ の中から1枚開いて描く');
+  console.log('    2. character-template/ の 01〜12 のSVGを開いて描く');
   console.log('    3. src/ui/character/custom/<種類>/ に置く');
   console.log('    4. npm run character:check      もう一度ここへ戻る\n');
   console.log(`  はじめから入っているパーツ: 頭${builtInCount('head')} / 体${builtInCount('body')} / ` +

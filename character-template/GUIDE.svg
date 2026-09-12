@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  GUIDE（制作用の目印）
+
+  **ゲーム本体では使いません**（§8）。
+  12枚を描くときに位置を合わせるためだけのものです。
+
+  CENTER_X = 128
+  HEAD_TOP = 44
+  BROW_LINE = 110
+  EYE_LINE = 125
+  NOSE_LINE = 152
+  MOUTH_LINE = 177
+  CHIN_LINE = 207
+  NECK_LINE = 227
+  SHOULDER_LINE = 262
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
+  <g id="guide" data-guide="true">
+    <rect x="0.5" y="0.5" width="255" height="319" fill="none" stroke="#b9b5ae" stroke-width="1"/>
+    <line x1="0" y1="44" x2="256" y2="44" stroke="#e0245e" stroke-width="0.8" opacity="0.85"/>
+    <text x="3" y="41" fill="#e0245e" font-size="7" font-family="sans-serif">HEAD_TOP 44</text>
+    <line x1="0" y1="110" x2="256" y2="110" stroke="#e0245e" stroke-width="0.8" opacity="0.85"/>
+    <text x="3" y="107" fill="#e0245e" font-size="7" font-family="sans-serif">BROW_LINE 110</text>
+    <line x1="0" y1="125" x2="256" y2="125" stroke="#e0245e" stroke-width="0.8" opacity="0.85"/>
+    <text x="3" y="122" fill="#e0245e" font-size="7" font-family="sans-serif">EYE_LINE 125</text>
+    <line x1="0" y1="152" x2="256" y2="152" stroke="#e0245e" stroke-width="0.8" opacity="0.85"/>
+    <text x="3" y="149" fill="#e0245e" font-size="7" font-family="sans-serif">NOSE_LINE 152</text>
+    <line x1="0" y1="177" x2="256" y2="177" stroke="#e0245e" stroke-width="0.8" opacity="0.85"/>
+    <text x="3" y="174" fill="#e0245e" font-size="7" font-family="sans-serif">MOUTH_LINE 177</text>
+    <line x1="0" y1="207" x2="256" y2="207" stroke="#e0245e" stroke-width="0.8" opacity="0.85"/>
+    <text x="3" y="204" fill="#e0245e" font-size="7" font-family="sans-serif">CHIN_LINE 207</text>
+    <line x1="0" y1="227" x2="256" y2="227" stroke="#e0245e" stroke-width="0.8" opacity="0.85"/>
+    <text x="3" y="224" fill="#e0245e" font-size="7" font-family="sans-serif">NECK_LINE 227</text>
+    <line x1="0" y1="262" x2="256" y2="262" stroke="#e0245e" stroke-width="0.8" opacity="0.85"/>
+    <text x="3" y="259" fill="#e0245e" font-size="7" font-family="sans-serif">SHOULDER_LINE 262</text>
+    <line x1="128" y1="0" x2="128" y2="320" stroke="#1d9bf0" stroke-width="0.8" opacity="0.85"/>
+    <text x="131" y="10" fill="#1d9bf0" font-size="7" font-family="sans-serif">CENTER_X 128</text>
+  </g>
+</svg>
