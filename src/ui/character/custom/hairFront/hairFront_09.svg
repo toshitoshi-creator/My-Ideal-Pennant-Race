@@ -1,18 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g data-part="hairFront_09" data-category="hairFront" data-label="1号">
-    <path d="M 74 104 C 74 60, 98 42, 128 42 C 158 42, 182 60, 182 104
-             L 172 90 C 160 82, 148 90, 138 84
-             C 128 90, 118 84, 108 90
-             C 98 82, 86 90, 82 90 Z"
-          fill="token:hair" stroke="token:outline" stroke-width="3.5" stroke-linejoin="round"/>
-    <path d="M 88 86 C 76 94, 68 106, 66 118 L 78 114
-             C 74 126, 70 140, 68 152 L 84 132
-             C 88 120, 90 102, 90 90 Z"
-          fill="token:hair" stroke="token:outline" stroke-width="3.5" stroke-linejoin="round"/>
-    <path d="M 168 86 C 180 94, 188 106, 190 118 L 178 114
-             C 182 126, 186 140, 188 152 L 172 132
-             C 168 120, 166 102, 166 90 Z"
+    <path d="M 66 152
+             C 62 130, 64 110, 69 94
+             C 74 60, 99 42, 128 42
+             C 157 42, 182 60, 187 94
+             C 192 110, 194 130, 190 152
+             L 187 138 L 183 156 L 180 140 L 178 136
+             C 174 120, 171 104, 170 92
+             L 160 84 L 150 92 L 140 83 L 128 91 L 116 83 L 106 92 L 96 84 L 86 92
+             C 85 104, 82 120, 78 136
+             L 76 140 L 73 156 L 69 138 Z"
           fill="token:hair" stroke="token:outline" stroke-width="3.5" stroke-linejoin="round"/>
   </g>
 </svg>
