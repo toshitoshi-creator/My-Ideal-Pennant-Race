@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g data-part="uniform_02" data-category="uniform" data-label="1号">
-    <path d="M 100 216 L 128 254 L 156 216" fill="none"
+    <path d="M 102 210 L 128 252 L 154 210" fill="none"
           stroke="token:outline" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
-    <path d="M 110 219 L 128 244 L 146 219" fill="none"
+    <path d="M 111 213 L 128 243 L 145 213" fill="none"
           stroke="token:uniformSecondary" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
-    <path d="M 128 254 L 128 320" fill="none" stroke="token:outline" stroke-width="3.5"/>
-    <path d="M 119 258 L 119 320" fill="none" stroke="token:uniformSecondary" stroke-width="3.5"/>
-    <circle cx="123" cy="272" r="3.5" fill="token:uniformSecondary"/>
+    <path d="M 128 252 L 128 320" fill="none" stroke="token:outline" stroke-width="3.5"/>
+    <path d="M 120 256 L 120 320" fill="none" stroke="token:uniformSecondary" stroke-width="3.5"/>
+    <circle cx="128" cy="268" r="3.5" fill="token:uniform" stroke="token:outline" stroke-width="2.5"/>
+    <circle cx="128" cy="294" r="3.5" fill="token:uniform" stroke="token:outline" stroke-width="2.5"/>
   </g>
 </svg>

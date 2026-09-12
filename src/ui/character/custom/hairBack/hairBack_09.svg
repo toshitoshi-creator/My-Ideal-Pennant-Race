@@ -1,16 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g data-part="hairBack_09" data-category="hairBack" data-label="1号">
-    <path d="M 62 152
-             C 58 128, 60 108, 65 92
-             C 70 56, 97 38, 128 38
-             C 159 38, 186 56, 191 92
-             C 196 108, 198 128, 194 152
-             L 184 140
-             C 188 120, 186 100, 182 88
-             C 178 62, 158 48, 128 48
-             C 98 48, 78 62, 74 88
-             C 70 100, 68 120, 72 140 Z"
+    <path d="M 66 108 C 66 56, 94 42, 128 42 C 162 42, 190 56, 190 108
+             C 190 116, 189 122, 187 128 L 181 104
+             C 181 64, 158 52, 128 52 C 98 52, 75 64, 75 104 L 69 128
+             C 67 122, 66 116, 66 108 Z"
           fill="token:hairShadow" stroke="token:outline" stroke-width="3" stroke-linejoin="round"/>
   </g>
 </svg>

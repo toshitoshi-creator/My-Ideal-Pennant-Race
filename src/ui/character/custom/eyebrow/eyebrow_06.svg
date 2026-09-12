@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g data-part="eyebrow_06" data-category="eyebrow" data-label="1号">
-    <path d="M 99 97 Q 110 98 121 103" fill="none" stroke="token:brow"
+    <path d="M 94 96 Q 106 98 118 103" fill="none" stroke="token:brow"
           stroke-width="4" stroke-linecap="round"/>
-    <path d="M 157 97 Q 146 98 135 103" fill="none" stroke="token:brow"
+    <path d="M 162 96 Q 150 98 138 103" fill="none" stroke="token:brow"
           stroke-width="4" stroke-linecap="round"/>
   </g>
 </svg>

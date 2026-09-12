@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g data-part="eye_07" data-category="eye" data-label="1号">
-    <ellipse cx="106" cy="116" rx="5" ry="9.5" fill="token:eye"/>
-    <ellipse cx="150" cy="116" rx="5" ry="9.5" fill="token:eye"/>
+    <ellipse cx="105" cy="113" rx="6" ry="10" fill="token:eye"/>
+    <ellipse cx="151" cy="113" rx="6" ry="10" fill="token:eye"/>
   </g>
 </svg>

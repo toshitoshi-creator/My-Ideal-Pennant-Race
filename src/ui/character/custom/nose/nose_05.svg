@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g data-part="nose_05" data-category="nose" data-label="1号">
-    <path d="M 133 130 L 123 143 L 132 148" fill="none" stroke="token:outline"
-          stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 136 130 L 122 143 L 133 149" fill="none" stroke="token:outline"
+          stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 </svg>

@@ -1,15 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g data-part="cap_06" data-category="cap" data-label="1号">
-    <!-- つばを先に描く。クラウンの後ろに隠れ、下に出る弧だけが見える -->
-    <path d="M 62 66 Q 128 118 194 66 Q 128 84 62 66 Z"
-          fill="token:capShadow" stroke="token:outline" stroke-width="4" stroke-linejoin="round"/>
-    <!-- クラウン。頭より広く、浅めのドーム -->
-    <path d="M 56 78 C 56 40, 90 28, 128 28 C 166 28, 200 40, 200 78 Z"
+    <!-- つばを先に。先端はクラウンの後ろに隠れ、下へ張り出す弧だけが見える -->
+    <path d="M 64 52 Q 128 104 192 52 Q 128 70 64 52 Z"
           fill="token:cap" stroke="token:outline" stroke-width="4" stroke-linejoin="round"/>
-    <rect x="123" y="38" width="10" height="28" rx="4" fill="token:uniform"/>
-    <!-- 縁。クラウンの裾を覆う差し色 -->
-    <path d="M 55 70 L 201 70 L 201 79 Q 128 88 55 79 Z"
+    <path d="M 58 58 C 58 24, 92 14, 128 14 C 164 14, 198 24, 198 58 Z"
+          fill="token:cap" stroke="token:outline" stroke-width="4" stroke-linejoin="round"/>
+    <rect x="123" y="26" width="10" height="24" rx="4" fill="token:uniform"/>
+    <path d="M 57 52 L 199 52 L 199 61 Q 128 70 57 61 Z"
           fill="token:capSecondary" stroke="token:outline" stroke-width="3" stroke-linejoin="round"/>
   </g>
 </svg>
