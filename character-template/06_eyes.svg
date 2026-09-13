@@ -21,7 +21,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g id="layer-06-eyes" data-layer="06_eyes">
 
-    <!-- ここに描く -->
+    <ellipse cx="101" cy="125" rx="7" ry="10.5" fill="#1a1a1a"/>
+    <ellipse cx="155" cy="125" rx="7" ry="10.5" fill="#1a1a1a"/>
 
   </g>
 </svg>

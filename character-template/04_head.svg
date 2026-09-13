@@ -20,8 +20,14 @@
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g id="layer-04-head" data-layer="04_head">
-
-    <!-- ここに描く -->
-
+    <path d="M 58 116
+             C 58 62, 88 44, 128 44
+             C 168 44, 198 62, 198 116
+             C 198 154, 188 184, 164 199
+             C 153 205, 138 207, 128 207
+             C 118 207, 103 205, 92 199
+             C 68 184, 58 154, 58 116 Z"
+          fill="#f7d7ae" stroke="#1a1a1a" stroke-width="5"
+          stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
   </g>
 </svg>

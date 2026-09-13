@@ -20,8 +20,16 @@
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g id="layer-10-hair_front" data-layer="10_hair_front">
-
-    <!-- ここに描く -->
-
+    <path d="M 58 100
+             C 58 60, 88 44, 128 44
+             C 168 44, 198 60, 198 100
+             C 189 89, 182 98, 173 86
+             C 164 97, 155 85, 146 96
+             C 137 84, 128 96, 119 85
+             C 110 96, 101 84, 92 96
+             C 83 85, 74 98, 66 88
+             C 62 94, 60 97, 58 100 Z"
+          fill="#2f5d3f" stroke="#1a1a1a" stroke-width="4.5"
+          stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
   </g>
 </svg>

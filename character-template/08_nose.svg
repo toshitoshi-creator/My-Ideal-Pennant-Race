@@ -21,7 +21,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g id="layer-08-nose" data-layer="08_nose">
 
-    <!-- ここに描く -->
+    <path d="M 137 140 L 122 155 L 134 162" fill="none" stroke="#1a1a1a"
+          stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"
+          vector-effect="non-scaling-stroke"/>
 
   </g>
 </svg>

@@ -19,8 +19,19 @@
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g id="layer-05-hair_back" data-layer="05_hair_back">
-
-    <!-- ここに描く -->
-
+    <path d="M 88 86
+             C 74 96, 62 114, 58 136
+             C 58 152, 60 168, 64 180
+             C 72 164, 80 150, 85 138
+             C 88 120, 89 102, 88 86 Z"
+          fill="#2f5d3f" stroke="#1a1a1a" stroke-width="4.5"
+          stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    <path d="M 168 86
+             C 182 96, 194 114, 198 136
+             C 198 152, 196 168, 192 180
+             C 184 164, 176 150, 171 138
+             C 168 120, 167 102, 168 86 Z"
+          fill="#2f5d3f" stroke="#1a1a1a" stroke-width="4.5"
+          stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
   </g>
 </svg>

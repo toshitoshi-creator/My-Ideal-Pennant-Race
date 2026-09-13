@@ -20,8 +20,15 @@
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g id="layer-11-cap" data-layer="11_cap">
-
-    <!-- ここに描く -->
-
+    <path d="M 48 66 C 48 28, 85 14, 128 14 C 171 14, 208 28, 208 66 Z"
+          fill="#1f3864" stroke="#1a1a1a" stroke-width="5"
+          stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    <rect x="122" y="26" width="12" height="28" rx="5" fill="#f2f2f0"/>
+    <path d="M 47 60 L 209 60 L 209 70 Q 128 76 47 70 Z"
+          fill="#c8384f" stroke="#1a1a1a" stroke-width="4"
+          stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    <path d="M 44 70 Q 128 112 212 70 Q 128 82 44 70 Z"
+          fill="#16294a" stroke="#1a1a1a" stroke-width="5"
+          stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
   </g>
 </svg>

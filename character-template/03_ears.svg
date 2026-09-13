@@ -20,8 +20,11 @@
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g id="layer-03-ears" data-layer="03_ears">
-
-    <!-- ここに描く -->
-
+    <path d="M 74 112 C 48 111, 38 136, 47 158 C 55 174, 70 176, 80 166 Z"
+          fill="#f7d7ae" stroke="#1a1a1a" stroke-width="4.5"
+          stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    <path d="M 182 112 C 208 111, 218 136, 209 158 C 201 174, 186 176, 176 166 Z"
+          fill="#f7d7ae" stroke="#1a1a1a" stroke-width="4.5"
+          stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
   </g>
 </svg>

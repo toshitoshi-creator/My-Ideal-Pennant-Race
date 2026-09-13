@@ -157,13 +157,27 @@ describe('4.8-C C. 透明背景', () => {
     }
   });
 
-  it('白い塗りつぶしの背景を書いていない', () => {
+  it('白で塗りつぶした全面の板が無い', () => {
+    /*
+     * 禁止なのは「白い**背景**」であって、白そのものではない。
+     * 野球のユニフォームは白なので、白い塗りを一律で禁じると
+     * 描けなくなる。全面を覆う大きさのものだけを見る。
+     */
     for (const name of LAYER_FILES) {
       const body = read(name).replace(/<!--[\s\S]*?-->/g, '');
-      expect(body.includes('fill="white"'), name).toBe(false);
-      expect(body.includes('fill="#fff"'), name).toBe(false);
-      expect(body.includes('fill="#ffffff"'), name).toBe(false);
+      const fullBleed = /<rect\b[^>]*\bwidth\s*=\s*"(2[4-9]\d|[3-9]\d\d)"[^>]*\bheight\s*=\s*"(3[0-9]\d|[4-9]\d\d)"[^>]*>/g;
+      let m: RegExpExecArray | null;
+      while ((m = fullBleed.exec(body)) !== null) {
+        expect(/fill\s*=\s*"(white|#fff|#ffffff)"/i.test(m[0]), `${name}: ${m[0]}`).toBe(false);
+      }
     }
+  });
+
+  it('白いユニフォームは描ける（検査が邪魔をしない）', () => {
+    const jersey =
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VIEW_BOX}" width="256" height="320">` +
+      `<g id="x"><path d="M 60 270 L 196 270 L 196 320 L 60 320 Z" fill="#ffffff"/></g></svg>`;
+    expect(checkSvg(jersey)).toEqual([]);
   });
 });
 

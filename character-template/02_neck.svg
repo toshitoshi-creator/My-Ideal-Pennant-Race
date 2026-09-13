@@ -21,7 +21,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g id="layer-02-neck" data-layer="02_neck">
 
-    <!-- ここに描く -->
+    <path d="M 106 198 C 110 216, 108 238, 100 262
+             L 156 262 C 148 238, 146 216, 150 198 Z"
+          fill="#f7d7ae" stroke="#1a1a1a" stroke-width="4.5"
+          stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
 
   </g>
 </svg>

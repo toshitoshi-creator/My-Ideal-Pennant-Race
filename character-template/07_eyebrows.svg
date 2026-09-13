@@ -21,7 +21,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" width="256" height="320">
   <g id="layer-07-eyebrows" data-layer="07_eyebrows">
 
-    <!-- ここに描く -->
+    <path d="M 86 105 Q 101 106 116 111" fill="none" stroke="#1a1a1a"
+          stroke-width="4.5" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+    <path d="M 170 105 Q 155 106 140 111" fill="none" stroke="#1a1a1a"
+          stroke-width="4.5" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
 
   </g>
 </svg>
