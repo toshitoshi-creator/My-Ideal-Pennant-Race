@@ -3,6 +3,7 @@ import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import { formatGamesBehind, formatWinPct, standingsForLeague } from '../../domain/standings';
 import { Tabs } from '../components/common';
+import { PlayerLink } from '../components/PlayerLink';
 import { average, era, formatAverage, formatInnings } from '../../domain/stats';
 
 type Tab = 'standings' | 'leaders';
@@ -113,7 +114,9 @@ function Leaders() {
               {batters.map((p, i) => (
                 <tr key={p.id}>
                   <td className="l">{i + 1}</td>
-                  <td className="l">{p.name}</td>
+                  <td className="l">
+                    <PlayerLink playerId={p.id}>{p.name}</PlayerLink>
+                  </td>
                   <td className="l">{teamName(p.teamId)}</td>
                   <td>{formatAverage(average(state.stats[p.id].batting))}</td>
                 </tr>
@@ -130,7 +133,9 @@ function Leaders() {
             {homers.map((p, i) => (
               <tr key={p.id}>
                 <td className="l">{i + 1}</td>
-                <td className="l">{p.name}</td>
+                <td className="l">
+                  <PlayerLink playerId={p.id}>{p.name}</PlayerLink>
+                </td>
                 <td className="l">{teamName(p.teamId)}</td>
                 <td>{state.stats[p.id].batting.homeRuns}本</td>
               </tr>
@@ -149,7 +154,9 @@ function Leaders() {
               {pitchers.map((p, i) => (
                 <tr key={p.id}>
                   <td className="l">{i + 1}</td>
-                  <td className="l">{p.name}</td>
+                  <td className="l">
+                    <PlayerLink playerId={p.id}>{p.name}</PlayerLink>
+                  </td>
                   <td className="l">{teamName(p.teamId)}</td>
                   <td>{era(state.stats[p.id].pitching).toFixed(2)}</td>
                   <td>{formatInnings(state.stats[p.id].pitching.outs)}回</td>

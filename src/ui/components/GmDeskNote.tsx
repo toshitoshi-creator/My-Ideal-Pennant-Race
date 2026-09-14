@@ -11,6 +11,7 @@ import type { GmDeskItem, GmDeskLink } from '../../domain/gmDesk';
 import { useFirstVisit, useReducedMotion } from '../anim';
 import { useGame } from '../store';
 import { PlayerVisual } from './PlayerVisual';
+import { PlayerLink } from './PlayerLink';
 
 export function GmDeskNote({
   item,
@@ -137,7 +138,7 @@ function GmNoteFaces({ playerIds }: { playerIds: string[] }) {
         <span key={player.id} className="gm-note-face">
           <PlayerVisual player={player} size="small" className="portrait-row" />
           <span className="muted" style={{ fontSize: 12 }}>
-            {player.name}
+            <PlayerLink playerId={player.id}>{player.name}</PlayerLink>
           </span>
         </span>
       ))}

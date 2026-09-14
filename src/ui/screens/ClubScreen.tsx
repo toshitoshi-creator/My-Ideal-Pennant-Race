@@ -4,6 +4,7 @@ import { TeamAnalysisPanel } from '../components/TeamAnalysisPanel';
 import { Tabs } from '../components/common';
 import { Sec } from '../components/Sec';
 import { DecisionStamp } from '../components/DecisionStamp';
+import { PlayerLink } from '../components/PlayerLink';
 import { recordDecision } from '../../domain/decisions';
 import { rankOfTeam } from '../../domain/standings';
 import {
@@ -356,7 +357,7 @@ function Usage() {
           >
             <div className="spread" style={{ marginBottom: 4 }}>
               <span style={{ fontWeight: 700 }}>
-                {player.name}
+                <PlayerLink playerId={player.id}>{player.name}</PlayerLink>
                 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>
                   {' '}
                   {player.age}歳 総合{overallRating(player)}

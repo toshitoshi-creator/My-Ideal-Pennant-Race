@@ -2,6 +2,7 @@ import type { GrowthReport, RetiredPlayerRecord } from '../../domain/types';
 import { Sheet } from './common';
 import { rankOf } from '../../domain/rank';
 import { PlayerVisualById } from './PlayerVisual';
+import { PlayerLink } from './PlayerLink';
 
 /**
  * シーズン終了時の成長・衰退の演出（PHASE 2）。
@@ -78,7 +79,7 @@ function PlayerGrowth({
     >
       <div className="spread">
         <strong style={{ fontSize: 16 }}>
-          {entry.name}
+          <PlayerLink playerId={entry.playerId}>{entry.name}</PlayerLink>
           <span className="muted" style={{ fontWeight: 400, fontSize: 13 }}>
             {' '}
             {entry.ageBefore}歳 → {entry.ageAfter}歳
@@ -144,7 +145,9 @@ function RetirementRow({ entry }: { entry: RetiredPlayerRecord }) {
     <div className="retire-row">
       <PlayerVisualById playerId={entry.playerId} name={entry.name} age={entry.age} size="small" />
       <div className="grow">
-        <div style={{ fontSize: 16, fontWeight: 800 }}>{entry.name}</div>
+        <div style={{ fontSize: 16, fontWeight: 800 }}>
+          <PlayerLink playerId={entry.playerId}>{entry.name}</PlayerLink>
+        </div>
         <div className="muted">
           {entry.age}歳 / 在籍{entry.years}年 / 最終総合 {entry.finalOverall}
         </div>

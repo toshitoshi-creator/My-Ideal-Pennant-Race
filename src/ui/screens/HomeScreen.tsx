@@ -27,6 +27,7 @@ import { buildPreGameBrief } from '../../domain/gameBrief';
 import { teamVisual, stadiumMoodForDate } from '../../domain/visuals';
 import { TeamMark, StadiumScene } from '../components/visuals/TeamVisuals';
 import { PlayerVisual } from '../components/PlayerVisual';
+import { PlayerLink } from '../components/PlayerLink';
 import {
   planSummary,
   targetLabels,
@@ -159,7 +160,15 @@ export function HomeScreen() {
               {starter && <PlayerVisual player={starter} size="small" teamColor={team.color} />}
               <span className="next-starter-face-text">
                 <span className="label">先発</span>
-                <span>{starter ? `${starter.name}　${brief.starterNote}` : '未設定'}</span>
+                <span>
+                  {starter ? (
+                    <>
+                      <PlayerLink playerId={starter.id}>{starter.name}</PlayerLink>　{brief.starterNote}
+                    </>
+                  ) : (
+                    '未設定'
+                  )}
+                </span>
               </span>
             </div>
             <div className="next-starter">
@@ -231,6 +240,20 @@ export function HomeScreen() {
           ))}
         </div>
       )}
+
+      {/*
+        PHASE 4.9-A: 「最近調子悪い選手いないかな」から1〜2操作で確認できる入り口。
+        GM Desk の案件（問題があるときだけ出る）とは別に、いつでも自分から開ける。
+      */}
+      <div className="card">
+        <Sec en="PLAYER CHECK" ja="選手チェック" size="sub" />
+        <p className="muted" style={{ fontSize: 'var(--text-sm)', marginBottom: 10 }}>
+          不調・打撃不振・投手不振の選手をまとめて確認できます。
+        </p>
+        <button className="btn secondary" onClick={() => setScreen('playerCheck')}>
+          選手チェックを開く
+        </button>
+      </div>
 
       {/* ── 4. チーム状態 ── */}
       <div className="card">

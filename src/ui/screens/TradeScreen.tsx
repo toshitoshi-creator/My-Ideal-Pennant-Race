@@ -27,6 +27,7 @@ import {
 } from '../../domain/teamAi';
 import { RankBadge, Sheet } from '../components/common';
 import { PlayerVisual } from '../components/PlayerVisual';
+import { PlayerLink } from '../components/PlayerLink';
 
 type Filter = 'all' | 'pitcher' | 'catcher' | 'infield' | 'outfield' | 'young' | 'veteran' | 'core';
 
@@ -749,7 +750,7 @@ function TradeFaces({ out, inbound }: { out: Player[]; inbound: Player[] }) {
           {out.map((p) => (
             <figure key={p.id}>
               <PlayerVisual player={p} size="small" expression="neutral" showCap={false} />
-              <figcaption>{p.name}</figcaption>
+              <figcaption><PlayerLink playerId={p.id}>{p.name}</PlayerLink></figcaption>
             </figure>
           ))}
         </div>
@@ -763,7 +764,7 @@ function TradeFaces({ out, inbound }: { out: Player[]; inbound: Player[] }) {
           {inbound.map((p) => (
             <figure key={p.id}>
               <PlayerVisual player={p} size="small" expression="focused" />
-              <figcaption>{p.name}</figcaption>
+              <figcaption><PlayerLink playerId={p.id}>{p.name}</PlayerLink></figcaption>
             </figure>
           ))}
         </div>

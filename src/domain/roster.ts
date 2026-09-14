@@ -26,10 +26,28 @@ export const MIN_FIRST_TEAM_FIELDERS = 9;
 /** 1軍に残しておかなければならない投手の人数（先発ローテーション分） */
 export const MIN_FIRST_TEAM_PITCHERS = 5;
 
+/**
+ * checkRosterChange が拒否した理由の種類（PHASE 4.9-A）。
+ *
+ * 'capacity' と 'min-fielders' / 'min-pitchers' は、誰か1人を入れ替えれば
+ * 解消できる（＝atomicなswapを提案してよい）。それ以外はswapでも解決しない
+ * ので、そのまま理由を見せるだけにする。
+ */
+export type RosterChangeReasonCode =
+  | 'ok'
+  | 'not-found'
+  | 'already'
+  | 'locked'
+  | 'injured'
+  | 'min-fielders'
+  | 'min-pitchers'
+  | 'capacity';
+
 export interface RosterChangeCheck {
   allowed: boolean;
   daysLeft: number;
   reason: string | null;
+  code: RosterChangeReasonCode;
 }
 
 export function checkRosterChange(
@@ -38,13 +56,13 @@ export function checkRosterChange(
   to: RosterLevel,
 ): RosterChangeCheck {
   const player = state.players.find((p) => p.id === playerId);
-  if (!player) return { allowed: false, daysLeft: 0, reason: '選手が見つかりません' };
+  if (!player) return { allowed: false, daysLeft: 0, reason: '選手が見つかりません', code: 'not-found' };
   if (player.roster === to) {
-    return { allowed: false, daysLeft: 0, reason: 'すでにその登録です' };
+    return { allowed: false, daysLeft: 0, reason: 'すでにその登録です', code: 'already' };
   }
   const daysLeft = daysUntilChangeable(player, state.date);
   if (daysLeft > 0) {
-    return { allowed: false, daysLeft, reason: `登録変更まであと${daysLeft}日` };
+    return { allowed: false, daysLeft, reason: `登録変更まであと${daysLeft}日`, code: 'locked' };
   }
   if (to === 'second') {
     // 試合が組めなくなる降格は禁止（オーダーに穴が開くのを防ぐ）
@@ -60,6 +78,7 @@ export function checkRosterChange(
         allowed: false,
         daysLeft: 0,
         reason: `1軍には野手が${MIN_FIRST_TEAM_FIELDERS}人以上必要です`,
+        code: 'min-fielders',
       };
     }
     if (player.isPitcher && first.filter((p) => p.isPitcher).length < MIN_FIRST_TEAM_PITCHERS) {
@@ -67,12 +86,13 @@ export function checkRosterChange(
         allowed: false,
         daysLeft: 0,
         reason: `1軍には投手が${MIN_FIRST_TEAM_PITCHERS}人以上必要です`,
+        code: 'min-pitchers',
       };
     }
   }
   if (to === 'first') {
     if (player.ext.injury) {
-      return { allowed: false, daysLeft: 0, reason: '怪我のため登録できません' };
+      return { allowed: false, daysLeft: 0, reason: '怪我のため登録できません', code: 'injured' };
     }
     const count = state.players.filter(
       (p) => p.teamId === player.teamId && p.roster === 'first',
@@ -82,10 +102,11 @@ export function checkRosterChange(
         allowed: false,
         daysLeft: 0,
         reason: `1軍は${FIRST_TEAM_LIMIT}人までです`,
+        code: 'capacity',
       };
     }
   }
-  return { allowed: true, daysLeft: 0, reason: null };
+  return { allowed: true, daysLeft: 0, reason: null, code: 'ok' };
 }
 
 /**
@@ -104,6 +125,135 @@ export function applyRosterChange(
   player.lastRosterChangeDate = state.date;
   player.ext.injuryDemotion = false;
   return { ok: true, reason: null };
+}
+
+export interface RosterSwapCheck {
+  allowed: boolean;
+  reason: string | null;
+}
+
+/**
+ * 1軍がすでに定員（もしくは最低人数ぎりぎり）で片方だけの変更が拒否されるとき、
+ * 「誰かと入れ替える」ことで解決できるかを調べる（PHASE 4.9-A §9）。
+ *
+ * promoteId を1軍へ、demoteId を2軍へ、同時に入れ替えることだけを許す。
+ * 2人ぶんの変更を1回の判定でまとめて確かめるので、
+ * 「Aを落としてからBを上げる」のように途中状態を経由しない。
+ */
+export function checkRosterSwap(
+  state: GameState,
+  promoteId: string,
+  demoteId: string,
+): RosterSwapCheck {
+  if (promoteId === demoteId) {
+    return { allowed: false, reason: '同じ選手です' };
+  }
+  const promote = state.players.find((p) => p.id === promoteId);
+  const demote = state.players.find((p) => p.id === demoteId);
+  if (!promote || !demote) {
+    return { allowed: false, reason: '選手が見つかりません' };
+  }
+  if (promote.teamId !== demote.teamId) {
+    return { allowed: false, reason: '同じ球団の選手同士でのみ入れ替えられます' };
+  }
+  if (promote.roster !== 'second') {
+    return { allowed: false, reason: `${promote.name} はすでに1軍です` };
+  }
+  if (demote.roster !== 'first') {
+    return { allowed: false, reason: `${demote.name} はすでに2軍です` };
+  }
+  const promoteLock = daysUntilChangeable(promote, state.date);
+  if (promoteLock > 0) {
+    return { allowed: false, reason: `${promote.name} は登録変更まであと${promoteLock}日` };
+  }
+  const demoteLock = daysUntilChangeable(demote, state.date);
+  if (demoteLock > 0) {
+    return { allowed: false, reason: `${demote.name} は登録変更まであと${demoteLock}日` };
+  }
+  if (promote.ext.injury) {
+    return { allowed: false, reason: `${promote.name} は怪我のため登録できません` };
+  }
+  // 入れ替え後の1軍（demoteId を外し、promoteId を加える）で最低人数を満たすか確かめる
+  const after = state.players.filter(
+    (p) =>
+      p.teamId === promote.teamId &&
+      p.ext.injury === null &&
+      ((p.roster === 'first' && p.id !== demote.id) || p.id === promote.id),
+  );
+  const fielders = after.filter((p) => !p.isPitcher).length;
+  if (fielders < MIN_FIRST_TEAM_FIELDERS) {
+    return { allowed: false, reason: `1軍には野手が${MIN_FIRST_TEAM_FIELDERS}人以上必要です` };
+  }
+  const pitchers = after.filter((p) => p.isPitcher).length;
+  if (pitchers < MIN_FIRST_TEAM_PITCHERS) {
+    return { allowed: false, reason: `1軍には投手が${MIN_FIRST_TEAM_PITCHERS}人以上必要です` };
+  }
+  return { allowed: true, reason: null };
+}
+
+/**
+ * checkRosterSwap が許可した入れ替えを1回でまとめて反映する（原子的）。
+ * 呼び出し側で複製済みの state を渡すこと。
+ */
+export function applyRosterSwap(
+  state: GameState,
+  promoteId: string,
+  demoteId: string,
+): { ok: boolean; reason: string | null } {
+  const check = checkRosterSwap(state, promoteId, demoteId);
+  if (!check.allowed) return { ok: false, reason: check.reason };
+  const promote = state.players.find((p) => p.id === promoteId)!;
+  const demote = state.players.find((p) => p.id === demoteId)!;
+  promote.roster = 'first';
+  promote.lastRosterChangeDate = state.date;
+  promote.ext.injuryDemotion = false;
+  demote.roster = 'second';
+  demote.lastRosterChangeDate = state.date;
+  return { ok: true, reason: null };
+}
+
+/**
+ * 候補として選べる（入れ替え相手になれる）1軍選手の一覧。
+ * 登録できない理由がある選手も除外せず、理由つきで返す（§11）。
+ */
+export interface RosterSwapCandidate {
+  player: Player;
+  allowed: boolean;
+  reason: string | null;
+}
+
+export function rosterSwapCandidates(
+  state: GameState,
+  promoteId: string,
+): RosterSwapCandidate[] {
+  const promote = state.players.find((p) => p.id === promoteId);
+  if (!promote) return [];
+  return state.players
+    .filter((p) => p.teamId === promote.teamId && p.roster === 'first')
+    .sort((a, b) => overallRating(b) - overallRating(a))
+    .map((demote) => {
+      const check = checkRosterSwap(state, promoteId, demote.id);
+      return { player: demote, allowed: check.allowed, reason: check.reason };
+    });
+}
+
+/**
+ * 逆方向：1軍の選手を2軍へ落としたいが、最低人数を割るため単独ではできないとき、
+ * 代わりに1軍へ上げる2軍選手の候補一覧。
+ */
+export function rosterSwapCandidatesForDemote(
+  state: GameState,
+  demoteId: string,
+): RosterSwapCandidate[] {
+  const demote = state.players.find((p) => p.id === demoteId);
+  if (!demote) return [];
+  return state.players
+    .filter((p) => p.teamId === demote.teamId && p.roster === 'second')
+    .sort((a, b) => overallRating(b) - overallRating(a))
+    .map((promote) => {
+      const check = checkRosterSwap(state, promote.id, demoteId);
+      return { player: promote, allowed: check.allowed, reason: check.reason };
+    });
 }
 
 export function firstTeamCount(state: GameState, teamId: string): number {

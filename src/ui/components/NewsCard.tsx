@@ -4,6 +4,7 @@ import { formatDateJa } from '../../domain/dates';
 import type { NewsCategory, NewsItem } from '../../domain/types';
 import { staggerDelay, useFirstVisit, useReducedMotion } from '../anim';
 import { NewsVisual } from './visuals/NewsVisual';
+import { PlayerLink } from './PlayerLink';
 
 /** 少しだけ強調してよいニュース（§20） */
 const EMPHASISED = new Set<NewsCategory>([
@@ -22,11 +23,9 @@ const EMPHASISED = new Set<NewsCategory>([
  */
 export function NewsCard({
   item,
-  onSelectPlayer,
   index = 0,
 }: {
   item: NewsItem;
-  onSelectPlayer?: (playerId: string) => void;
   /** 上から順に現れさせるための並び順（PHASE 4.1） */
   index?: number;
 }) {
@@ -67,13 +66,7 @@ export function NewsCard({
       </div>
       <NewsVisual item={item} tier={tier} />
       <h3 className="news-title">
-        {item.playerId && onSelectPlayer ? (
-          <button className="linky" onClick={() => onSelectPlayer(item.playerId!)}>
-            {item.title}
-          </button>
-        ) : (
-          item.title
-        )}
+        {item.playerId ? <PlayerLink playerId={item.playerId}>{item.title}</PlayerLink> : item.title}
       </h3>
       {tier !== 'brief' && <p className="news-body">{item.body}</p>}
     </article>

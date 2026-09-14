@@ -15,6 +15,8 @@ import { RecordsScreen } from './screens/RecordsScreen';
 import { PostseasonScreen } from './screens/PostseasonScreen';
 import { NewsScreen } from './screens/NewsScreen';
 import { ClubScreen } from './screens/ClubScreen';
+import { PlayerCheckScreen } from './screens/PlayerCheckScreen';
+import { PlayerDetailHost } from './components/PlayerDetailHost';
 import { formatDateJa } from '../domain/dates';
 
 /*
@@ -106,6 +108,7 @@ function Root() {
       {screen === 'postseason' && <PostseasonScreen />}
       {screen === 'news' && <NewsScreen />}
       {screen === 'club' && <ClubScreen />}
+      {screen === 'playerCheck' && <PlayerCheckScreen />}
       </div>
 
       <nav className="nav">
@@ -122,6 +125,8 @@ function Root() {
       </nav>
 
       {toast && <div className="toast">{toast}</div>}
+      {/* PHASE 4.9-A: どの画面からでも選手名をタップしたら、ここが選手詳細を出す */}
+      <PlayerDetailHost />
     </div>
   );
 }

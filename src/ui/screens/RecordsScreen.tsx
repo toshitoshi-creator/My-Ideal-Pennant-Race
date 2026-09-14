@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Sec } from '../components/Sec';
 import { useGame } from '../store';
-import { Sheet, Tabs } from '../components/common';
+import { Tabs } from '../components/common';
+import { PlayerLink } from '../components/PlayerLink';
 import {
   CAREER_RECORD_LABELS,
   LEADER_KEYS,
@@ -9,7 +10,6 @@ import {
   higherIsBetter,
 } from '../../domain/history';
 import { formatAverage } from '../../domain/stats';
-import { PlayerHistoryView } from '../components/PlayerHistoryView';
 import type {
   CareerRecordKey,
   LeaderKey,
@@ -39,11 +39,6 @@ function formatRecord(key: string, value: number): string {
 export function RecordsScreen() {
   const { state } = useGame();
   const [tab, setTab] = useState<Tab>('league');
-  const [selected, setSelected] = useState<PlayerHistory | null>(null);
-  const open = (playerId: string) => {
-    const history = state.history.players[playerId];
-    if (history) setSelected(history);
-  };
 
   if (state.history.seasons.length === 0) {
     return (
@@ -72,16 +67,11 @@ export function RecordsScreen() {
         onChange={setTab}
       />
       <div className="screen">
-        {tab === 'league' && <LeagueRecords onOpen={open} />}
-        {tab === 'team' && <TeamRecords onOpen={open} />}
-        {tab === 'season' && <SeasonBest onOpen={open} />}
-        {tab === 'career' && <CareerBest onOpen={open} />}
+        {tab === 'league' && <LeagueRecords />}
+        {tab === 'team' && <TeamRecords />}
+        {tab === 'season' && <SeasonBest />}
+        {tab === 'career' && <CareerBest />}
       </div>
-      {selected && (
-        <Sheet title={selected.name} onClose={() => setSelected(null)}>
-          <PlayerHistoryView history={selected} />
-        </Sheet>
-      )}
     </>
   );
 }
@@ -89,11 +79,9 @@ export function RecordsScreen() {
 function RecordTable({
   book,
   kind,
-  onOpen,
 }: {
   book: RecordBook | undefined;
   kind: 'season' | 'career';
-  onOpen: (playerId: string) => void;
 }) {
   const { state } = useGame();
   const teamName = (id: string) => state.teams.find((t) => t.id === id)?.shortName ?? '―';
@@ -131,9 +119,7 @@ function RecordTable({
               </td>
               <td className="l">
                 {row.holder ? (
-                  <button className="linky" onClick={() => onOpen(row.holder!.playerId)}>
-                    {row.holder.name}
-                  </button>
+                  <PlayerLink playerId={row.holder.playerId}>{row.holder.name}</PlayerLink>
                 ) : (
                   '―'
                 )}
@@ -148,31 +134,23 @@ function RecordTable({
   );
 }
 
-function LeagueRecords({ onOpen }: { onOpen: (id: string) => void }) {
+function LeagueRecords() {
   const { state } = useGame();
   return (
     <>
       {state.leagues.map((league) => (
         <div className="card" key={league.id}>
           <h2>{league.name}　シーズン記録</h2>
-          <RecordTable
-            book={state.history.leagueRecords[league.id]}
-            kind="season"
-            onOpen={onOpen}
-          />
+          <RecordTable book={state.history.leagueRecords[league.id]} kind="season" />
           <h2 style={{ marginTop: 14 }}>通算記録</h2>
-          <RecordTable
-            book={state.history.leagueRecords[league.id]}
-            kind="career"
-            onOpen={onOpen}
-          />
+          <RecordTable book={state.history.leagueRecords[league.id]} kind="career" />
         </div>
       ))}
     </>
   );
 }
 
-function TeamRecords({ onOpen }: { onOpen: (id: string) => void }) {
+function TeamRecords() {
   const { state } = useGame();
   const [teamId, setTeamId] = useState(state.playerTeamId);
   return (
@@ -196,18 +174,18 @@ function TeamRecords({ onOpen }: { onOpen: (id: string) => void }) {
       </div>
       <div className="card">
         <Sec en="SEASON RECORDS" ja="シーズン記録" />
-        <RecordTable book={state.history.teamRecords[teamId]} kind="season" onOpen={onOpen} />
+        <RecordTable book={state.history.teamRecords[teamId]} kind="season" />
       </div>
       <div className="card">
         <Sec en="CAREER RECORDS" ja="通算記録" />
-        <RecordTable book={state.history.teamRecords[teamId]} kind="career" onOpen={onOpen} />
+        <RecordTable book={state.history.teamRecords[teamId]} kind="career" />
       </div>
     </>
   );
 }
 
 /** シーズン記録の上位（リーグを問わず） */
-function SeasonBest({ onOpen }: { onOpen: (id: string) => void }) {
+function SeasonBest() {
   const { state } = useGame();
   const [key, setKey] = useState<LeaderKey>('homeRuns');
 
@@ -259,9 +237,7 @@ function SeasonBest({ onOpen }: { onOpen: (id: string) => void }) {
                 <td>{i + 1}</td>
                 <td style={{ fontWeight: 700 }}>{formatRecord(key, row.value)}</td>
                 <td className="l">
-                  <button className="linky" onClick={() => onOpen(row.playerId)}>
-                    {row.name}
-                  </button>
+                  <PlayerLink playerId={row.playerId}>{row.name}</PlayerLink>
                 </td>
                 <td className="l">{teamName(row.teamId)}</td>
                 <td>{row.year}</td>
@@ -275,7 +251,7 @@ function SeasonBest({ onOpen }: { onOpen: (id: string) => void }) {
 }
 
 /** 通算成績の上位（現役・引退をまとめて） */
-function CareerBest({ onOpen }: { onOpen: (id: string) => void }) {
+function CareerBest() {
   const { state } = useGame();
   const [key, setKey] = useState<CareerRecordKey>('homeRuns');
 
@@ -338,10 +314,10 @@ function CareerBest({ onOpen }: { onOpen: (id: string) => void }) {
                 <td>{i + 1}</td>
                 <td style={{ fontWeight: 700 }}>{row.value}</td>
                 <td className="l">
-                  <button className="linky" onClick={() => onOpen(row.h.playerId)}>
+                  <PlayerLink playerId={row.h.playerId}>
                     {row.h.name}
                     {row.h.retiredAt === null && <span className="muted">（現役）</span>}
-                  </button>
+                  </PlayerLink>
                 </td>
                 <td>
                   {row.h.debutYear}〜{row.h.retiredAt ?? ''}

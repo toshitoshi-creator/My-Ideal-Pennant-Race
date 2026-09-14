@@ -870,6 +870,24 @@ table.data th.l {
   text-align: left;
   padding: 0;
 }
+/*
+ * PHASE 4.9-A: 選手名をタップできることを示す共通の見た目（PlayerLink）。
+ * 青いリンクにはせず、地の文の色のまま、下に控えめな点線だけを添える。
+ * inline のまま文中に置けるよう display はデフォルト（inline）のままにする。
+ */
+.player-link {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  padding: 1px 0;
+  border-bottom: 1px dotted var(--ink-3);
+  /* モバイルでも押しやすいよう、行間を保ったまま少しだけ縦の当たり判定を広げる */
+  line-height: 1.5;
+}
+.player-link:active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
 /* シートの中の小見出し */
 h3.sec {
   margin: 0 0 6px;

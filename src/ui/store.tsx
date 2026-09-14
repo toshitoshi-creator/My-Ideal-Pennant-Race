@@ -51,7 +51,8 @@ export type ScreenId =
   | 'records'
   | 'postseason'
   | 'news'
-  | 'club';
+  | 'club'
+  | 'playerCheck';
 
 interface StoreValue {
   state: GameState | null;
@@ -101,6 +102,14 @@ interface StoreValue {
   faHidden: boolean;
   /** オフシーズンを終えて翌シーズンを開幕する */
   finishOffseason(): void;
+  /**
+   * どの画面からでも選手詳細を開くための共通の入り口（PHASE 4.9-A）。
+   * 表示するのは playerId だけ。選手そのものは state から都度引く。
+   * ここでは state を一切変更しない（RNGにも触れない）。
+   */
+  viewingPlayerId: string | null;
+  openPlayer(playerId: string): void;
+  closePlayer(): void;
   /** CPU球団にトレードを提案する */
   proposeTrade(
     toTeamId: string,
@@ -129,6 +138,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [saveExists, setSaveExists] = useState<boolean>(() => hasSave());
   const [pendingReport, setPendingReport] = useState(false);
   const [faHidden, setFaHidden] = useState(false);
+  const [viewingPlayerId, setViewingPlayerId] = useState<string | null>(null);
+  const openPlayer = useCallback((playerId: string) => setViewingPlayerId(playerId), []);
+  const closePlayer = useCallback(() => setViewingPlayerId(null), []);
   const toastTimer = useRef<number | null>(null);
   const stateRef = useRef<GameState | null>(null);
   stateRef.current = state;
@@ -153,6 +165,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       persist(next);
       setScreen('home');
       setLastResult(null);
+      setViewingPlayerId(null);
     },
     [persist],
   );
@@ -167,6 +180,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setState(loaded);
     setScreen('home');
     setLastResult(null);
+    setViewingPlayerId(null);
     return true;
   }, []);
 
@@ -601,6 +615,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       pendingReport,
       dismissReport: () => setPendingReport(false),
       clearLastResult: () => setLastResult(null),
+      viewingPlayerId,
+      openPlayer,
+      closePlayer,
     }),
     [
       state,
@@ -637,6 +654,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       declineTradeOffer,
       withdrawTradeOffer,
       pendingReport,
+      viewingPlayerId,
+      openPlayer,
+      closePlayer,
     ],
   );
 

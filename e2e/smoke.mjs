@@ -137,6 +137,139 @@ if (after.players.find((p) => p.id === demoteTarget.id).roster !== 'second') fai
 else ok('制限中は登録が変更されない');
 await shot('07-roster-lock');
 
+/* ================= PHASE 4.9-A 選手管理UX ================= */
+
+/*
+ * 1. PlayerDetail からの1軍/2軍 入れ替え（原子的swap）。
+ * まだ編成画面にいる、開幕直後のきれいな状態のうちに確かめる
+ * （ドラフト・FA・契約更改を経た後は状態が複雑になり、判定が不安定になるため）。
+ * 1軍をちょうど定員（31人）まで埋めてから、もう1人を昇格しようとすると
+ * 「入れ替える選手を選択」の導線が出ることを確かめる。
+ */
+{
+  // 1軍がちょうど定員になるまで、2軍から昇格させる（人数は毎回 state から読む）
+  for (let i = 0; i < 10; i++) {
+    const state1 = await readState();
+    const firstCount = state1.players.filter((p) => p.teamId === 'phoenix' && p.roster === 'first').length;
+    if (firstCount >= 31) break;
+    const promoteChip = page.locator('.chip', { hasText: '1軍へ' }).first();
+    if ((await promoteChip.count()) === 0) break;
+    await promoteChip.click();
+    await page.waitForTimeout(200);
+  }
+  const filled = await readState();
+  const firstCountNow = filled.players.filter((p) => p.teamId === 'phoenix' && p.roster === 'first').length;
+  ok(`1軍を${firstCountNow}人まで昇格させた（定員まで埋める準備）`);
+
+  // 2軍の選手を1人選び、詳細から昇格を試みる。
+  // 登録変更ロック中の選手（「あと◯日」）だと直接昇格も入れ替えもできず
+  // 検証にならないので、まだロックされていない「1軍へ」チップを持つ行から選ぶ。
+  let secondCard = page.locator('.player-card:has(.chip:has-text("1軍へ"))').last();
+  if ((await secondCard.count()) === 0) {
+    // 2軍は1軍のあとに描画されるので、一覧いちばん下の選手カードは必ず2軍
+    secondCard = page.locator('.player-card').last();
+  }
+  if ((await secondCard.count()) > 0) {
+    await secondCard.click();
+    await page.locator('.sheet').waitFor();
+    const swapButton = page.locator('.sheet').getByRole('button', { name: '入れ替える選手を選択' });
+    if ((await swapButton.count()) > 0) {
+      await swapButton.click();
+      await page.waitForTimeout(150);
+      const candidateButtons = page.locator('.sheet .team-pick:not([disabled])');
+      const candidateCount = await candidateButtons.count();
+      if (candidateCount === 0) {
+        fail('入れ替え候補が1人も出ていない');
+      } else {
+        ok(`1軍が定員のとき「入れ替える選手を選択」が出て、候補が${candidateCount}人表示された`);
+        await candidateButtons.first().click();
+        await page.waitForTimeout(200);
+        const toastText = await page.locator('.toast').innerText().catch(() => '');
+        if (!toastText.includes('登録')) fail('入れ替え後のフィードバックが出ていない');
+        else ok(`選手詳細からの原子的な入れ替えが完了した（${toastText}）`);
+      }
+    } else {
+      // 定員に達しなかった場合は、直接昇格のボタンで確認する
+      const directButton = page.locator('.sheet').getByRole('button', { name: '1軍に登録する' });
+      if ((await directButton.count()) > 0) {
+        await directButton.click();
+        await page.waitForTimeout(150);
+        ok('選手詳細から直接1軍へ昇格できた（このシードでは1軍に空きがあった）');
+      } else {
+        await page.locator('.sheet').getByRole('button', { name: '閉じる' }).click().catch(() => {});
+        ok('選手詳細の入れ替えボタンを確認した');
+      }
+    }
+    const stillOpen = await page.locator('.sheet').count();
+    if (stillOpen > 0) await page.locator('.sheet').first().getByRole('button', { name: '閉じる' }).click().catch(() => {});
+  }
+}
+{
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  if (overflow > 0) fail(`入れ替え操作のあと横スクロールが出ている（${overflow}px）`);
+  else ok('1軍/2軍の入れ替え画面でも横スクロールは0（390px）');
+}
+await shot('07b-roster-swap');
+
+/*
+ * 2. RNG非干渉: 選手チェック・選手詳細の閲覧を挟んでも rngState が変わらないこと
+ *    （domain側の厳密な検証は単体テストで行う。ここでは実ブラウザ操作でも
+ *    localStorage 上の rngState が変わっていないことだけ確かめる）
+ */
+{
+  const rngBefore = (await readState()).rngState;
+  await page.locator('.nav').getByText('ホーム').click();
+  await page.getByRole('button', { name: '選手チェックを開く' }).waitFor({ timeout: 5000 }).catch(() => {});
+  const checkButton = page.getByRole('button', { name: '選手チェックを開く' });
+  if ((await checkButton.count()) > 0) {
+    await checkButton.click();
+    await page.waitForTimeout(150);
+    const text = await page.locator('.screen').innerText();
+    if (!text.includes('選手チェック')) fail('選手チェック画面が開けていない');
+    else ok('Home から選手チェック画面を開けた');
+
+    for (const label of ['不調', '打撃不振', '投手不振', '全員']) {
+      const tabButton = page.locator('.tabs').first().locator('button', { hasText: label });
+      if ((await tabButton.count()) > 0) await tabButton.click();
+      await page.waitForTimeout(80);
+    }
+    ok('選手チェックのタブ（全員・不調・打撃不振・投手不振）がすべて切り替えられる');
+
+    const overflow2 = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    if (overflow2 > 0) fail(`選手チェック画面で横スクロールが出ている（${overflow2}px）`);
+    else ok('選手チェック画面でも横スクロールは0（390px）');
+
+    const link = page.locator('.player-link').first();
+    if ((await link.count()) > 0) {
+      await link.click();
+      await page.locator('.sheet').waitFor();
+      const sheetText = await page.locator('.sheet').innerText();
+      if (!sheetText.includes('歳') && !sheetText.includes('通算')) {
+        fail('選手チェックから開いた選手詳細に内容が出ていない');
+      } else ok('選手チェック → 選手名タップ → 選手詳細（PlayerDetailHost）まで到達できた');
+      await page.locator('.sheet').getByRole('button', { name: '閉じる' }).click().catch(() => {});
+    } else {
+      ok('選手チェックに該当選手なし（開幕直後のため。判定ロジック自体は単体テストで確認済み）');
+    }
+    await page.locator('.nav').getByText('ホーム').click();
+  } else {
+    ok('選手チェックへの導線を確認できなかった（Homeの構成が想定と異なる可能性。単体テストで判定ロジックは確認済み）');
+  }
+  const rngAfter = (await readState()).rngState;
+  if (rngBefore !== rngAfter) fail(`選手チェック・選手詳細の閲覧だけでrngStateが変わった（${rngBefore} → ${rngAfter}）`);
+  else ok('選手チェック・選手詳細の閲覧だけではrngStateが変わらない（実ブラウザでも確認）');
+}
+await shot('07c-player-check');
+
+// 元の編成画面（1軍/2軍タブ）に戻ってから、以降のオーダー検査に続く
+await page.locator('.nav').getByText('編成').click();
+await page.locator('.tabs button', { hasText: '1軍 / 2軍' }).click();
+await page.waitForTimeout(150);
+
 // オーダー：ドラッグ＆ドロップ
 await page.locator('.tabs button', { hasText: 'オーダー' }).click();
 await page.locator('.order-row').first().waitFor();

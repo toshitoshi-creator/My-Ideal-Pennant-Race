@@ -4,6 +4,7 @@ import { useGame } from '../store';
 import type { Player } from '../../domain/types';
 import { PlayerCard } from '../components/PlayerCard';
 import { PlayerDetail } from '../components/PlayerDetail';
+import { PlayerLink } from '../components/PlayerLink';
 import { Tabs } from '../components/common';
 import { overallRating } from '../../domain/rating';
 import { average, formatAverage, formatEra, formatInnings } from '../../domain/stats';
@@ -176,7 +177,9 @@ function FreeAgentTable() {
           <tbody>
             {pool.slice(0, 40).map((player) => (
               <tr key={player.id}>
-                <td className="l">{player.name}</td>
+                <td className="l">
+                  <PlayerLink playerId={player.id}>{player.name}</PlayerLink>
+                </td>
                 <td>{player.age}</td>
                 <td>{overallRating(player)}</td>
                 <td style={{ color: 'var(--accent)' }}>FA</td>
@@ -229,7 +232,9 @@ function StatsTables() {
                 const b = state.stats[p.id].batting;
                 return (
                   <tr key={p.id}>
-                    <td className="l">{p.name}</td>
+                    <td className="l">
+                      <PlayerLink playerId={p.id}>{p.name}</PlayerLink>
+                    </td>
                     <td>{b.games}</td>
                     <td>{b.atBats}</td>
                     <td>{b.hits}</td>
@@ -272,7 +277,9 @@ function StatsTables() {
                 const q = state.stats[p.id].pitching;
                 return (
                   <tr key={p.id}>
-                    <td className="l">{p.name}</td>
+                    <td className="l">
+                      <PlayerLink playerId={p.id}>{p.name}</PlayerLink>
+                    </td>
                     <td>{q.games}</td>
                     <td>{q.starts}</td>
                     <td>{q.wins}</td>

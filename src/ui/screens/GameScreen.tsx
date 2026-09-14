@@ -5,6 +5,7 @@ import type { GameResult } from '../../domain/types';
 import { formatDateJa } from '../../domain/dates';
 import { nextGameForTeam } from '../../domain/schedule';
 import { Sheet } from '../components/common';
+import { PlayerLink } from '../components/PlayerLink';
 import { useCountUp, usePlayback } from '../anim';
 import { buildPreGameBrief, buildPostGameReport } from '../../domain/gameBrief';
 import {
@@ -366,7 +367,9 @@ function PostGameSection({ result }: { result: GameResult }) {
           {report.playerNotes.map((note) => (
             <div key={note.playerId} className="post-player">
               <div className="post-player-head">
-                <span className="post-player-name">{note.name}</span>
+                <span className="post-player-name">
+                  <PlayerLink playerId={note.playerId}>{note.name}</PlayerLink>
+                </span>
                 <span className="post-player-today">{note.today}</span>
               </div>
               {note.before && (

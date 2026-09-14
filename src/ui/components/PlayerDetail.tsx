@@ -10,9 +10,13 @@ import { overallRating } from '../../domain/rating';
 import { velocityToScale } from '../../domain/rank';
 import {
   applyRosterChange,
+  applyRosterSwap,
   checkRosterChange,
   daysUntilChangeable,
   nextChangeDate,
+  rosterSwapCandidates,
+  rosterSwapCandidatesForDemote,
+  type RosterSwapCandidate,
 } from '../../domain/roster';
 import { MARKET_GRADE_LABELS, marketGrade } from '../../domain/freeAgency';
 import { average, formatAverage, formatEra, formatInnings } from '../../domain/stats';
@@ -39,6 +43,8 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
   const { state, mutate, showToast } = useGame();
   // PHASE 4.1: 情報量が増えたので「情報」と「分析」に分ける
   const [tab, setTab] = useState<DetailTab>('info');
+  // PHASE 4.9-A: 入れ替え候補の選択画面を開いているか
+  const [showSwapPicker, setShowSwapPicker] = useState(false);
   const stats = state.stats[player.id];
   // PHASE 3.7: 年度別成績・通算成績・所属球団の歩み
   const history = state.history.players[player.id];
@@ -47,6 +53,20 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
   const lockDays = daysUntilChangeable(player, state.date);
   const target = player.roster === 'first' ? 'second' : 'first';
   const check = checkRosterChange(state, player.id, target);
+  /*
+   * PHASE 4.9-A §9〜11: 直接は変更できないが、誰かと1人入れ替えれば解決できるとき
+   * （1軍が定員のときの昇格 / 最低人数ぎりぎりのときの降格）は、
+   * 単に諦めさせず「入れ替える選手を選ぶ」導線を出す。
+   */
+  const swappable =
+    !check.allowed &&
+    ((target === 'first' && check.code === 'capacity') ||
+      (target === 'second' && (check.code === 'min-fielders' || check.code === 'min-pitchers')));
+  const swapCandidates = swappable
+    ? target === 'first'
+      ? rosterSwapCandidates(state, player.id)
+      : rosterSwapCandidatesForDemote(state, player.id)
+    : [];
 
   const changeRoster = () => {
     mutate((draft) => {
@@ -57,6 +77,21 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
           : result.reason ?? '変更できません',
       );
     });
+    onClose();
+  };
+
+  const swapWith = (candidateId: string) => {
+    const promoteId = target === 'first' ? player.id : candidateId;
+    const demoteId = target === 'first' ? candidateId : player.id;
+    mutate((draft) => {
+      const result = applyRosterSwap(draft, promoteId, demoteId);
+      showToast(
+        result.ok
+          ? `${player.name} を${target === 'first' ? '1軍' : '2軍'}に登録しました`
+          : result.reason ?? '入れ替えできません',
+      );
+    });
+    setShowSwapPicker(false);
     onClose();
   };
 
@@ -220,18 +255,71 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
 
       {isPlayerTeam && (
         <button
-          className={`btn ${check.allowed ? 'primary' : ''}`}
-          disabled={!check.allowed}
-          onClick={changeRoster}
+          className={`btn ${check.allowed || swappable ? 'primary' : ''}`}
+          disabled={!check.allowed && !swappable}
+          onClick={check.allowed ? changeRoster : () => setShowSwapPicker(true)}
         >
           {check.allowed
             ? target === 'first'
               ? '1軍に登録する'
               : '2軍に降格する'
-            : (check.reason ?? '変更できません')}
+            : swappable
+              ? '入れ替える選手を選択'
+              : (check.reason ?? '変更できません')}
         </button>
       )}
+
+      {showSwapPicker && (
+        <Sheet
+          title={target === 'first' ? '入れ替えで2軍へ降格する選手' : '入れ替えで1軍へ昇格する選手'}
+          onClose={() => setShowSwapPicker(false)}
+        >
+          <p className="muted" style={{ fontSize: 'var(--text-sm)', marginBottom: 10 }}>
+            {target === 'first'
+              ? `${player.name} を1軍へ登録するには、誰かを2軍へ降格する必要があります。`
+              : `${player.name} を2軍へ降格するには、誰かを1軍へ昇格する必要があります。`}
+          </p>
+          <SwapCandidateList candidates={swapCandidates} onPick={swapWith} />
+        </Sheet>
+      )}
     </Sheet>
+  );
+}
+
+/**
+ * 入れ替え候補の一覧（PHASE 4.9-A §11）。
+ * 選べない候補も理由つきで残す（disabledにするだけで済ませない）。
+ */
+function SwapCandidateList({
+  candidates,
+  onPick,
+}: {
+  candidates: RosterSwapCandidate[];
+  onPick: (playerId: string) => void;
+}) {
+  if (candidates.length === 0) {
+    return <div className="muted">入れ替えられる選手がいません。</div>;
+  }
+  return (
+    <>
+      {candidates.map(({ player: candidate, allowed, reason }) => (
+        <button
+          key={candidate.id}
+          className="team-pick"
+          disabled={!allowed}
+          onClick={() => onPick(candidate.id)}
+        >
+          <span className="grow">
+            <strong>{candidate.name}</strong>
+            <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+              {POSITION_LABELS[candidate.mainPosition]} / 総合{overallRating(candidate)}
+              {candidate.ext.injury ? ' / 負傷中' : ''}
+              {!allowed && reason ? ` / ${reason}` : ''}
+            </span>
+          </span>
+        </button>
+      ))}
+    </>
   );
 }
 

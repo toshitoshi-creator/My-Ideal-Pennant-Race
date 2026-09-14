@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Sec } from '../components/Sec';
 import { useGame } from '../store';
-import { Sheet, Tabs } from '../components/common';
+import { Tabs } from '../components/common';
 import { NewsCard } from '../components/NewsCard';
-import { PlayerHistoryView } from '../components/PlayerHistoryView';
 import { CATEGORY_LABELS, markNewsRead, newsOfCategory } from '../../domain/news';
 import { recentStories } from '../../domain/story';
 import { formatDateJa } from '../../domain/dates';
@@ -17,7 +16,7 @@ import {
 } from '../../domain/decisions';
 import type { DecisionRecord } from '../../domain/types';
 import type { NewsItem } from '../../domain/types';
-import type { NewsCategory, PlayerHistory } from '../../domain/types';
+import type { NewsCategory } from '../../domain/types';
 
 type Filter = NewsCategory | 'ALL';
 type Tab = 'news' | 'stories' | 'journal';
@@ -54,7 +53,6 @@ export function NewsScreen() {
   const { state, mutate } = useGame();
   const [tab, setTab] = useState<Tab>('news');
   const [filter, setFilter] = useState<Filter>('ALL');
-  const [selected, setSelected] = useState<PlayerHistory | null>(null);
 
   // 開いたら既読にする（未読件数をホームに出しているため）
   useEffect(() => {
@@ -65,11 +63,6 @@ export function NewsScreen() {
 
   const items = useMemo(() => newsOfCategory(state, filter).slice(0, 120), [state, filter]);
   const stories = useMemo(() => recentStories(state), [state]);
-
-  const openPlayer = (playerId: string) => {
-    const history = state.history.players[playerId];
-    if (history) setSelected(history);
-  };
 
   return (
     <>
@@ -118,12 +111,7 @@ export function NewsScreen() {
                       <span className="news-day-rule" />
                     </div>
                     {group.items.map((item, i) => (
-                      <NewsCard
-                        key={item.id}
-                        item={item}
-                        index={i}
-                        onSelectPlayer={openPlayer}
-                      />
+                      <NewsCard key={item.id} item={item} index={i} />
                     ))}
                   </section>
                 ))
@@ -136,11 +124,6 @@ export function NewsScreen() {
           <GmJournal />
         )}
       </div>
-      {selected && (
-        <Sheet title={selected.name} onClose={() => setSelected(null)}>
-          <PlayerHistoryView history={selected} />
-        </Sheet>
-      )}
     </>
   );
 }
