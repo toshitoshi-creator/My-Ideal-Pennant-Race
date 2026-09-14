@@ -2198,7 +2198,7 @@ const listPortraits = await portraitStats('選手一覧');
 
 // 同じ選手が一覧と詳細で同じ絵になること
 {
-  const rowSvg = await page.locator('.player-card .portrait').first().innerHTML();
+  const rowKey = await page.locator('.player-card .portrait').first().getAttribute('data-appearance-key');
   const rowLabel = await page.locator('.player-card .portrait').first().getAttribute('aria-label');
   await page.locator('.player-card').first().click();
   await page.locator('.sheet').waitFor();
@@ -2208,40 +2208,42 @@ const listPortraits = await portraitStats('選手一覧');
     fail(`一覧と詳細で別人になっている（${rowLabel} / ${detailLabel}）`);
   } else ok(`一覧と詳細で同じ選手が出ている（${detailLabel}）`);
 
-  // 顔の部品（頭・目・鼻・口）が一覧と詳細で同じであること
-  const facePartsOf = (html) =>
-    ['pt-eyes', 'pt-nose', 'pt-mouth', 'pt-brows', 'pt-ears'].filter((c) => html.includes(c)).join(',');
-  const detailSvg = await page.locator('.sheet .portrait').first().innerHTML();
-  if (facePartsOf(rowSvg) !== facePartsOf(detailSvg)) {
-    fail('一覧と詳細で顔の部品構成が違う');
-  } else ok('一覧と詳細で同じ部品から組み立てられている');
+  // 見た目の指紋（頭・髪・目・眉・鼻・口・体・帽子・色・番号）が
+  // 一覧と詳細で同じであること（PHASE 4.9: Canvas は innerHTML を持たないので
+  // data-appearance-key で組み立て内容を比べる）
+  const detailKey = await page.locator('.sheet .portrait').first().getAttribute('data-appearance-key');
+  if (!rowKey || !detailKey) {
+    fail('肖像に data-appearance-key が付いていない');
+  } else if (rowKey !== detailKey) {
+    fail('一覧と詳細で見た目の組み立てが違う');
+  } else ok('一覧と詳細で同じ組み立てから描かれている');
 }
 
 // 詳細の肖像そのもの
 {
   const portrait = page.locator('.sheet .portrait').first();
   const tag = await portrait.evaluate((el) => el.tagName.toLowerCase());
-  if (tag !== 'svg') fail(`肖像が SVG ではない（${tag}）`);
-  else ok('肖像は SVG で描かれている');
+  if (tag !== 'canvas') fail(`肖像が Canvas ではない（${tag}）`);
+  else ok('肖像は Canvas で描かれている');
 
   const box = await portrait.boundingBox();
   if (!box || box.width < 40 || box.height < 40) fail('肖像の大きさが取れない');
   else ok(`詳細の肖像は ${Math.round(box.width)}x${Math.round(box.height)}px`);
   if (box && box.width > 390) fail('肖像が画面幅を超えている');
 
-  const bad = await portrait.evaluate((el) => ({
-    images: el.querySelectorAll('image').length,
-    scripts: el.querySelectorAll('script').length,
-    external: el.innerHTML.includes('http'),
-    empty: el.querySelectorAll('path[d=""]').length,
-  }));
-  if (bad.images > 0) fail('肖像が外部画像を読み込んでいる');
-  if (bad.scripts > 0) fail('肖像に script が入っている');
-  if (bad.external) fail('肖像が外部URLを参照している');
-  if (bad.empty > 0) fail('肖像に空のパスが含まれている');
-  if (!bad.images && !bad.scripts && !bad.external && !bad.empty) {
-    ok('肖像は外部依存なしで描かれている（画像・script・外部URLなし）');
-  }
+  // Canvas は innerHTML を持たない（img/script が紛れ込む余地がそもそも無い）。
+  // 実際に外部から何かを取り込んで描いていたら toDataURL() が
+  // SecurityError で例外を投げるので、それが起きないことを確かめる。
+  const bad = await portrait.evaluate((el) => {
+    try {
+      el.toDataURL();
+      return { tainted: false, message: '' };
+    } catch (e) {
+      return { tainted: true, message: String(e) };
+    }
+  });
+  if (bad.tainted) fail(`肖像が外部由来のデータで汚染されている（${bad.message}）`);
+  else ok('肖像は外部依存なしで描かれている（toDataURL が例外を投げない）');
 
   const label = await portrait.getAttribute('aria-label');
   if (!label || !label.includes('肖像')) fail('肖像に読み上げ用のラベルがない');
@@ -2266,13 +2268,13 @@ await page.locator('.sheet').getByRole('button', { name: '閉じる' }).click();
 
 // 選手ごとに違う人物であること
 {
-  const labels = await page.locator('.player-card .portrait').evaluateAll((els) =>
-    els.slice(0, 12).map((el) => el.innerHTML),
+  const keys = await page.locator('.player-card .portrait').evaluateAll((els) =>
+    els.slice(0, 12).map((el) => el.getAttribute('data-appearance-key')),
   );
-  const unique = new Set(labels);
-  if (unique.size < labels.length * 0.8) {
-    fail(`一覧の肖像が似すぎている（${labels.length}人中${unique.size}種類）`);
-  } else ok(`一覧の肖像は選手ごとに違う（${labels.length}人中${unique.size}種類）`);
+  const unique = new Set(keys);
+  if (unique.size < keys.length * 0.8) {
+    fail(`一覧の肖像が似すぎている（${keys.length}人中${unique.size}種類）`);
+  } else ok(`一覧の肖像は選手ごとに違う（${keys.length}人中${unique.size}種類）`);
 }
 
 // 横スクロールが出ていないこと
@@ -2335,14 +2337,14 @@ await page.waitForTimeout(200);
   else ok('壊れた画像は0枚');
 }
 
-// 素材が無いので、いまは PHASE 4.5 の SVG で描かれていること
+// PHASE 4.9: 画像素材にもSVGパーツにも頼らず、Canvasで描かれていること
 {
-  const svgCount = await page.locator('.player-card .portrait').evaluateAll((els) =>
-    els.filter((el) => el.tagName.toLowerCase() === 'svg').length,
+  const canvasCount = await page.locator('.player-card .portrait').evaluateAll((els) =>
+    els.filter((el) => el.tagName.toLowerCase() === 'canvas').length,
   );
   const imgCount = await page.locator('.player-card .portrait-image').count();
-  if (svgCount === 0) fail('素材が無いのに SVG の肖像が出ていない');
-  else ok(`素材0枚のため SVG で描かれている（SVG ${svgCount}件 / 画像 ${imgCount}件）`);
+  if (canvasCount === 0) fail('Canvas の肖像が出ていない');
+  else ok(`Canvas で描かれている（Canvas ${canvasCount}件 / 画像 ${imgCount}件）`);
 }
 
 // 「画像がありません」のような穴埋め表示を出していないこと

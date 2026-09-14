@@ -1,16 +1,21 @@
 /**
  * 選手のビジュアル（表示側の唯一の入口）。
  *
- * PHASE 4.8-A から、描き方は3段階になった（§29）。
+ * PHASE 4.9 から、描き方は4段階になった（§29 を1段増やす形で継承）。
  *
- *   1. 自作SVG（CharacterRenderer）… ふだんはここ
- *   2. PHASE 4.5 の SVG           … 1 が落ちたとき
- *   3. 名前だけの安全な代替        … 2 も落ちたとき
+ *   1. Canvas版（CanvasPortrait）… ふだんはここ
+ *   2. 自作SVG（CharacterRenderer）… 1 が落ちたとき
+ *   3. PHASE 4.5 の SVG           … 2 が落ちたとき
+ *   4. 名前だけの安全な代替        … 3 も落ちたとき
  *
- * PHASE 4.7 の画像素材（外部AIで作ったPNG）は使わなくなった。
- * 帽子のずれとキャラクターのブレを消しきれなかったため、
- * パーツを自分で描いて決定論的に組み合わせる方式へ移った。
- * 画像を読む道（PlayerPortraitImage）は残してあるが、
+ * Canvas版は player.id から作った専用の乱数だけで見た目を決める
+ * （domain/character/appearance.ts）。ゲームの乱数（rngState）は
+ * 一切消費しない。外部通信も画像生成AIも使わない。
+ *
+ * PHASE 4.8 の自作SVGと PHASE 4.5 の SVG は、消さずにフォールバックとして
+ * 残してある。PHASE 4.7 の画像素材（外部AIで作ったPNG）はもう使わない。
+ * 帽子のずれとキャラクターのブレを消しきれなかったため。
+ * 画像を読む道（PlayerPortraitImage）も残してあるが、
  * ゲームの通常の描画からは呼ばれない。
  *
  * どの段でも、選手の表示そのものは絶対に壊れない。
@@ -24,6 +29,7 @@ import type { VisualStance } from '../../domain/visualProfile';
 import { characterProfileAtAge, type CharacterProfile } from '../../domain/characterProfile';
 import { CharacterRenderer, partCount } from '../character';
 import type { CharacterExpression } from '../character';
+import { CanvasPortrait } from '../character/CanvasPortrait';
 import { PlayerPortrait, PlayerPortraitById } from './PlayerPortrait';
 import { PlayerPortraitFallback } from './PlayerPortraitFallback';
 import type { PortraitSize } from '../portrait';
@@ -112,7 +118,7 @@ export const PlayerVisual = memo(function PlayerVisual({
   // stance は PHASE 4.5 の SVG 側の引数。自作SVGでは姿勢をまだ扱わない（§35）
   stance: _stance = 'auto',
   pose,
-  showCap = true,
+  showCap = false,
   showUniform = true,
   animate = false,
   teamColor,
@@ -125,6 +131,8 @@ export const PlayerVisual = memo(function PlayerVisual({
 
   return (
     <VisualLayers
+      playerId={player.id}
+      numberText={player.uniformNumber}
       character={character}
       name={player.name}
       size={size}
@@ -173,7 +181,7 @@ export const PlayerVisualById = memo(function PlayerVisualById({
   isPitcher = false,
   size = 'medium',
   expression = 'neutral',
-  showCap = true,
+  showCap = false,
   showUniform = true,
   teamColor,
   className,
@@ -185,6 +193,7 @@ export const PlayerVisualById = memo(function PlayerVisualById({
 
   return (
     <VisualLayers
+      playerId={playerId}
       character={character}
       name={name}
       size={size}
@@ -211,7 +220,11 @@ export const PlayerVisualById = memo(function PlayerVisualById({
 });
 
 interface VisualLayersProps {
-  /** 自作SVGの設計図（PHASE 4.8-A） */
+  /** player.id か playerId。Canvas版の見た目をここから決める（PHASE 4.9） */
+  playerId: string;
+  /** 背番号。渡せるときだけ描き入れる */
+  numberText?: number | string | undefined;
+  /** 自作SVGの設計図（PHASE 4.8-A。CanvasPortraitが落ちたときのフォールバック） */
   character: CharacterProfile;
   name: string;
   size: VisualSize;
@@ -219,18 +232,20 @@ interface VisualLayersProps {
   showCap: boolean;
   teamColor?: string | undefined;
   className?: string | undefined;
-  /** 自作SVGが描けないときに描くもの（PHASE 4.5 の SVG） */
+  /** ここまで全部落ちたときに描くもの（PHASE 4.5 の SVG） */
   renderSvg: () => ReactElement;
 }
 
 /**
- * 3段階の選び分けだけを受け持つ（§29）。
- *   0 = 自作SVG / 1 = PHASE 4.5 の SVG / 2 = 名前だけの代替
+ * 4段階の選び分けだけを受け持つ（§29 を1段増やして継承）。
+ *   0 = Canvas版 / 1 = 自作SVG / 2 = PHASE 4.5 の SVG / 3 = 名前だけの代替
  *
  * 段を落とすのは「描けなかったとき」だけ。
- * 自作SVGは外部に何も頼らないので、ふつうは段0のまま。
+ * Canvas版も外部に何も頼らないので、ふつうは段0のまま。
  */
 function VisualLayers({
+  playerId,
+  numberText,
   character,
   name,
   size,
@@ -242,24 +257,21 @@ function VisualLayers({
 }: VisualLayersProps) {
   const [tier, setTier] = useState(0);
 
+  const portraitClassName = ['portrait', `portrait-${size}`, `portrait-x-${expression}`, className ?? '']
+    .filter(Boolean)
+    .join(' ');
+
   if (tier === 0) {
     try {
       return (
-        <CharacterRenderer
-          profile={character}
+        <CanvasPortrait
+          playerId={playerId}
+          name={name}
           width={WIDTH[size]}
-          expression={expression}
           showCap={showCap}
           teamColor={teamColor}
-          /*
-           * PHASE 4.5 の肖像と同じ印を付ける。
-           *
-           * 画面の CSS（大きさ・並び）も E2E も `portrait` を目印にしている。
-           * 中身を自作SVGへ入れ替えても、外から見た名前は変えない。
-           */
-          className={['portrait', `portrait-${size}`, `portrait-x-${expression}`, className ?? '']
-            .filter(Boolean)
-            .join(' ')}
+          numberText={numberText}
+          className={portraitClassName}
           title={`${name}の肖像`}
         />
       );
@@ -270,6 +282,28 @@ function VisualLayers({
   }
 
   if (tier <= 1) {
+    try {
+      return (
+        <CharacterRenderer
+          profile={character}
+          width={WIDTH[size]}
+          expression={expression}
+          showCap={showCap}
+          teamColor={teamColor}
+          /*
+           * どの段になっても、画面のCSSとE2Eが目印にしている
+           * `portrait` クラスと `〜の肖像` ラベルは変えない。
+           */
+          className={portraitClassName}
+          title={`${name}の肖像`}
+        />
+      );
+    } catch {
+      setTier(2);
+    }
+  }
+
+  if (tier <= 2) {
     try {
       return renderSvg();
     } catch {
