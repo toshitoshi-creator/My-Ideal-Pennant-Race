@@ -3545,6 +3545,14 @@ h3.sec {
   background: var(--photo-bg);
   /* 表示範囲の外へはみ出させない。行の高さが崩れる */
   overflow: hidden;
+  /*
+   * PHASE 4.9: Canvas版はここで初期値を決める。
+   * --portrait-size は CanvasPortrait.tsx がインラインで渡す既定の一辺。
+   * .player-photo .portrait のような、より詳細度の高い指定があれば
+   * そちらが勝つ（widthプロパティ自体を上書きするので）。
+   */
+  width: var(--portrait-size, auto);
+  height: var(--portrait-size, auto);
 }
 
 .pt-paper {

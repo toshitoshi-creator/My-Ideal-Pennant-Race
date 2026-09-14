@@ -145,6 +145,26 @@ export const CanvasPortrait = memo(function CanvasPortrait({
     renderPlayerAppearance(ctx, appearance, pixelSize);
   }, [appearance, width]);
 
+  /*
+   * 幅・高さは直接styleへ入れない。
+   *
+   * PHASE 4.8 の自作SVGは width/height を「属性」として置いていたので、
+   * `.player-photo .portrait { width: 116px; }` のようなCSS側の上書きが
+   * ふつうに効いていた（属性は詳細度が最も低いので、クラス指定に必ず負ける）。
+   * Canvasにそのままstyleでwidth/heightを書くと、それはインラインstyleに
+   * なってしまい、どんなCSSクラスよりも強くなって上書きできなくなる。
+   * それが「選手詳細で名前と写真が重なる」不具合の原因だった
+   * （見出しは116pxを想定しているのに、Canvasだけ168pxのまま描かれていた）。
+   *
+   * ここではCSS変数 --portrait-size に渡すだけにして、実際の width/height は
+   * styles.css の `.portrait` が読む。詳細度の高いCSSがあれば、SVGのときと
+   * 同じようにそちらが勝つ。
+   */
+  const style = {
+    display: 'block',
+    '--portrait-size': `${width}px`,
+  } as React.CSSProperties;
+
   return (
     <canvas
       ref={canvasRef}
@@ -152,7 +172,7 @@ export const CanvasPortrait = memo(function CanvasPortrait({
       aria-label={title ?? `${name}の肖像`}
       data-appearance-key={appearanceKey(appearance)}
       className={className}
-      style={{ width, height: width, display: 'block' }}
+      style={style}
     />
   );
 });
