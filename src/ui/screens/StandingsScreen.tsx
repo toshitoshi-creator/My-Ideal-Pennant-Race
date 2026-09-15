@@ -3,10 +3,11 @@ import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import { formatGamesBehind, formatWinPct, standingsForLeague } from '../../domain/standings';
 import { Tabs } from '../components/common';
+import { StandingsTrendPanel } from '../components/StandingsTrendPanel';
 import { PlayerLink } from '../components/PlayerLink';
 import { average, era, formatAverage, formatInnings } from '../../domain/stats';
 
-type Tab = 'standings' | 'leaders';
+type Tab = 'standings' | 'trend' | 'leaders';
 
 export function StandingsScreen() {
   const { state } = useGame();
@@ -17,13 +18,16 @@ export function StandingsScreen() {
       <Tabs
         tabs={[
           { id: 'standings', label: '順位表' },
+          { id: 'trend', label: '推移' },
           { id: 'leaders', label: 'リーグ個人成績' },
         ]}
         value={tab}
         onChange={setTab}
       />
       <div className="screen">
-        {tab === 'standings'
+        {tab === 'trend' ? (
+          <StandingsTrendPanel />
+        ) : tab === 'standings'
           ? state.leagues.map((league) => (
               <div className="card" key={league.id}>
                 <h2>

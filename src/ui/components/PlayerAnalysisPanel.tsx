@@ -15,6 +15,8 @@ import { formatAverage } from '../../domain/stats';
 import { useGame } from '../store';
 import { RadarChart, Stars, TrendChart } from './charts';
 import { Sec } from './Sec';
+import { GrowthPanel } from './GrowthPanel';
+import { CareerTrendPanel } from './CareerTrendPanel';
 
 
 interface MetricDef {
@@ -197,12 +199,10 @@ export function PlayerAnalysisPanel({ player }: { player: Player }) {
             )}
           </div>
         )}
-        {!analysis.abilityHistoryAvailable && (
-          <div className="muted" style={{ fontSize: 'var(--text-xs)', marginTop: 6 }}>
-            能力の履歴は保存していないため、過去の能力推移は表示できません。
-          </div>
-        )}
       </div>
+
+      {/* ── 能力の推移（PHASE 4.9-B） ── */}
+      <GrowthPanel player={player} />
 
       <div className="card">
         <Sec en="SEASON RECORD" ja="年度別成績" />
@@ -244,6 +244,9 @@ export function PlayerAnalysisPanel({ player }: { player: Player }) {
           </>
         )}
       </div>
+
+      {/* ── 通算成績の推移（PHASE 4.9-B） ── */}
+      <CareerTrendPanel player={player} />
     </>
   );
 }

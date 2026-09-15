@@ -96,6 +96,8 @@ export function createScoutAbilities(teams: Team[], rng: Rng): Record<string, Te
       potential: spread(),
       personality: spread(),
       skills: spread(),
+      // PHASE 4.9-B: 発掘力も同じ部門の力から作るが、調査力とは別の軸として振る
+      discovery: spread(),
     };
   }
   return abilities;
@@ -197,6 +199,7 @@ export function viewReport(
     potential: 50,
     personality: 50,
     skills: 50,
+    discovery: 50,
   };
   return buildInitialReport(prospect, ability, teamId, scouting.year);
 }
@@ -486,11 +489,19 @@ export function runCpuScouting(state: GameState, rng: Rng): void {
       .sort((a, b) => a.key - b.key)
       .map((x) => x.prospect);
 
+    /*
+     * PHASE 4.9-B: 発掘力は「どれだけ多くの候補に目が届くか」だけに効く。
+     * 推定の当たり具合（調査力）には一切触れない。
+     * 発掘力50で従来どおり、100で1.5倍、0で0.5倍の候補数を見る。
+     */
+    const reach = 1 + (entry.ability.discovery - 50) / 100;
+    const scaled = (count: number) => Math.max(1, Math.round(count * reach));
+
     // 上位候補は深く、その次は浅く調べる
     const plan: Array<{ count: number; categories: ScoutCategory[] }> = [
-      { count: 2, categories: ['potential', 'currentAbility', 'skills', 'potential'] },
-      { count: 6, categories: ['potential', 'currentAbility'] },
-      { count: 12, categories: ['currentAbility'] },
+      { count: scaled(2), categories: ['potential', 'currentAbility', 'skills', 'potential'] },
+      { count: scaled(6), categories: ['potential', 'currentAbility'] },
+      { count: scaled(12), categories: ['currentAbility'] },
     ];
 
     let index = 0;
@@ -548,8 +559,13 @@ export const SCOUT_ABILITY_LABELS: Record<keyof TeamScoutAbility, string> = {
   potential: '将来性の見極め',
   personality: '人物調査',
   skills: '素質の発見',
+  discovery: '発掘力',
 };
 
+/**
+ * 調査力のまとめ（発掘力は含めない）。
+ * 発掘力は「見つける力」なので、「見極める力」の平均には混ぜない（§M）。
+ */
 export function scoutAbilitySummary(ability: TeamScoutAbility): number {
   return Math.round(
     (ability.currentAbility + ability.potential + ability.personality + ability.skills) / 4,

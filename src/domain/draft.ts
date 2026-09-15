@@ -29,6 +29,13 @@ import { standingsForLeague } from './standings';
 import { scoutedEvaluation } from './scouting';
 import { generateDraftNews } from './news';
 import { canAddPlayer } from './roster';
+import {
+  amateurExtraProspects,
+  biasToType,
+  conditionMatchChance,
+  discoveryPowerOf,
+  discoveryRng,
+} from './discovery';
 
 /** 1球団あたりの候補数（12球団なら 108人） */
 export const PROSPECTS_PER_TEAM = 9;
@@ -106,6 +113,11 @@ export function generateProspects(
   year: number,
   teamCount: number,
   countPerTeam = PROSPECTS_PER_TEAM,
+  /**
+   * PHASE 4.9-B: スカウトに出した発掘条件で「守備位置と先発向きかどうか」だけを寄せる。
+   * 能力の高さには一切触れない（発掘力は見つける力であって、強くする力ではない）。
+   */
+  preferred: { mainPosition: PositionId; starterStamina: boolean } | null = null,
 ): DraftProspect[] {
   const count = teamCount * countPerTeam;
   // -1（不作）〜 +1（当たり年）。極端にはしない
@@ -114,7 +126,7 @@ export function generateProspects(
 
   const prospects: DraftProspect[] = [];
   for (let i = 0; i < count; i++) {
-    const mainPosition = pickPosition(rng);
+    const mainPosition = preferred ? preferred.mainPosition : pickPosition(rng);
     const age = pickProspectAge(rng);
     // ごく一部だけ「即戦力級・大器」の候補を混ぜる
     const isTop = rng.chance(0.06 + classQuality * 0.02);
@@ -127,7 +139,8 @@ export function generateProspects(
       mean: Math.max(8, rng.normal(baseMean + bonus + maturity, 6)),
       age,
       startYear: year,
-      starterStamina: mainPosition === 'P' && rng.chance(0.5),
+      starterStamina:
+        mainPosition === 'P' && (preferred ? preferred.starterStamina : rng.chance(0.5)),
     });
     // 潜在能力は候補用に決め直す。
     // 「若い＝伸びしろが大きい」だけで決めるとリーグ全体の能力が年々上がってしまうため、
@@ -207,6 +220,43 @@ export function createDraft(state: GameState, rng: Rng): DraftState | null {
   // 人数が足りている年でも最低3巡は行う（1巡目で終わらせない）
   const rounds = Math.max(MIN_DRAFT_ROUNDS, Math.min(MAX_DRAFT_ROUNDS, maxNeed));
   const prospects = generateProspects(rng, state.year, state.teams.length);
+  /*
+   * PHASE 4.9-B: アマチュア発掘。
+   * 自球団のスカウトの「発掘力」が高いほど、他球団が見つけていない候補が
+   * 何人か候補リストに加わる（0〜4人）。
+   *
+   * 基本のプールは既存の rng で作ったままにして、追加ぶんだけ専用の乱数列で作る。
+   * こうすることで、発掘力の有無で既存候補の中身が変わらない。
+   * なお追加されるのは「候補リストに載る」ことだけで、
+   * 指名の優先権や、能力が良くなる補正は一切与えない（他球団も指名できる）。
+   */
+  const power = discoveryPowerOf(state, state.playerTeamId);
+  const extra = amateurExtraProspects(power);
+  if (extra > 0) {
+    const extraRng = discoveryRng(state, 'amateur', state.year);
+    const condition = state.discovery?.amateur.active ?? null;
+    for (let i = 0; i < extra; i++) {
+      // 条件を出していても必ず合うわけではない。合う確率が発掘力で上がるだけ（§39）
+      const matched = condition !== null && extraRng.chance(conditionMatchChance(power));
+      const preferred =
+        matched && condition
+          ? {
+              mainPosition: condition.pitcher ? ('P' as PositionId) : (condition.position ?? pickPosition(extraRng)),
+              starterStamina: (condition.role ?? 'starter') === 'starter',
+            }
+          : null;
+      const [prospect] = generateProspects(extraRng, state.year, 1, 1, preferred);
+      if (matched && condition?.type) biasToType(prospect.player, condition.type, extraRng);
+      prospect.id = `dp${state.year}-x${i}`;
+      prospect.projectedAbility = overallRating(prospect.player);
+      prospects.push(prospect);
+    }
+    // 事前評価順を付け直す（追加ぶんも同じ基準で並ぶ）
+    prospects.sort((a, b) => scoutingScore(b) - scoutingScore(a));
+    prospects.forEach((prospect, index) => {
+      prospect.draftRank = index + 1;
+    });
+  }
   /*
    * 支配下70人枠が埋まっている球団は指名順から外す。
    * 1巡目は「枠が空いていなくても全球団が指名する」扱いなので、

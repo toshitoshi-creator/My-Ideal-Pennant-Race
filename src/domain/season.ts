@@ -61,6 +61,7 @@ import {
 import { repairAllSetups } from './engine';
 import { ensureFirstTeamViable } from './daily';
 import { rebuildFirstTeam } from './roster';
+import { clearStaleCandidates } from './discovery';
 
 /** 1軍・2軍の出場経験を 0〜1 に正規化する */
 function experienceOf(state: GameState, player: Player): {
@@ -517,6 +518,8 @@ export function completeOffseason(state: GameState): Player[] {
 
   state.rngState = rng.getState();
   state.year += 1;
+  // PHASE 4.9-B: 去年の助っ人候補は市場から消える（契約しなかった選手を持ち越さない）
+  clearStaleCandidates(state);
   state.date = openingDate(state.year);
   state.schedule = generateSchedule(state.year, state.seasonLength, state.leagues, state.teams);
   state.results = [];

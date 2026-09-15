@@ -1025,26 +1025,26 @@ describe('PHASE4.1 球団分析の文章', () => {
 /* ================= レーダーチャート ================= */
 
 describe('PHASE4.1 レーダーチャート', () => {
-  it('野手は6軸', () => {
+  it('野手は7軸', () => {
     const s = newGame();
-    expect(analyzePlayer(s, anyFielder(s)).radar).toHaveLength(6);
+    expect(analyzePlayer(s, anyFielder(s)).radar).toHaveLength(7);
   });
 
-  it('野手の軸はミート・パワー・走力・肩・守備・捕球', () => {
+  it('野手の軸は弾道・パワー・ミート・走力・肩・守備・捕球', () => {
     const s = newGame();
     const labels = analyzePlayer(s, anyFielder(s)).radar.map((a) => a.label);
-    expect(labels).toEqual(['ミート', 'パワー', '走力', '肩', '守備', '捕球']);
+    expect(labels).toEqual(['弾道', 'パワー', 'ミート', '走力', '肩', '守備', '捕球']);
   });
 
-  it('投手は5軸', () => {
+  it('投手は7軸', () => {
     const s = newGame();
-    expect(analyzePlayer(s, anyPitcher(s)).radar).toHaveLength(5);
+    expect(analyzePlayer(s, anyPitcher(s)).radar).toHaveLength(7);
   });
 
-  it('投手の軸は球速・制球・スタミナ・球威・変化', () => {
+  it('投手の軸は球速・制球・スタミナ・球威・変化・守備・打撃', () => {
     const s = newGame();
     const labels = analyzePlayer(s, anyPitcher(s)).radar.map((a) => a.label);
-    expect(labels).toEqual(['球速', '制球', 'スタミナ', '球威', '変化']);
+    expect(labels).toEqual(['球速', '制球', 'スタミナ', '球威', '変化', '守備', '打撃']);
   });
 
   it('軸の値は 1〜100 に収まる', () => {
@@ -1163,8 +1163,19 @@ describe('PHASE4.1 潜在能力の真値が漏れない', () => {
     expect(withRange.some((a) => a.projected! > a.value)).toBe(true);
   });
 
-  it('能力の履歴は保存していないと明示される', () => {
+  it('シーズンを終えた選手は能力の履歴を持つ（PHASE 4.9-B）', () => {
     const s = afterSeasons(2, 4161);
+    // 年度別成績が記録されている選手には、必ず能力の記録も付く。
+    // ドラフトで入ったばかりの新人など、まだ1シーズンも終えていない選手は対象外。
+    const played = myPlayers(s).filter((p) => (s.history.players[p.id]?.seasons.length ?? 0) > 0);
+    expect(played.length).toBeGreaterThan(0);
+    for (const player of played) {
+      expect(analyzePlayer(s, player).abilityHistoryAvailable).toBe(true);
+    }
+  });
+
+  it('シーズンを終えていない選手には能力の履歴が無い', () => {
+    const s = newGame();
     for (const player of myPlayers(s)) {
       expect(analyzePlayer(s, player).abilityHistoryAvailable).toBe(false);
     }
@@ -1465,11 +1476,11 @@ describe('PHASE4.1 情報不足のとき', () => {
 describe('PHASE4.1 既存システムが壊れていない', () => {
   it('PHASE 4.1 の分析はセーブ形式に何も足していない', () => {
     /*
-     * PHASE 4.1 の時点では v14 だった。PHASE 4.4 でGMの判断記録を足したため v15 になっている。
+     * PHASE 4.1 の時点では v14 だった。その後の追加で v16 になっている。
      * ここで確かめたいのは「4.1 の分析まわりが保存を必要としていない」ことなので、
      * バージョン番号ではなく、分析が state に何も書き込まないことを直接見る。
      */
-    expect(SAVE_VERSION).toBe(15);
+    expect(SAVE_VERSION).toBe(16);
     const s = playSeason(newGame(10, 4201));
     const snapshot = JSON.stringify(s);
     for (const player of s.players.slice(0, 30)) analyzePlayer(s, player);

@@ -341,6 +341,9 @@ export function HomeScreen() {
           <button className="btn secondary" onClick={() => setScreen('records')}>
             記録
           </button>
+          <button className="btn secondary" onClick={() => setScreen('discovery')}>
+            発掘
+          </button>
           <button className="btn secondary" onClick={() => setScreen('trade')}>
             トレードを見る
           </button>

@@ -339,7 +339,9 @@ describe('PHASE4.8-A H. セーブとロード', () => {
 
 describe('PHASE4.8-A I. 移行', () => {
   it('SAVE_VERSION を変えていない', () => {
-    expect(SAVE_VERSION).toBe(15);
+    // PHASE 4.8-A 自体はセーブ形式を増やしていない。
+    // 現在値が 16 なのは、後の PHASE 4.9-B が能力履歴と発掘データを足したため。
+    expect(SAVE_VERSION).toBe(16);
   });
 
   it('見た目の欄が無い古いセーブでも作り直せる', () => {

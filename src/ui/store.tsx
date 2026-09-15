@@ -52,7 +52,8 @@ export type ScreenId =
   | 'postseason'
   | 'news'
   | 'club'
-  | 'playerCheck';
+  | 'playerCheck'
+  | 'discovery';
 
 interface StoreValue {
   state: GameState | null;

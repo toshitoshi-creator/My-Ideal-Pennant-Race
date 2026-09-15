@@ -24,6 +24,7 @@ import { PERSONALITY_IDS } from './personality';
 import { GROWTH_TENDENCY_IDS, GROWTH_TYPE_IDS } from './growth';
 import { overallRating } from './rating';
 import { createScoutAbilities, createScoutingState, SCOUT_POINTS_PER_YEAR } from './scouting';
+import { createDiscoveryState } from './discovery';
 import { createContract, createTeamFinance, marketValue, refreshPayrolls } from './contract';
 import { repairFreeAgents } from './freeAgency';
 import { createHistoryState, ensureHistory } from './history';
@@ -330,6 +331,48 @@ export function migrateV14ToV15(state: GameState): void {
     state.decisions.splice(0, state.decisions.length - DECISION_LIMIT);
   }
   state.version = 15;
+}
+
+/**
+ * v15 → v16：PHASE 4.9-B（能力履歴・発掘）の入れ物を用意する。
+ *
+ * 大事なのは「作り出さないこと」。
+ *   - 過去の能力履歴は存在しないので、現在値から逆算して埋めない。
+ *     記録は次にシーズンを締めた年から1年ずつ増えていく。
+ *   - 発掘力は選手・成績・順位に一切影響しないので、
+ *     球団ごとに安定した値（seed から）を入れるだけにする。
+ * 既存のデータ（能力・成績・順位・日付・1軍/2軍・契約・スカウト結果）は書き換えない。
+ */
+export function migrateV15ToV16(state: GameState): void {
+  // 発掘力：既存のスカウト能力と同じ作り方で、球団ごとに固定の値を入れる
+  for (const team of state.teams) {
+    const scouting = state.scouting?.teams?.[team.id];
+    if (!scouting) continue;
+    if (typeof scouting.ability.discovery !== 'number') {
+      const rng = new Rng(seedFrom(`discovery:${state.seed}:${team.id}`));
+      scouting.ability.discovery = clamp1to100(rng.normal(55, 14));
+    }
+  }
+  if (!state.discovery || typeof state.discovery !== 'object') {
+    state.discovery = createDiscoveryState();
+  } else {
+    // 一部だけ欠けている壊れたセーブも読めるようにする
+    const discovery = state.discovery;
+    if (!discovery.foreign || typeof discovery.foreign !== 'object') {
+      discovery.foreign = { search: null, candidates: [], reports: {} };
+    }
+    if (!Array.isArray(discovery.foreign.candidates)) discovery.foreign.candidates = [];
+    if (!discovery.foreign.reports || typeof discovery.foreign.reports !== 'object') {
+      discovery.foreign.reports = {};
+    }
+    if (discovery.foreign.search === undefined) discovery.foreign.search = null;
+    if (!discovery.amateur || typeof discovery.amateur !== 'object') {
+      discovery.amateur = { presets: [], active: null };
+    }
+    if (!Array.isArray(discovery.amateur.presets)) discovery.amateur.presets = [];
+    if (discovery.amateur.active === undefined) discovery.amateur.active = null;
+  }
+  state.version = 16;
 }
 
 /**

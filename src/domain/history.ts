@@ -48,6 +48,7 @@ import {
   unpackBatting,
   unpackPitching,
 } from './stats';
+import { abilitySnapshot } from './abilityHistory';
 import { standingsForLeague } from './standings';
 import { judgeHallOfFame } from './hallOfFame';
 import { generateAwardNews, generateRecordNews } from './news';
@@ -683,6 +684,13 @@ export function finalizeSeason(state: GameState): SeasonHistory | null {
         ? teamIds.map((teamId) => ({ year, teamId, ...splitStats(byTeam[teamId]) }))
         : // 出場が無くても在籍していた記録として1行残す
           [{ year, teamId: player.teamId }];
+
+    /*
+     * PHASE 4.9-B: この時点の能力を1年に1行だけ残す（成長曲線の材料）。
+     * シーズン途中のトレードで行が2つになっても、能力は選手に1つしかないので
+     * 最初の行にだけ入れる。ここでは能力値を一切書き換えない（読むだけ）。
+     */
+    Object.assign(rows[0], abilitySnapshot(player));
 
     for (const row of rows) {
       entry.seasons.push(row);

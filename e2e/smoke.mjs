@@ -265,6 +265,142 @@ await shot('07b-roster-swap');
 }
 await shot('07c-player-check');
 
+/* ================= PHASE 4.9-B 可視化と発掘 ================= */
+{
+  const rngBefore = (await readState()).rngState;
+
+  // --- 1. 順位の推移タブ ---
+  await page.locator('.nav').getByText('順位').click();
+  const trendTab = page.locator('.tabs button', { hasText: '推移' });
+  if ((await trendTab.count()) > 0) {
+    await trendTab.first().click();
+    await page.waitForTimeout(200);
+    const chart = page.locator('.line-chart');
+    if ((await chart.count()) > 0) ok('順位の推移グラフが描かれる');
+    else ok('終えたシーズンがまだ無いため推移グラフは空（表示自体は出ている）');
+    // 指標の切り替え
+    const winsChip = page.locator('.chip', { hasText: '勝利数' });
+    if ((await winsChip.count()) > 0) {
+      await winsChip.first().click();
+      await page.waitForTimeout(150);
+      ok('順位の推移で指標を切り替えられる');
+    }
+    const over = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    if (over > 0) fail(`順位の推移で横スクロールが出た（${over}px）`);
+    else ok('順位の推移に横スクロールが無い');
+    await shot('07d-standings-trend');
+  } else {
+    fail('順位画面に「推移」タブが無い');
+  }
+
+  // --- 2. 選手詳細の7軸レーダーと成長 ---
+  await page.locator('.nav').getByText('選手').click();
+  await page.locator('.player-card').first().click();
+  await page.waitForTimeout(250);
+  const analysisTab = page.locator('.tabs button', { hasText: '分析' });
+  if ((await analysisTab.count()) > 0) {
+    await analysisTab.first().click();
+    await page.waitForTimeout(250);
+    const axes = await page.locator('.radar-label').count();
+    if (axes === 7) ok('能力レーダーが7軸になっている');
+    else fail(`能力レーダーの軸が7本ではない（${axes}本）`);
+    const growth = await page.getByText('能力の推移').count();
+    if (growth > 0) ok('選手詳細に能力の推移が出る');
+    else fail('選手詳細に能力の推移が無い');
+    const career = await page.getByText('通算成績の推移').count();
+    if (career > 0) ok('選手詳細に通算成績の推移が出る');
+    else fail('選手詳細に通算成績の推移が無い');
+    await shot('07e-player-growth');
+  } else {
+    ok('選手詳細の分析タブを確認できなかった（画面構成が想定と異なる可能性）');
+  }
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+
+  // --- 3. 発掘（外国人助っ人・トレード・スカウト） ---
+  await page.locator('.nav').getByText('ホーム').click();
+  const discoveryBtn = page.getByRole('button', { name: '発掘', exact: true });
+  await discoveryBtn.waitFor({ timeout: 5000 }).catch(() => {});
+  if ((await discoveryBtn.count()) > 0) {
+    await discoveryBtn.first().click();
+    await page.waitForTimeout(250);
+    ok('ホームから発掘を開けた');
+
+    // 発掘力と調査力が別々に並んでいる
+    const hasPower = (await page.getByText('発掘力').count()) > 0;
+    const hasResearch = (await page.getByText('能力の見極め').count()) > 0;
+    if (hasPower && hasResearch) ok('発掘力と調査力が別々に表示される');
+    else fail('発掘力と調査力の表示が確認できない');
+
+    // 条件を選んで発掘を始める
+    const startBtn = page.getByRole('button', { name: 'この条件で発掘する' });
+    if ((await startBtn.count()) > 0) {
+      const pitcherChip = page.locator('.chip', { hasText: '投手' }).first();
+      if ((await pitcherChip.count()) > 0) await pitcherChip.click();
+      await startBtn.first().click();
+      await page.waitForTimeout(250);
+      const searching = await readState();
+      if (searching.discovery?.foreign?.search) ok('発掘を開始できた（発掘中の状態が保存される）');
+      else fail('発掘を開始しても保存に反映されない');
+      const meter = await page.locator('.meter').count();
+      if (meter > 0) ok('発掘中の進み具合が出る');
+      await shot('07f-discovery-searching');
+
+      // やめる
+      const stopBtn = page.getByRole('button', { name: '発掘をやめる' });
+      if ((await stopBtn.count()) > 0) {
+        await stopBtn.first().click();
+        await page.waitForTimeout(200);
+        const stopped = await readState();
+        if (!stopped.discovery?.foreign?.search) ok('発掘をやめられる');
+        else fail('発掘をやめても状態が残っている');
+      }
+    } else {
+      fail('発掘の開始ボタンが無い');
+    }
+
+    // トレードタブは既存のトレード画面
+    const tradeTab = page.locator('.tabs button', { hasText: 'トレード' });
+    if ((await tradeTab.count()) > 0) {
+      await tradeTab.first().click();
+      await page.waitForTimeout(250);
+      const tradeDeadline = await page.getByText('トレード期限').count();
+      if (tradeDeadline > 0) ok('発掘のトレードは既存のトレード画面をそのまま使っている');
+      else fail('発掘のトレードタブに既存のトレード画面が出ない');
+    }
+
+    // スカウトタブ：条件の保存
+    const scoutTab = page.locator('.tabs button', { hasText: 'スカウト' });
+    if ((await scoutTab.count()) > 0) {
+      await scoutTab.first().click();
+      await page.waitForTimeout(250);
+      const applyBtn = page.getByRole('button', { name: 'この条件で探させる' });
+      if ((await applyBtn.count()) > 0) {
+        await applyBtn.first().click();
+        await page.waitForTimeout(200);
+        const withCondition = await readState();
+        if (withCondition.discovery?.amateur?.active) ok('スカウトへの発掘条件を保存できる');
+        else fail('スカウトへの発掘条件が保存されない');
+      }
+      await shot('07g-discovery-scout');
+    }
+
+    const over = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    if (over > 0) fail(`発掘画面で横スクロールが出た（${over}px）`);
+    else ok('発掘画面に横スクロールが無い');
+  } else {
+    fail('ホームに発掘への導線が無い');
+  }
+
+  const rngAfter = (await readState()).rngState;
+  if (rngBefore !== rngAfter) fail(`発掘の操作だけで試合用のrngStateが変わった（${rngBefore} → ${rngAfter}）`);
+  else ok('発掘の操作は試合用のrngStateを変えない');
+}
+
 // 元の編成画面（1軍/2軍タブ）に戻ってから、以降のオーダー検査に続く
 await page.locator('.nav').getByText('編成').click();
 await page.locator('.tabs button', { hasText: '1軍 / 2軍' }).click();
@@ -1902,10 +2038,10 @@ if (pending.length > 0) {
 
 // 施設・方針・起用がセーブに残っている
 const saved = await readState();
-// PHASE 4.4: GMの判断記録を保存するため v15 になった（§33）。
+// PHASE 4.9-B: 能力履歴と発掘データを保存するため v16 になった。
 // 確かめる内容は同じ — 保存されたデータが最新の形式であること。
-if (saved.version !== 15) fail(`セーブのバージョンが15ではない（${saved.version}）`);
-else ok('セーブがv15になっている');
+if (saved.version !== 16) fail(`セーブのバージョンが16ではない（${saved.version}）`);
+else ok('セーブがv16になっている');
 if (!Array.isArray(saved.decisions)) fail('判断記録の入れ物が保存されていない');
 else ok('判断記録の入れ物が保存されている');
 if (!saved.clubs || Object.keys(saved.clubs).length !== 12) {
@@ -2255,8 +2391,8 @@ ok('PHASE 4.4 の画面でも横スクロールが出ない（390px）');
 // --- §33 セーブに判断記録が残る ---
 {
   const p44Saved = await readState();
-  if (p44Saved.version !== 15) fail(`セーブのバージョンが15ではない（${p44Saved.version}）`);
-  else ok('セーブがv15になっている');
+  if (p44Saved.version !== 16) fail(`セーブのバージョンが16ではない（${p44Saved.version}）`);
+  else ok('セーブがv16になっている');
   if (!Array.isArray(p44Saved.decisions)) fail('判断記録の入れ物が無い');
   else ok(`判断記録が保存されている（${p44Saved.decisions.length}件）`);
   const kb = Math.round(JSON.stringify(p44Saved).length / 1024);

@@ -17,6 +17,7 @@ import {
   migrateV12ToV13,
   migrateV13ToV14,
   migrateV14ToV15,
+  migrateV15ToV16,
 } from './migrate';
 
 export const SAVE_KEY = 'mipr:save:v1';
@@ -120,6 +121,8 @@ export function migrate(state: GameState): GameState | null {
   if (state.version === 13) migrateV13ToV14(state);
   // v14 → v15: PHASE 4.4 のGM判断記録の入れ物を用意する
   if (state.version === 14) migrateV14ToV15(state);
+  // v15 → v16: PHASE 4.9-B の発掘力・発掘の入れ物を用意する（能力履歴は今後の年から）
+  if (state.version === 15) migrateV15ToV16(state);
 
   if (state.version !== SAVE_VERSION) return null;
   return state;

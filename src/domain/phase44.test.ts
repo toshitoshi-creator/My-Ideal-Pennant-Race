@@ -1099,9 +1099,9 @@ describe('PHASE 4.4 判断記録', () => {
  * ============================================================== */
 
 describe('PHASE 4.4 セーブ', () => {
-  it('SAVE_VERSION は 15', () => {
-    expect(SAVE_VERSION).toBe(15);
-    expect(newGame().version).toBe(15);
+  it('SAVE_VERSION は 16', () => {
+    expect(SAVE_VERSION).toBe(16);
+    expect(newGame().version).toBe(16);
   });
 
   it('v14 のセーブが v15 に移行する', () => {
@@ -1187,7 +1187,8 @@ describe('PHASE 4.4 セーブ', () => {
     delete (raw as unknown as Record<string, unknown>).decisions;
     const loaded = migrate(raw);
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(15);
+    // migrate は最新版まで一気に上げる
+    expect(loaded!.version).toBe(16);
     expect(loaded!.decisions).toEqual([]);
     expect(validateState(loaded!)).toEqual([]);
   });

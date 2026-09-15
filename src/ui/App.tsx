@@ -15,6 +15,7 @@ import { RecordsScreen } from './screens/RecordsScreen';
 import { PostseasonScreen } from './screens/PostseasonScreen';
 import { NewsScreen } from './screens/NewsScreen';
 import { ClubScreen } from './screens/ClubScreen';
+import { DiscoveryScreen } from './screens/DiscoveryScreen';
 import { PlayerCheckScreen } from './screens/PlayerCheckScreen';
 import { PlayerDetailHost } from './components/PlayerDetailHost';
 import { formatDateJa } from '../domain/dates';
@@ -109,6 +110,7 @@ function Root() {
       {screen === 'news' && <NewsScreen />}
       {screen === 'club' && <ClubScreen />}
       {screen === 'playerCheck' && <PlayerCheckScreen />}
+      {screen === 'discovery' && <DiscoveryScreen />}
       </div>
 
       <nav className="nav">

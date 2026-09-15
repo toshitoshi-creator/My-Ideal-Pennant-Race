@@ -3878,3 +3878,99 @@ h3.sec {
   align-items: center;
   gap: 6px;
 }
+
+/* ---- 複数系列の折れ線（PHASE 4.9-B） ---- */
+
+.line-chart {
+  min-width: 0;
+}
+
+.line-main {
+  stroke-width: 2;
+}
+
+.line-sub {
+  stroke-width: 1;
+  opacity: 0.45;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.chart-legend .on {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* ---- 発掘（PHASE 4.9-B） ---- */
+
+.discovery-card {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.discovery-card:last-child {
+  border-bottom: none;
+}
+
+.cond-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px dotted var(--rule);
+}
+
+.cond-label {
+  flex: 0 0 44px;
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  padding-top: 3px;
+}
+
+.cond-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.note-list {
+  margin: 6px 0;
+  padding-left: 16px;
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+}
+
+.note-list li {
+  margin: 1px 0;
+}
+
+.meter {
+  height: 6px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  background: var(--ink-3);
+}
+
+.text-input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-family: inherit;
+}

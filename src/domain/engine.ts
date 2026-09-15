@@ -7,6 +7,7 @@ import { addBatting, addPitching, emptySeasonStats } from './stats';
 import { applyDailyUpdates } from './daily';
 import { isAvailable } from './injury';
 import { runCpuTrades } from './trade';
+import { advanceDiscovery } from './discovery';
 import { ensurePostseason } from './postseason';
 import { generateGameNews } from './news';
 import { generateManagementEvents, lineupBonus } from './club';
@@ -210,6 +211,11 @@ export function advanceDay(state: GameState): AdvanceResult {
   applyDailyUpdates(next, rng, results);
   // PHASE 3.5: CPU球団のトレード（期限内のみ。専用の乱数列を使う）
   runCpuTrades(next);
+  /*
+   * PHASE 4.9-B: 発掘を1日ぶん進める（専用の乱数列を使う）。
+   * 画面を開くだけでは進まない。日付が進んだときだけここを通る。
+   */
+  advanceDiscovery(next);
   repairAllSetups(next);
 
   next.rngState = rng.getState();

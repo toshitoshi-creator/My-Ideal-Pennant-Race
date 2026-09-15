@@ -7,6 +7,7 @@ import { rebuildFirstTeam } from './roster';
 import { generateSchedule, openingDate } from './schedule';
 import { emptySeasonStats } from './stats';
 import { createScoutingState } from './scouting';
+import { createDiscoveryState } from './discovery';
 import { createContract, createTeamFinance, marketValue, refreshPayrolls } from './contract';
 import { tradeDeadline } from './trade';
 import { refreshTeamPlans } from './teamAi';
@@ -30,7 +31,7 @@ import { ensureClubs, syncCpuDirections } from './club';
  * 14: PHASE 4.0（球団経営・方針・施設・目標）
  * 15: PHASE 4.4（GMの判断記録）
  */
-export const SAVE_VERSION = 15;
+export const SAVE_VERSION = 16;
 export const START_YEAR = 2026;
 
 function emptyRecord(teamId: string): TeamRecord {
@@ -94,6 +95,7 @@ export function createNewGame(
     draft: null,
     lastDraftYear: null,
     scouting: createScoutingState(TEAMS, rng, START_YEAR),
+    discovery: createDiscoveryState(),
     finances: {},
     contractPhase: null,
     lastPayrollYear: null,

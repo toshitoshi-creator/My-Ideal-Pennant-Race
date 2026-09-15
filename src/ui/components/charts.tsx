@@ -341,3 +341,162 @@ export function AxisBar({
     </div>
   );
 }
+
+/* ================= 複数系列の折れ線（PHASE 4.9-B） ================= */
+
+export interface LineSeriesInput {
+  key: string;
+  label: string;
+  /** labels と同じ長さ。記録が無い年は null（線をつなげず、点も描かない） */
+  values: (number | null)[];
+  /** 主役の系列（自球団・総合力など）を太く描く */
+  emphasis?: boolean;
+  /** 線の色。省略すると既定のインク色 */
+  color?: string;
+}
+
+const LINE_W = 320;
+
+/**
+ * 年ごとの折れ線グラフ。
+ * 順位のように「小さいほど上」の指標は invertY で上下を反転する。
+ * 値が null の年は線を切る（存在しない記録を補間して捏造しない）。
+ */
+export function MultiLineChart({
+  labels,
+  series,
+  invertY = false,
+  yMin,
+  yMax,
+  format,
+  animationKey,
+  height = 150,
+  yTicks,
+  ariaLabel,
+}: {
+  /** X軸の見出し（年など） */
+  labels: string[];
+  series: LineSeriesInput[];
+  invertY?: boolean;
+  yMin?: number;
+  yMax?: number;
+  format?: (value: number) => string;
+  animationKey: string;
+  height?: number;
+  /** Y軸に置く目盛りの値 */
+  yTicks?: number[];
+  ariaLabel?: string;
+}) {
+  const reduced = useReducedMotion();
+  const first = useFirstVisit(`line:${animationKey}`);
+  const t = useProgress(reduced ? 0 : first ? 520 : 200, animationKey);
+  const eased = easeOutCubic(t);
+
+  const all = series.flatMap((s) => s.values.filter((v): v is number => v !== null));
+  if (labels.length === 0 || all.length === 0) {
+    return <div className="muted">記録がありません。</div>;
+  }
+
+  const lo = yMin ?? Math.min(...all);
+  const hi = yMax ?? Math.max(...all);
+  const span = hi - lo || 1;
+
+  const padTop = 12;
+  const padBottom = 22;
+  const padLeft = 26;
+  const padRight = 12;
+  const usableW = LINE_W - padLeft - padRight;
+  const usableH = height - padTop - padBottom;
+
+  const xAt = (i: number) =>
+    labels.length === 1 ? padLeft + usableW / 2 : padLeft + (usableW * i) / (labels.length - 1);
+  const yAt = (value: number) => {
+    const ratio = (value - lo) / span;
+    // invertY のときは値が小さいほど上（順位1位が一番上）
+    return padTop + usableH * (invertY ? ratio : 1 - ratio);
+  };
+
+  const shown = Math.max(1, Math.ceil(labels.length * eased));
+  // 年が多いときは見出しを間引く（390px 幅で重ならないように）
+  const labelStep = Math.max(1, Math.ceil(labels.length / 8));
+
+  return (
+    <div>
+      <svg
+        viewBox={`0 0 ${LINE_W} ${height}`}
+        className="trend-chart line-chart"
+        role="img"
+        aria-label={ariaLabel ?? '推移グラフ'}
+      >
+        {(yTicks ?? [lo, hi]).map((tick) => (
+          <g key={tick}>
+            <line
+              className="trend-grid"
+              x1={padLeft}
+              y1={yAt(tick)}
+              x2={LINE_W - padRight}
+              y2={yAt(tick)}
+            />
+            <text className="trend-year" x={padLeft - 4} y={yAt(tick) + 3} textAnchor="end">
+              {format ? format(tick) : String(tick)}
+            </text>
+          </g>
+        ))}
+
+        {series.map((s) => {
+          const segments: string[] = [];
+          let current: string[] = [];
+          s.values.slice(0, shown).forEach((v, i) => {
+            if (v === null) {
+              if (current.length > 0) segments.push(current.join(' '));
+              current = [];
+              return;
+            }
+            current.push(`${current.length === 0 ? 'M' : 'L'}${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`);
+          });
+          if (current.length > 0) segments.push(current.join(' '));
+          const stroke = s.color ?? (s.emphasis ? 'var(--text)' : 'var(--text-dim)');
+          return (
+            <g key={s.key}>
+              {segments.map((d, i) => (
+                <path
+                  key={i}
+                  className={s.emphasis ? 'trend-line line-main' : 'trend-line line-sub'}
+                  d={d}
+                  style={{ stroke }}
+                />
+              ))}
+              {s.emphasis &&
+                s.values.slice(0, shown).map((v, i) =>
+                  v === null ? null : (
+                    <circle
+                      key={`${s.key}:${i}`}
+                      className="trend-dot"
+                      cx={xAt(i)}
+                      cy={yAt(v)}
+                      r={2.6}
+                      style={{ fill: stroke }}
+                    />
+                  ),
+                )}
+            </g>
+          );
+        })}
+
+        {labels.map((label, i) =>
+          i % labelStep === 0 || i === labels.length - 1 ? (
+            <text
+              key={label}
+              className="trend-year"
+              x={xAt(i)}
+              y={height - 6}
+              textAnchor="middle"
+            >
+              {label}
+            </text>
+          ) : null,
+        )}
+      </svg>
+    </div>
+  );
+}

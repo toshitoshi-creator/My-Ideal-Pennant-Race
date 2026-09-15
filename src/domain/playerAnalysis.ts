@@ -16,6 +16,7 @@ import type {
   Player,
   PlayerSeasonStats,
 } from './types';
+import { hasAbilityHistory } from './abilityHistory';
 import { overallRating, battingRating, pitchingRating } from './rating';
 import { potentialLabel } from './growth';
 import { velocityToScale, clamp1to100 } from './rank';
@@ -111,7 +112,7 @@ export interface PlayerAnalysis {
   summary: string;
   radar: RadarAxis[];
   trend: TrendPoint[];
-  /** 能力の履歴が保存されているか（PHASE 4.1 時点では常に false） */
+  /** 能力の履歴が保存されているか（PHASE 4.9-B から記録が貯まる） */
   abilityHistoryAvailable: boolean;
 }
 
@@ -466,8 +467,9 @@ export function analyzePlayer(state: GameState, player: Player): PlayerAnalysis 
     summary: buildSummary({ player, overall, recent, trend, future, usage: usage.advice }),
     radar: buildRadar(player, { future, confidence, age }),
     trend: trendPoints(state, player),
-    // PHASE 4.1 では能力の履歴を保存しない（過去データを作り出さない）
-    abilityHistoryAvailable: false,
+    // PHASE 4.9-B からシーズン終了時の能力を1年1行で残している。
+    // 記録が無い年は「記録なし」のままで、現在値から過去を推測して埋めない。
+    abilityHistoryAvailable: hasAbilityHistory(state.history.players[player.id]),
   };
 }
 
@@ -740,18 +742,27 @@ export function buildRadar(
 
   if (player.isPitcher && player.pitching) {
     const p = player.pitching;
+    const pb = player.batting;
+    // 投手の7軸。保存されている能力だけで構成し、新しい能力値は一切作らない。
+    // 投手固有の能力は 球速・制球・スタミナ・球威・変化 の5つしか保存していないため、
+    // 残り2軸は全選手が持つ BatterAbilities から、投手にとって意味のある
+    // フィールディング（守備）と打撃（ミートとパワーの平均）を表示用に読み出している。
     return [
       axis('velocity', '球速', velocityToScale(p.velocity)),
       axis('control', '制球', p.control),
       axis('stamina', 'スタミナ', p.stamina),
       axis('power', '球威', p.power),
       axis('movement', '変化', p.movement),
+      axis('fielding', '守備', pb.fielding),
+      axis('batting', '打撃', Math.round((pb.contact + pb.power) / 2)),
     ];
   }
   const b = player.batting;
+  // 野手の基本7能力。弾道も他の能力と同じ 1〜100 スケールで保存されている。
   return [
-    axis('contact', 'ミート', b.contact),
+    axis('trajectory', '弾道', b.trajectory),
     axis('power', 'パワー', b.power),
+    axis('contact', 'ミート', b.contact),
     axis('speed', '走力', b.speed),
     axis('arm', '肩', b.arm),
     axis('fielding', '守備', b.fielding),

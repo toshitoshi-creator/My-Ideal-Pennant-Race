@@ -1077,8 +1077,8 @@ describe('PHASE4.0 セーブ', () => {
   });
 
   it('セーブバージョンが14になっている', () => {
-    // PHASE 4.4 でGMの判断記録を追加したため v15
-    expect(SAVE_VERSION).toBe(15);
+    // PHASE 4.9-B で能力履歴と発掘データを追加したため v16
+    expect(SAVE_VERSION).toBe(16);
     expect(newGame().version).toBe(SAVE_VERSION);
     // v14 のセーブも読み込めて、このフェーズのデータが失われないこと
     clearSave();

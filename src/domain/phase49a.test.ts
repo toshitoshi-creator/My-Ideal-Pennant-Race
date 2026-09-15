@@ -359,6 +359,6 @@ describe('PHASE4.9-A C. RNGに触らない', () => {
   });
 
   it('SAVE_VERSION を変えていない', () => {
-    expect(SAVE_VERSION).toBe(15);
+    expect(SAVE_VERSION).toBe(16);
   });
 });

@@ -335,6 +335,8 @@ export interface GameState {
   lastDraftYear: number | null;
   /** 球団ごとのスカウト能力・調査ポイント・調査結果。PHASE 3.2 */
   scouting: ScoutingState;
+  /** 発掘（外国人助っ人・アマチュアの発掘条件）。PHASE 4.9-B */
+  discovery: DiscoveryState;
   /** 球団ごとの資金。PHASE 3.3 */
   finances: Record<string, TeamFinance>;
   /** 進行中の契約更改（null なら更改中ではない）。PHASE 3.3 */
@@ -707,6 +709,14 @@ export interface TeamScoutAbility {
   personality: number;
   /** 特殊能力の発見率 */
   skills: number;
+  /**
+   * 発掘力（PHASE 4.9-B）。
+   *
+   * 「そもそも良い候補を見つけられるか」だけを決める。
+   * 見つけた候補をどれだけ正しく評価できるか（＝調査力）は
+   * 上の4つが受け持つ。この2つを混ぜない。
+   */
+  discovery: number;
 }
 
 /** 調査で判明した特殊能力（段階的に詳細になる） */
@@ -758,6 +768,105 @@ export interface TeamScouting {
 export interface ScoutingState {
   year: number;
   teams: Record<string, TeamScouting>;
+}
+
+/* ================= 発掘（PHASE 4.9-B） ================= */
+
+/** 投手を探すときの役割 */
+export type DiscoveryPitcherRole = 'starter' | 'relief' | 'closer';
+
+/** 外国人助っ人を探すときの年齢帯 */
+export type DiscoveryAgeBand = 'young' | 'prime' | 'veteran';
+
+/** 野手のタイプ */
+export type DiscoveryBatterType = 'power' | 'speed' | 'defense';
+
+/** 投手のタイプ */
+export type DiscoveryPitcherTypeId = 'fastball' | 'breaking' | 'control';
+
+export type DiscoveryType = DiscoveryBatterType | DiscoveryPitcherTypeId;
+
+/** アマチュア選手の出身 */
+export type DiscoveryOrigin = 'highschool' | 'college' | 'corporate';
+
+/**
+ * 発掘条件。すべて null は「指定なし」。
+ * 条件は候補生成の優先度に影響するだけで、完全一致だけを返すわけではない（§39）。
+ */
+export interface DiscoveryCondition {
+  /** true なら投手、false なら野手 */
+  pitcher: boolean;
+  /** 投手のときの役割 */
+  role: DiscoveryPitcherRole | null;
+  /** 野手のときの守備位置 */
+  position: PositionId | null;
+  /** タイプ */
+  type: DiscoveryType | null;
+  /** 外国人助っ人のときの年齢帯 */
+  ageBand: DiscoveryAgeBand | null;
+  /** アマチュアのときの出身 */
+  origin: DiscoveryOrigin | null;
+}
+
+/** 発掘中の状態 */
+export interface DiscoverySearch {
+  condition: DiscoveryCondition;
+  /** 発掘を始めたゲーム内の日付 */
+  startedDate: string;
+  /** 見つかるまでに必要な日数（発掘力で決まる） */
+  days: number;
+  /** 経過した日数 */
+  elapsed: number;
+}
+
+/**
+ * 発掘した外国人助っ人の候補。
+ *
+ * player には最初から真の能力が入っている。契約前は見せないだけで、
+ * 契約したときに能力が変わることは絶対にない（§22）。
+ */
+export interface ForeignCandidate {
+  id: string;
+  player: Player;
+  /** 発掘した年（シーズンをまたいだら消す） */
+  year: number;
+  /** 提示の目安になる金額（既存の市場価値から作る） */
+  askingSalary: number;
+  /** スカウトが集めた情報。能力の一覧そのものは書かない（§37） */
+  notes: string[];
+  /** 出身（表示用） */
+  from: string;
+  /** すでに契約を断られたか */
+  rejected: boolean;
+}
+
+/** 保存しておける発掘条件 */
+export interface DiscoveryPreset {
+  id: string;
+  name: string;
+  condition: DiscoveryCondition;
+}
+
+/**
+ * 発掘（PHASE 4.9-B）の保存データ。
+ *
+ * 既存のスカウト（ScoutingState）は「ドラフト候補の調査」を受け持つ。
+ * ここが受け持つのは「そもそも誰を見つけるか」だけで、
+ * 見つけたあとの推定能力は既存の ScoutReport をそのまま使う。
+ */
+export interface DiscoveryState {
+  foreign: {
+    search: DiscoverySearch | null;
+    candidates: ForeignCandidate[];
+    /** 候補ごとの調査結果（プレイヤー球団のぶんだけ） */
+    reports: Record<string, ScoutReport>;
+  };
+  amateur: {
+    /** 保存した発掘条件 */
+    presets: DiscoveryPreset[];
+    /** 今シーズンのドラフトに向けて指示している条件 */
+    active: DiscoveryCondition | null;
+  };
 }
 
 export interface DraftState {
@@ -839,6 +948,18 @@ export interface PlayerSeasonHistoryEntry {
   b?: number[];
   /** 投手成績（stats.ts の PITCHING_FIELDS の順。すべて0なら省略） */
   p?: number[];
+  /**
+   * PHASE 4.9-B: シーズンを締めた時点の能力。
+   * 1年につき1行だけ持つ（同じ年に複数球団の行があっても最初の行にだけ入る）。
+   * この記録がある年だけ能力推移を描く。無い年は「記録なし」として扱い、
+   * 現在値から過去を推測しない。
+   */
+  /** 総合力 */
+  o?: number;
+  /** 野手能力（abilityHistory.ts の BATTER_ABILITY_FIELDS の順） */
+  a?: number[];
+  /** 投手能力（abilityHistory.ts の PITCHER_ABILITY_FIELDS の順。投手のみ） */
+  q?: number[];
 }
 
 /** 表彰の種類 */

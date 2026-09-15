@@ -731,7 +731,9 @@ describe('PHASE4.7-B ゲームに触らない', () => {
   });
 
   it('SAVE_VERSION を変えていない', () => {
-    expect(SAVE_VERSION).toBe(15);
+    // PHASE 4.7-B 自体はセーブ形式を増やしていない。
+    // 現在値が 16 なのは、後の PHASE 4.9-B が能力履歴と発掘データを足したため。
+    expect(SAVE_VERSION).toBe(16);
   });
 
   it('設計図の版を変えていない（帽子の割り当ては版を上げずに済む変更）', () => {

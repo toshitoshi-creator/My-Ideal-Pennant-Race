@@ -212,7 +212,7 @@ describe('PHASE4.9 E. ゲームに触らない', () => {
   });
 
   it('SAVE_VERSION を変えていない', () => {
-    expect(SAVE_VERSION).toBe(15);
+    expect(SAVE_VERSION).toBe(16);
   });
 
   it('見た目は能力値を見ていない（能力を書き換えても変わらない）', () => {

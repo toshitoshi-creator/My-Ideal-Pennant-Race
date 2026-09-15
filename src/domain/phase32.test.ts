@@ -67,8 +67,8 @@ function toScoutingPhase(seed = 320320): GameState {
   return s;
 }
 
-const LOW: TeamScoutAbility = { currentAbility: 30, potential: 30, personality: 30, skills: 30 };
-const HIGH: TeamScoutAbility = { currentAbility: 85, potential: 85, personality: 85, skills: 85 };
+const LOW: TeamScoutAbility = { currentAbility: 30, potential: 30, personality: 30, skills: 30, discovery: 30 };
+const HIGH: TeamScoutAbility = { currentAbility: 85, potential: 85, personality: 85, skills: 85, discovery: 85 };
 
 function soloScouting(ability: TeamScoutAbility, points = 9999): ScoutingState {
   return { year: 2026, teams: { t: { ability, points, reports: {} } } };
