@@ -1713,7 +1713,8 @@ const radar = page.locator('.sheet svg.radar');
 if ((await radar.count()) === 0) fail('レーダーチャートが表示されていない');
 else {
   const axes = await page.locator('.sheet svg.radar .radar-label').count();
-  if (axes !== 5 && axes !== 6) fail(`レーダーチャートの軸が${axes}本（5か6のはず）`);
+  // PHASE 4.9-B: 野手も投手も7軸になった
+  if (axes !== 7) fail(`レーダーチャートの軸が${axes}本（7のはず）`);
   else ok(`レーダーチャートが表示されている（${axes}軸）`);
   const filled = await page.locator('.sheet svg.radar polygon.radar-value').count();
   if (filled === 0) fail('レーダーチャートに能力の面が描かれていない');
