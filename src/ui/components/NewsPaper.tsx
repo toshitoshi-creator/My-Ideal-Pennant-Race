@@ -175,7 +175,8 @@ function PaperPage({ page }: { page: Page }) {
         lead={item.body}
         results={recent.map((r) => ({
           opponent: `${r.home ? '対' : '＠'}${r.opponentName}`,
-          score: `${r.outcome === 'W' ? '○' : r.outcome === 'L' ? '●' : '△'} ${r.runsFor}-${r.runsAgainst}`,
+          score: `${r.runsFor}-${r.runsAgainst}`,
+          outcome: r.outcome === 'W' ? '○' : r.outcome === 'L' ? '●' : '△',
         }))}
         highlights={highlights}
         photo={team ? <TeamMark visual={teamVisual(team)} name={team.name} size={72} /> : undefined}
@@ -372,6 +373,7 @@ function ColumnPageView() {
       body={`球団方針は「${facts.directionLabel}」。${facts.objectiveLine ? `今季の目標は${facts.objectiveLine}。` : ''}${facts.latestDecisionTitle ? `直近の判断は「${facts.latestDecisionTitle}」。` : ''}`}
       authorLabel={`${team.name} GM`}
       quote={quote}
+      photo={<TeamMark visual={teamVisual(team)} name={team.name} size={72} />}
       scene={<StadiumScene visual={teamVisual(team)} name={teamVisual(team).stadiumName} height={90} />}
     />
   );
