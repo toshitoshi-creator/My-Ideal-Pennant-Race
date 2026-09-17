@@ -3,7 +3,7 @@ import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import { CountUp, RevealRows } from '../components/Reveal';
 import type { FAMarketPlayer, Player } from '../../domain/types';
-import { POSITION_LABELS, POSITION_SHORT } from '../../domain/positions';
+import { POSITION_LABELS } from '../../domain/positions';
 import { PlayerVisual } from '../components/PlayerVisual';
 import { average, formatAverage, formatEra, formatInnings } from '../../domain/stats';
 import {
@@ -24,7 +24,7 @@ import {
   teamPayroll,
 } from '../../domain/contract';
 import { FinanceRows } from './ContractScreen';
-import { Sheet } from '../components/common';
+import { Sheet, PositionBadge } from '../components/common';
 
 type Filter = 'all' | 'fielder' | 'pitcher' | 'young' | 'core' | 'veteran';
 
@@ -310,7 +310,7 @@ function FACard({
     <button className="player-card" onClick={onOpen} aria-label={`${player.name} に条件を提示する`}>
       {/* PHASE 4.5: FA市場でも顔が出る。所属が変わっても同じ顔（§7・§22） */}
       <PlayerVisual player={player} size="small" showCap={false} className="portrait-row" />
-      <span className="pos">{POSITION_SHORT[player.mainPosition]}</span>
+      <PositionBadge player={player} />
       <span className="grow">
         <span className="row" style={{ gap: 6 }}>
           <span className="name">{player.name}</span>

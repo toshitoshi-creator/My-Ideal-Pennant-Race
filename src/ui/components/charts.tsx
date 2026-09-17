@@ -115,10 +115,11 @@ export function RadarChart({
           style={{ fill: color, stroke: color }}
         />
 
-        {/* 頂点 */}
+        {/* 頂点。能力バーと同じく、軸ごとの等級色で塗る */}
         {axes.map((axis, i) => {
           const p = point(cx, cy, valueR(axis), i, total);
-          return <circle key={axis.key} className="radar-dot" cx={p.x} cy={p.y} r={2.4} style={{ fill: color }} />;
+          const dotColor = RANK_COLORS[rankOf(axis.value)];
+          return <circle key={axis.key} className="radar-dot" cx={p.x} cy={p.y} r={2.8} style={{ fill: dotColor }} />;
         })}
 
         {/* ラベル */}

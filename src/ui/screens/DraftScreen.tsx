@@ -5,7 +5,7 @@ import type { DraftProspect, ScoutCategory, ScoutReport } from '../../domain/typ
 import { availableProspects, currentPick } from '../../domain/draft';
 import { PlayerVisual, PlayerVisualHero } from '../components/PlayerVisual';
 import { RevealRows } from '../components/Reveal';
-import { POSITION_LABELS, POSITION_SHORT } from '../../domain/positions';
+import { POSITION_LABELS } from '../../domain/positions';
 import {
   SCOUT_CATEGORIES,
   SCOUT_CATEGORY_LABELS,
@@ -17,7 +17,7 @@ import {
   scoutAbilitySummary,
   SCOUT_ABILITY_LABELS,
 } from '../../domain/scouting';
-import { Sheet } from '../components/common';
+import { Sheet, PositionBadge } from '../components/common';
 
 type Filter = 'all' | 'pitcher' | 'fielder' | 'scouted';
 
@@ -350,7 +350,7 @@ function ProspectCard({
         style={{ textAlign: 'left', width: '100%', gap: 10 }}
         onClick={onOpen}
       >
-        <span className="pos">{POSITION_SHORT[player.mainPosition]}</span>
+        <PositionBadge player={player} />
         <span className="grow">
           <span className="row" style={{ gap: 6 }}>
             <span className="name">{player.name}</span>

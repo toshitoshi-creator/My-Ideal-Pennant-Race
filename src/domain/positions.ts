@@ -37,6 +37,30 @@ export function positionGroup(pos: PositionId): PositionGroup {
   return pos === 'LF' || pos === 'CF' || pos === 'RF' ? 'OF' : 'IF';
 }
 
+/** 守備区分の色（表示専用。判定には一切使わない） */
+export const POSITION_GROUP_COLORS: Record<PositionGroup, string> = {
+  P: '#f06565',
+  C: '#65b1f0',
+  IF: '#ebf065',
+  OF: '#73f065',
+};
+
+/**
+ * 選手が守れる守備区分の色を、メイン守備を先頭にした順で返す
+ * （同じ区分の色が続く場合はまとめる。例えば本職三塁でサブが遊撃・二塁の
+ * 選手は「内野」1色にしかならない。本職捕手でサブに一塁を持つ選手だけ、
+ * 捕手色→内野色の2色になる）。
+ */
+export function positionBadgeColors(player: Player): string[] {
+  const groups = [player.mainPosition, ...player.subPositions].map(positionGroup);
+  const colors: string[] = [];
+  for (const g of groups) {
+    const color = POSITION_GROUP_COLORS[g];
+    if (!colors.includes(color)) colors.push(color);
+  }
+  return colors;
+}
+
 /** 守備難易度（大きいほど難しい） */
 const DIFFICULTY: Record<PositionId, number> = {
   P: 9,

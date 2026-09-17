@@ -3,7 +3,7 @@ import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import { CountUp, RevealRows } from '../components/Reveal';
 import type { Player } from '../../domain/types';
-import { POSITION_LABELS, POSITION_SHORT } from '../../domain/positions';
+import { POSITION_LABELS } from '../../domain/positions';
 import { overallRating } from '../../domain/rating';
 import {
   expectedSalary,
@@ -17,7 +17,7 @@ import {
   MIN_SALARY,
   MAX_SALARY,
 } from '../../domain/contract';
-import { RankBadge, Sheet } from '../components/common';
+import { RankBadge, Sheet, PositionBadge } from '../components/common';
 import { PlayerVisual, PlayerVisualSmall } from '../components/PlayerVisual';
 
 /**
@@ -190,7 +190,7 @@ function ContractCard({ player, onOpen }: { player: Player; onOpen: () => void }
 
   return (
     <button className="player-card" onClick={onOpen}>
-      <span className="pos">{POSITION_SHORT[player.mainPosition]}</span>
+      <PositionBadge player={player} />
       <PlayerVisualSmall player={player} className="portrait-row" />
       <span className="grow">
         <span className="row" style={{ gap: 6 }}>

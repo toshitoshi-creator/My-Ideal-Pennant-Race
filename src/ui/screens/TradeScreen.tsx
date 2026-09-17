@@ -4,7 +4,7 @@ import { useGame } from '../store';
 import { teamVisual } from '../../domain/visuals';
 import { TeamMark } from '../components/visuals/TeamVisuals';
 import type { Player, Team, TradeOffer } from '../../domain/types';
-import { POSITION_LABELS, POSITION_SHORT, positionGroup } from '../../domain/positions';
+import { POSITION_LABELS, positionGroup } from '../../domain/positions';
 import { overallRating, teamPower } from '../../domain/rating';
 import { rankOfTeam } from '../../domain/standings';
 import { average, formatAverage, formatEra, formatInnings } from '../../domain/stats';
@@ -25,7 +25,7 @@ import {
   targetLabels,
   tradeActivityLabel,
 } from '../../domain/teamAi';
-import { RankBadge, Sheet } from '../components/common';
+import { RankBadge, Sheet, PositionBadge } from '../components/common';
 import { PlayerVisual } from '../components/PlayerVisual';
 import { PlayerLink } from '../components/PlayerLink';
 
@@ -515,9 +515,7 @@ function SelectableRow({
         aria-label={`${player.name} の詳細`}
       >
         <span className="row" style={{ gap: 6 }}>
-          <span className="chip" style={{ padding: '1px 6px', fontSize: 11 }}>
-            {POSITION_SHORT[player.mainPosition]}
-          </span>
+          <PositionBadge player={player} />
           <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {player.name}
           </span>

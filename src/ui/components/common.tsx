@@ -1,11 +1,28 @@
 import type { ReactNode } from 'react';
 import { rankOf, RANK_COLORS } from '../../domain/rank';
+import { positionBadgeColors, POSITION_SHORT } from '../../domain/positions';
+import type { Player } from '../../domain/types';
 
 export function RankBadge({ value }: { value: number }) {
   const rank = rankOf(value);
   return (
     <span className="rank" style={{ background: RANK_COLORS[rank] }}>
       {rank}
+    </span>
+  );
+}
+
+/** 守備位置の色つきバッジ。複数守れる選手は、本職の色を先頭に色を分けて出す */
+export function PositionBadge({ player }: { player: Player }) {
+  const colors = positionBadgeColors(player);
+  const step = 100 / colors.length;
+  const background =
+    colors.length === 1
+      ? colors[0]
+      : `linear-gradient(90deg, ${colors.map((c, i) => `${c} ${i * step}% ${(i + 1) * step}%`).join(', ')})`;
+  return (
+    <span className="pos" style={{ background, color: 'var(--ink)', borderColor: 'transparent' }}>
+      {POSITION_SHORT[player.mainPosition]}
     </span>
   );
 }

@@ -1,8 +1,7 @@
 import type { Player } from '../../domain/types';
-import { POSITION_SHORT } from '../../domain/positions';
 import { overallRating, defenseRating } from '../../domain/rating';
 import { rankOf } from '../../domain/rank';
-import { RankBadge } from './common';
+import { RankBadge, PositionBadge } from './common';
 import { daysUntilChangeable } from '../../domain/roster';
 import { CONDITION_ICONS, CONDITION_LABELS } from '../../domain/condition';
 import { daysUntilReturn } from '../../domain/injury';
@@ -41,7 +40,7 @@ export function PlayerCard({
     >
       {/* PHASE 4.5: 一覧でも顔が出る。詳細と同じ顔になる（§7） */}
       <RowPortrait player={player} />
-      <span className="pos">{POSITION_SHORT[player.mainPosition]}</span>
+      <PositionBadge player={player} />
       <span className="grow">
         <span className="row" style={{ gap: 6 }}>
           <span className="name">{player.name}</span>
