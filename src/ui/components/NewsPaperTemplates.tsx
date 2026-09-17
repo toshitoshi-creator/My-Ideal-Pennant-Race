@@ -249,27 +249,27 @@ function HeadlineBlock({
 }) {
   return (
     <>
-      <Cover x={2} y={14.5} w={96} h={11} wTotal={w} hTotal={h} />
+      <Cover x={2} y={15} w={96} h={10} wTotal={w} hTotal={h} />
       <Text
-        x={3}
-        y={23}
+        x={5}
+        y={22.5}
         wTotal={w}
         hTotal={h}
-        size={7}
+        size={5.4}
         weight={800}
         fill={INK}
         lineHeight={0}
-        lines={wrapJa(headline, fitChars(w, h, 96, 7), 1)}
+        lines={wrapJa(headline, fitChars(w, h, 90, 5.4), 1)}
       />
       <Cover x={2} y={25.5} w={96} h={4.5} wTotal={w} hTotal={h} />
       <Text
-        x={3}
+        x={5}
         y={29}
         wTotal={w}
         hTotal={h}
-        size={3.3}
+        size={3.1}
         lineHeight={0}
-        lines={wrapJa(subhead, fitChars(w, h, 96, 3.3), 1)}
+        lines={wrapJa(subhead, fitChars(w, h, 90, 3.1), 1)}
       />
     </>
   );
@@ -516,10 +516,10 @@ export function Page7Standings({
   const leaderX = { name: 21, avg: 52, hr: 69.5, rbi: 86.7 };
   return (
     <TemplateFrame name="page7" date={date}>
-      <Cover x={2} y={14.5} w={96} h={11} wTotal={w} hTotal={h} />
-      <Text x={3} y={23} wTotal={w} hTotal={h} size={7} weight={800} fill={INK} lineHeight={0} lines={wrapJa(headline, fitChars(w, h, 96, 7), 1)} />
+      <Cover x={2} y={15} w={96} h={10} wTotal={w} hTotal={h} />
+      <Text x={5} y={22.5} wTotal={w} hTotal={h} size={5.4} weight={800} fill={INK} lineHeight={0} lines={wrapJa(headline, fitChars(w, h, 90, 5.4), 1)} />
       <Cover x={2} y={25.5} w={96} h={4.5} wTotal={w} hTotal={h} />
-      <Text x={3} y={29} wTotal={w} hTotal={h} size={3.3} lineHeight={0} lines={wrapJa(subhead, fitChars(w, h, 96, 3.3), 1)} />
+      <Text x={5} y={29} wTotal={w} hTotal={h} size={3.1} lineHeight={0} lines={wrapJa(subhead, fitChars(w, h, 90, 3.1), 1)} />
       {standings.slice(0, 6).map((row, i) => {
         const y = 39.5 + i * 3.65;
         return (
@@ -657,10 +657,10 @@ export function Page9Column({
         </>
       }
     >
-      <Cover x={2} y={14.5} w={96} h={11} wTotal={w} hTotal={h} />
-      <Text x={3} y={23} wTotal={w} hTotal={h} size={7} weight={800} fill={INK} lineHeight={0} lines={wrapJa(headline, fitChars(w, h, 96, 7), 1)} />
+      <Cover x={2} y={15} w={96} h={10} wTotal={w} hTotal={h} />
+      <Text x={5} y={22.5} wTotal={w} hTotal={h} size={5.4} weight={800} fill={INK} lineHeight={0} lines={wrapJa(headline, fitChars(w, h, 90, 5.4), 1)} />
       <Cover x={2} y={25.5} w={96} h={4.5} wTotal={w} hTotal={h} />
-      <Text x={3} y={29} wTotal={w} hTotal={h} size={3.3} lineHeight={0} lines={wrapJa(subhead, fitChars(w, h, 96, 3.3), 1)} />
+      <Text x={5} y={29} wTotal={w} hTotal={h} size={3.1} lineHeight={0} lines={wrapJa(subhead, fitChars(w, h, 90, 3.1), 1)} />
       <Cover x={36} y={31} w={60} h={39} wTotal={w} hTotal={h} />
       <Text x={37} y={35} wTotal={w} hTotal={h} size={2.8} lineHeight={4.4} lines={wrapJa(body, fitChars(w, h, 59, 2.8), 8)} />
       {/* テンプレートの本文は写真の下まで全幅で流れ込む作りだが、
@@ -709,10 +709,10 @@ export function Page10Feature({
         )
       }
     >
-      <Cover x={2} y={14.5} w={96} h={11} wTotal={w} hTotal={h} />
-      <Text x={3} y={23} wTotal={w} hTotal={h} size={7} weight={800} fill={INK} lineHeight={0} lines={wrapJa(headline, fitChars(w, h, 96, 7), 1)} />
+      <Cover x={2} y={15} w={96} h={10} wTotal={w} hTotal={h} />
+      <Text x={5} y={22.5} wTotal={w} hTotal={h} size={5.4} weight={800} fill={INK} lineHeight={0} lines={wrapJa(headline, fitChars(w, h, 90, 5.4), 1)} />
       <Cover x={2} y={25.5} w={96} h={4.5} wTotal={w} hTotal={h} />
-      <Text x={3} y={29} wTotal={w} hTotal={h} size={3.3} lineHeight={0} lines={wrapJa(subhead, fitChars(w, h, 96, 3.3), 1)} />
+      <Text x={5} y={29} wTotal={w} hTotal={h} size={3.1} lineHeight={0} lines={wrapJa(subhead, fitChars(w, h, 90, 3.1), 1)} />
       <Cover x={2} y={59} w={96} h={19} wTotal={w} hTotal={h} />
       <Text x={3} y={62} wTotal={w} hTotal={h} size={2.8} lineHeight={3.8} lines={wrapJa(body, fitChars(w, h, 96, 2.8), 5)} />
       <Cover x={2} y={78} w={62} h={13} wTotal={w} hTotal={h} />
