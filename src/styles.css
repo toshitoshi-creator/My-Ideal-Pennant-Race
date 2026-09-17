@@ -4145,8 +4145,9 @@ h3.sec {
 
 .paper-masthead {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
+  gap: 8px;
   border-bottom: 3px double var(--ink);
   padding-bottom: 4px;
   margin-bottom: 10px;
@@ -4157,6 +4158,11 @@ h3.sec {
 .paper-masthead .paper-page-no {
   font-weight: 800;
   color: var(--ink);
+}
+
+.paper-logo {
+  height: 22px;
+  width: auto;
 }
 
 .paper-kicker {

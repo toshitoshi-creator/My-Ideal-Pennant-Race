@@ -26,6 +26,7 @@ import { PlayerVisualById } from './PlayerVisual';
 import { TeamMark } from './visuals/TeamVisuals';
 import { PlayerLink } from './PlayerLink';
 import { useGame } from '../store';
+import paperLogo from '../../assets/ui/paper-logo.webp';
 
 /** 誌面に出す1ページ。ニュース由来と、特集（順位・ファーム・コラム）の2種 */
 type Page =
@@ -127,7 +128,7 @@ function Masthead({ pageNo, dateLabel }: { pageNo: number; dateLabel: string }) 
   return (
     <div className="paper-masthead">
       <span className="paper-page-no">{pageNo}面</span>
-      <span>ベースボールニュース</span>
+      <img className="paper-logo" src={paperLogo} alt="ベースボールニュース" />
       <span>{dateLabel}</span>
     </div>
   );
