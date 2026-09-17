@@ -4129,7 +4129,98 @@ h3.sec {
   font-family: inherit;
 }
 
-/* ---- ニュースの誌面（テンプレート画像 + 文字の重ね書き） ---- */
+/* ---- ニュースの誌面（新聞ふうの1ページ） ---- */
+
+/* 新しい分類色（既存の accent/grass/brass だけでは5種の紙面を塗り分けられないため） */
+:root {
+  --slate: oklch(42.0% 0.055 250);
+  --slate-soft: oklch(93.0% 0.020 250);
+}
+
+.paper-page {
+  border: 1px solid var(--rule);
+  padding: var(--space-md);
+  background: var(--paper);
+}
+
+.paper-masthead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 3px double var(--ink);
+  padding-bottom: 4px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.paper-masthead .paper-page-no {
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.paper-kicker {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  margin-bottom: 6px;
+  color: var(--paper);
+  background: var(--ink);
+}
+
+.paper-kicker.k-game { background: var(--slate); }
+.paper-kicker.k-player { background: var(--accent); }
+.paper-kicker.k-team { background: var(--grass); }
+.paper-kicker.k-record { background: var(--brass); }
+.paper-kicker.k-feature { background: var(--ink); }
+
+.paper-headline {
+  font-size: 21px;
+  font-weight: 800;
+  line-height: 1.35;
+  margin: 0 0 4px;
+}
+
+.paper-subhead {
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+
+.paper-figure {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 10px;
+}
+
+.paper-body {
+  font-size: var(--text-sm);
+  line-height: 1.75;
+  margin: 0 0 12px;
+  /* 縦組みではないが、新聞らしく段を分ける */
+  column-count: 1;
+}
+
+.paper-box {
+  border: 1px solid var(--rule-2);
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+
+.paper-box-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink-2);
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
 
 .paper-nav {
   display: flex;
@@ -4155,11 +4246,6 @@ h3.sec {
 
 .paper-quick .chip {
   white-space: nowrap;
-}
-
-.paper-empty-wrap {
-  border: 1px solid var(--rule);
-  padding: var(--space-md);
 }
 
 .paper-empty {

@@ -1,39 +1,30 @@
 /**
  * ニュースの「誌面」表示。
  *
- * 見た目は、もらったテンプレート画像（3面〜10面）をそのまま使う。
- * 中身（見出し・本文・数字）はすべて domain/newspaper.ts が実在するデータ
- * から作ったものだけで、ここでは並べ方を決めているだけ（新しい事実は書かない）。
+ * 1件のニュース、または「順位・成績」「ファーム情報」「コラム」の
+ * 特集ページを、新聞の1ページ（○面）に見立てて表示する。
+ * 材料はすべて domain/newspaper.ts が実在するデータから作ったものだけで、
+ * ここでは並べ方を決めているだけ（新しい事実は書かない）。
  */
 import { useMemo, useState } from 'react';
-import type { NewsItem, Player } from '../../domain/types';
-import { CATEGORY_LABELS, PRIORITY_LABELS, currentStreak } from '../../domain/news';
+import type { NewsItem } from '../../domain/types';
+import { CATEGORY_LABELS, PRIORITY_LABELS } from '../../domain/news';
 import {
+  KICKER_LABELS,
   columnFacts,
   farmHighlights,
+  pageKindOf,
   playerProfileFacts,
   recentResultsFor,
+  type PageKind,
 } from '../../domain/newspaper';
-import { formatDateFull } from '../../domain/dates';
-import { standingsForLeague, formatWinPct, formatGamesBehind, rankOfTeam } from '../../domain/standings';
+import { formatDateJa } from '../../domain/dates';
+import { standingsForLeague, formatWinPct } from '../../domain/standings';
 import { average, formatAverage } from '../../domain/stats';
-import { POSITION_LABELS } from '../../domain/positions';
 import { teamVisual } from '../../domain/visuals';
 import { PlayerVisualById } from './PlayerVisual';
-import { TeamMark, StadiumScene } from './visuals/TeamVisuals';
-import {
-  Page3Topics,
-  Page4Batter,
-  Page5Pitcher,
-  Page6Team,
-  Page7Standings,
-  Page8Farm,
-  Page9Column,
-  Page10Feature,
-  type BattingLeaderFacts,
-  type FarmRowFacts,
-  type StandingsRowFacts,
-} from './NewsPaperTemplates';
+import { TeamMark } from './visuals/TeamVisuals';
+import { PlayerLink } from './PlayerLink';
 import { useGame } from '../store';
 
 /** 誌面に出す1ページ。ニュース由来と、特集（順位・ファーム・コラム）の2種 */
@@ -43,37 +34,11 @@ type Page =
   | { kind: 'farm' }
   | { kind: 'column' };
 
-/** どのテンプレート画像を使うか。選手ニュースだけ、投手か打者かで分ける */
-type TemplateKind = 'page3' | 'page4' | 'page5' | 'page6' | 'page10';
-
-function templateFor(item: NewsItem, player: Player | null): TemplateKind {
-  switch (item.category) {
-    case 'GAME':
-      return 'page3';
-    case 'PLAYER':
-      return player?.isPitcher ? 'page5' : 'page4';
-    case 'RECORD':
-    case 'AWARD':
-      return player ? (player.isPitcher ? 'page5' : 'page4') : 'page6';
-    case 'POSTSEASON':
-    case 'CHAMPIONSHIP':
-    case 'RIVALRY':
-      return 'page10';
-    default:
-      return 'page6';
-  }
-}
-
-/** テンプレート画像自体に焼き込まれているページ番号（架空の連番を出さないよう、これに合わせる） */
-const TEMPLATE_PAGE_NO: Record<TemplateKind, number> = { page3: 3, page4: 4, page5: 5, page6: 6, page10: 10 };
-
-function pageNumberFor(page: Page, players: Player[]): number {
-  if (page.kind === 'standings') return 7;
-  if (page.kind === 'farm') return 8;
-  if (page.kind === 'column') return 9;
-  const player = page.item.playerId ? (players.find((p) => p.id === page.item.playerId) ?? null) : null;
-  return TEMPLATE_PAGE_NO[templateFor(page.item, player)];
-}
+/**
+ * 「3面」から始まる紙面。
+ * 1・2面（表紙・目次に相当）は作らないので、最初から3を振る。
+ */
+const FIRST_PAGE_NO = 3;
 
 export function NewsPaperReader({ items }: { items: NewsItem[] }) {
   const { state } = useGame();
@@ -92,13 +57,13 @@ export function NewsPaperReader({ items }: { items: NewsItem[] }) {
 
   if (pages.length === 0) {
     return (
-      <div className="paper-empty-wrap">
+      <div className="paper-page">
         <div className="paper-empty">まだ誌面にできる記事がありません。</div>
       </div>
     );
   }
 
-  const pageNo = pageNumberFor(page, state.players);
+  const pageNo = FIRST_PAGE_NO + shown;
   const jump = (kind: Page['kind']) => {
     const at = pages.findIndex((p) => p.kind === kind);
     if (at >= 0) setIndex(at);
@@ -106,6 +71,7 @@ export function NewsPaperReader({ items }: { items: NewsItem[] }) {
 
   return (
     <div>
+      {/* 特集ページへの近道。ニュースが少ない開幕直後でも読むものがある */}
       <div className="paper-quick">
         <button className={page.kind === 'standings' ? 'chip on' : 'chip'} onClick={() => jump('standings')}>
           順位・成績
@@ -120,10 +86,14 @@ export function NewsPaperReader({ items }: { items: NewsItem[] }) {
         )}
       </div>
 
-      <PaperPage page={page} />
+      <PaperPage page={page} pageNo={pageNo} />
 
       <div className="paper-nav">
-        <button className="chip" disabled={shown === 0} onClick={() => setIndex((i) => Math.max(0, i - 1))}>
+        <button
+          className="chip"
+          disabled={shown === 0}
+          onClick={() => setIndex((i) => Math.max(0, i - 1))}
+        >
           ← 前の面
         </button>
         <span className="paper-nav-count">
@@ -141,240 +111,274 @@ export function NewsPaperReader({ items }: { items: NewsItem[] }) {
   );
 }
 
-function PaperPage({ page }: { page: Page }) {
+function PaperPage({ page, pageNo }: { page: Page; pageNo: number }) {
   const { state } = useGame();
 
-  if (page.kind === 'standings') return <StandingsPageView />;
-  if (page.kind === 'farm') return <FarmPageView />;
-  if (page.kind === 'column') return <ColumnPageView />;
+  if (page.kind === 'standings') return <StandingsPage pageNo={pageNo} />;
+  if (page.kind === 'farm') return <FarmPage pageNo={pageNo} />;
+  if (page.kind === 'column') return <ColumnPage pageNo={pageNo} />;
 
   const item = page.item;
-  const player = item.playerId ? (state.players.find((p) => p.id === item.playerId) ?? null) : null;
-  const kind = templateFor(item, player);
-  const date = formatDateFull(item.date);
-  const subhead = `${CATEGORY_LABELS[item.category]}・${PRIORITY_LABELS[item.priority]}ニュース`;
+  const kind = pageKindOf(item.category);
+  return <NewsItemPage item={item} kind={kind} pageNo={pageNo} state={state} />;
+}
+
+function Masthead({ pageNo, dateLabel }: { pageNo: number; dateLabel: string }) {
+  return (
+    <div className="paper-masthead">
+      <span className="paper-page-no">{pageNo}面</span>
+      <span>ベースボールニュース</span>
+      <span>{dateLabel}</span>
+    </div>
+  );
+}
+
+function Kicker({ kind, label }: { kind: PageKind; label: string }) {
+  return <span className={`paper-kicker k-${kind}`}>{label}</span>;
+}
+
+/* ---------------- ニュース由来のページ ---------------- */
+
+function NewsItemPage({
+  item,
+  kind,
+  pageNo,
+  state,
+}: {
+  item: NewsItem;
+  kind: PageKind;
+  pageNo: number;
+  state: ReturnType<typeof useGame>['state'];
+}) {
+  const player = item.playerId ? playerProfileFacts(state, item.playerId) : null;
+  const recent = item.teamId ? recentResultsFor(state, item.teamId) : [];
   const team = item.teamId ? state.teams.find((t) => t.id === item.teamId) : null;
 
-  if (kind === 'page3') {
-    const recent = item.teamId ? recentResultsFor(state, item.teamId, 3) : [];
-    const streak = item.teamId ? currentStreak(state, item.teamId) : 0;
-    const highlights: string[] = [];
-    if (streak >= 3) highlights.push(`${streak}連勝が続いています`);
-    else if (streak <= -3) highlights.push(`${-streak}連敗が続いています`);
-    if (recent.length > 0) {
-      const w = recent.filter((r) => r.outcome === 'W').length;
-      const l = recent.filter((r) => r.outcome === 'L').length;
-      const d = recent.filter((r) => r.outcome === 'D').length;
-      highlights.push(`直近${recent.length}試合${w}勝${l}敗${d}分`);
-    }
-    return (
-      <Page3Topics
-        date={date}
-        headline={item.title}
-        subhead={subhead}
-        lead={item.body}
-        results={recent.map((r) => ({
-          opponent: `${r.home ? '対' : '＠'}${r.opponentName}`,
-          score: `${r.runsFor}-${r.runsAgainst}`,
-          outcome: r.outcome === 'W' ? '○' : r.outcome === 'L' ? '●' : '△',
-        }))}
-        highlights={highlights}
-        photo={team ? <TeamMark visual={teamVisual(team)} name={team.name} size={72} /> : undefined}
-      />
-    );
-  }
-
-  if ((kind === 'page4' || kind === 'page5') && item.playerId) {
-    const facts = playerProfileFacts(state, item.playerId);
-    const salary = player?.ext.contract ? `${player.ext.contract.salary.toLocaleString()}万円` : '未契約';
-    const throwsBats = player ? `${player.throws === 'R' ? '右' : '左'}投${player.bats === 'R' ? '右' : '左'}打` : '―';
-    const highlight = item.title.length > 0 ? item.title.slice(0, 12) : null;
-    const commonProps = {
-      date,
-      headline: item.title,
-      subhead,
-      body: item.body,
-      highlight,
-      photo: (
-        <PlayerVisualById
-          playerId={item.playerId}
-          name={facts?.name ?? ''}
-          age={facts?.age ?? player?.age ?? 0}
-          isPitcher={!!player?.isPitcher}
-          size="medium"
-          teamColor={team?.color}
-        />
-      ),
-    };
-    if (kind === 'page5' && player) {
-      const stats = state.stats[player.id]?.pitching;
-      return (
-        <Page5Pitcher
-          {...commonProps}
-          rows={[
-            { label: '登板数', value: `${stats?.games ?? 0}` },
-            { label: '勝敗', value: `${stats?.wins ?? 0}勝${stats?.losses ?? 0}敗` },
-            { label: '防御率', value: stats && stats.outs > 0 ? (stats.earnedRuns / (stats.outs / 27)).toFixed(2) : '0.00' },
-            { label: '奪三振', value: `${stats?.strikeouts ?? 0}` },
-            { label: '投球回', value: `${Math.floor((stats?.outs ?? 0) / 3)}.${(stats?.outs ?? 0) % 3}` },
-          ]}
-        />
-      );
-    }
-    return (
-      <Page4Batter
-        {...commonProps}
-        rows={[
-          { label: '選手名', value: facts?.name ?? player?.name ?? '' },
-          { label: '年齢', value: `${facts?.age ?? player?.age ?? '―'}歳` },
-          { label: 'ポジション', value: facts?.positionLabel ?? (player ? POSITION_LABELS[player.mainPosition] : '―') },
-          { label: '投打', value: throwsBats },
-          { label: '年俸', value: salary },
-        ]}
-      />
-    );
-  }
-
-  if (kind === 'page10') {
-    return (
-      <Page10Feature
-        date={date}
-        headline={item.title}
-        subhead={subhead}
-        body={item.body}
-        catchphrase={CATEGORY_LABELS[item.category]}
-        scene={
-          team ? (
-            <StadiumScene visual={teamVisual(team)} name={teamVisual(team).stadiumName} height={110} />
-          ) : undefined
-        }
-      />
-    );
-  }
-
-  // page6: チーム情報（球団に関わるお知らせ全般）
-  const record = team ? state.records[team.id] : null;
-  const league = team ? state.leagues.find((l) => l.id === team.leagueId) : null;
-  const rows = team
-    ? [
-        { label: '球団名', value: team.name },
-        { label: '本拠地', value: teamVisual(team).stadiumName },
-        { label: 'リーグ', value: league?.name ?? '―' },
-        { label: '今季成績', value: record ? `${record.wins}勝${record.losses}敗${record.draws}分` : '―' },
-        { label: '順位', value: team ? `${rankOfTeam(state, team.id)}位` : '―' },
-      ]
-    : [];
   return (
-    <Page6Team
-      date={date}
-      headline={item.title}
-      subhead={subhead}
-      body={item.body}
-      rows={rows}
-      highlight={null}
-      photo={team ? <TeamMark visual={teamVisual(team)} name={team.name} size={72} /> : undefined}
-    />
+    <div className="paper-page">
+      <Masthead pageNo={pageNo} dateLabel={formatDateJa(item.date)} />
+      <Kicker kind={kind} label={KICKER_LABELS[kind]} />
+      <h2 className="paper-headline">{item.title}</h2>
+      <p className="paper-subhead">
+        {CATEGORY_LABELS[item.category]}・{PRIORITY_LABELS[item.priority]}ニュース
+      </p>
+
+      {player && item.playerId && (
+        <div className="paper-figure">
+          <PlayerVisualById
+            playerId={item.playerId}
+            name={player.name}
+            age={player.age}
+            isPitcher={player.isPitcher}
+            size="medium"
+            teamColor={team?.color}
+          />
+          <div>
+            <div style={{ fontWeight: 800 }}>
+              <PlayerLink playerId={item.playerId}>{player.name}</PlayerLink> 選手プロフィール
+            </div>
+            <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>
+              背番号{player.number}・{player.age}歳・{player.positionLabel}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!player && team && (
+        <div className="paper-figure">
+          <TeamMark visual={teamVisual(team)} name={team.name} size={40} />
+          <div style={{ fontWeight: 800 }}>{team.name}</div>
+        </div>
+      )}
+
+      <p className="paper-body">{item.body}</p>
+
+      {player?.battingLine && (
+        <div className="paper-box">
+          <div className="paper-box-title">打撃成績（今季）</div>
+          <div>{player.battingLine}</div>
+        </div>
+      )}
+      {player?.pitchingLine && (
+        <div className="paper-box">
+          <div className="paper-box-title">投手成績（今季）</div>
+          <div>{player.pitchingLine}</div>
+        </div>
+      )}
+
+      {kind === 'game' && recent.length > 0 && (
+        <div className="paper-box">
+          <div className="paper-box-title">試合結果</div>
+          <table className="data">
+            <tbody>
+              {recent.map((r) => (
+                <tr key={r.date}>
+                  <td className="l">{formatDateJa(r.date)}</td>
+                  <td className="l">
+                    {r.home ? '対' : '＠'}
+                    {r.opponentName}
+                  </td>
+                  <td>
+                    {r.outcome === 'W' ? '○' : r.outcome === 'L' ? '●' : '△'} {r.runsFor}-
+                    {r.runsAgainst}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 
 /* ---------------- 順位・成績 ---------------- */
 
-function StandingsPageView() {
+function StandingsPage({ pageNo }: { pageNo: number }) {
   const { state } = useGame();
   const team = state.teams.find((t) => t.id === state.playerTeamId)!;
   const league = state.leagues.find((l) => l.id === team.leagueId)!;
-  const standingsRows = standingsForLeague(state, league.id);
+  const rows = standingsForLeague(state, league.id);
 
-  const standings: StandingsRowFacts[] = standingsRows.map((row, i) => {
-    const t = state.teams.find((x) => x.id === row.teamId)!;
-    return {
-      rank: i + 1,
-      teamShort: t.shortName,
-      games: row.games,
-      wins: row.wins,
-      losses: row.losses,
-      draws: row.draws,
-      winPct: formatWinPct(row.winPct),
-      gamesBehind: formatGamesBehind(row.gamesBehind),
-    };
-  });
-
-  const leaders: BattingLeaderFacts[] = state.players
+  const batters = state.players
     .filter((p) => !p.isPitcher && state.stats[p.id].batting.atBats >= 10)
     .sort((a, b) => average(state.stats[b.id].batting) - average(state.stats[a.id].batting))
-    .slice(0, 5)
-    .map((p, i) => ({
-      rank: i + 1,
-      name: p.name,
-      average: formatAverage(average(state.stats[p.id].batting)),
-      homeRuns: state.stats[p.id].batting.homeRuns,
-      rbi: state.stats[p.id].batting.rbi,
-    }));
-
-  const rank = rankOfTeam(state, team.id);
-  const record = state.records[team.id];
+    .slice(0, 5);
 
   return (
-    <Page7Standings
-      date={formatDateFull(state.date)}
-      headline={`${league.name}順位表`}
-      subhead="現在の順位と、規定打席前を含む打率上位"
-      standings={standings}
-      leaders={leaders}
-      catchphrase={`${team.name}は${rank}位（${record.wins}勝${record.losses}敗${record.draws}分）`}
-    />
+    <div className="paper-page">
+      <Masthead pageNo={pageNo} dateLabel={formatDateJa(state.date)} />
+      <Kicker kind="record" label="順位・成績" />
+      <h2 className="paper-headline">{league.name}順位表</h2>
+      <p className="paper-subhead">現在の順位と、規定打席前を含む打率上位</p>
+
+      <div className="scroll-x">
+        <table className="data">
+          <thead>
+            <tr>
+              <th>順</th>
+              <th className="l">球団</th>
+              <th>試合</th>
+              <th>勝</th>
+              <th>敗</th>
+              <th>分</th>
+              <th>勝率</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => {
+              const t = state.teams.find((x) => x.id === row.teamId)!;
+              return (
+                <tr key={row.teamId} style={{ fontWeight: t.id === state.playerTeamId ? 800 : undefined }}>
+                  <td>{i + 1}</td>
+                  <td className="l">{t.shortName}</td>
+                  <td>{row.games}</td>
+                  <td>{row.wins}</td>
+                  <td>{row.losses}</td>
+                  <td>{row.draws}</td>
+                  <td>{formatWinPct(row.winPct)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {batters.length > 0 && (
+        <div className="paper-box" style={{ marginTop: 10 }}>
+          <div className="paper-box-title">チーム打撃成績（打率上位）</div>
+          <table className="data">
+            <tbody>
+              {batters.map((p, i) => (
+                <tr key={p.id}>
+                  <td className="l">{i + 1}</td>
+                  <td className="l">
+                    <PlayerLink playerId={p.id}>{p.name}</PlayerLink>
+                  </td>
+                  <td>{formatAverage(average(state.stats[p.id].batting))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 
 /* ---------------- ファーム情報 ---------------- */
 
-function FarmPageView() {
+function FarmPage({ pageNo }: { pageNo: number }) {
   const { state } = useGame();
-  const team = state.teams.find((t) => t.id === state.playerTeamId)!;
-  const highlights = farmHighlights(state, team.id, 5);
-  const rows: FarmRowFacts[] = highlights.map((h, i) => ({
-    rank: i + 1,
-    name: h.name,
-    line: h.battingLine ?? h.pitchingLine ?? '―',
-  }));
+  const teamId = state.playerTeamId;
+  const highlights = farmHighlights(state, teamId);
 
   return (
-    <Page8Farm
-      date={formatDateFull(state.date)}
-      headline="2軍の主な成績"
-      subhead="今シーズン、2軍で実際に出場している選手から"
-      body={
-        highlights.length > 0
-          ? `${team.name}の2軍で成績を残している選手をまとめました。`
-          : 'まだ2軍での成績が十分にありません。'
-      }
-      rows={rows}
-      catchphrase="若手の成長がチームの未来をつくる"
-      photo={<TeamMark visual={teamVisual(team)} name={team.name} size={72} />}
-    />
+    <div className="paper-page">
+      <Masthead pageNo={pageNo} dateLabel={formatDateJa(state.date)} />
+      <Kicker kind="team" label="ファーム情報" />
+      <h2 className="paper-headline">2軍の主な成績</h2>
+      <p className="paper-subhead">今シーズン、2軍で実際に出場している選手から</p>
+
+      {highlights.length === 0 ? (
+        <p className="muted">まだ2軍での成績が十分にありません。</p>
+      ) : (
+        <table className="data">
+          <tbody>
+            {highlights.map((h) => (
+              <tr key={h.playerId}>
+                <td className="l">
+                  <PlayerLink playerId={h.playerId}>{h.name}</PlayerLink>
+                </td>
+                <td className="l">{h.positionLabel}</td>
+                <td className="l">{h.battingLine ?? h.pitchingLine ?? '―'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
   );
 }
 
 /* ---------------- コラム ---------------- */
 
-function ColumnPageView() {
+function ColumnPage({ pageNo }: { pageNo: number }) {
   const { state } = useGame();
-  const team = state.teams.find((t) => t.id === state.playerTeamId)!;
-  const facts = columnFacts(state, team.id);
+  const teamId = state.playerTeamId;
+  const facts = columnFacts(state, teamId);
+  const team = state.teams.find((t) => t.id === teamId)!;
+
   if (!facts) return null;
 
-  const quote = facts.latestDecisionChoice ?? facts.objectiveLine ?? facts.directionLabel;
-
   return (
-    <Page9Column
-      date={formatDateFull(state.date)}
-      headline="今季の方針"
-      subhead={`${team.name}が今季かかげている方針`}
-      body={`球団方針は「${facts.directionLabel}」。${facts.objectiveLine ? `今季の目標は${facts.objectiveLine}。` : ''}${facts.latestDecisionTitle ? `直近の判断は「${facts.latestDecisionTitle}」。` : ''}`}
-      authorLabel={`${team.name} GM`}
-      quote={quote}
-      photo={<TeamMark visual={teamVisual(team)} name={team.name} size={72} />}
-      scene={<StadiumScene visual={teamVisual(team)} name={teamVisual(team).stadiumName} height={90} />}
-    />
+    <div className="paper-page">
+      <Masthead pageNo={pageNo} dateLabel={formatDateJa(state.date)} />
+      <Kicker kind="feature" label="コラム" />
+      <h2 className="paper-headline">今季の方針</h2>
+      <p className="paper-subhead">{team.name}が今季かかげている方針</p>
+
+      <div className="paper-box">
+        <div className="paper-box-title">球団方針</div>
+        <div>{facts.directionLabel}</div>
+      </div>
+
+      {facts.objectiveLine && (
+        <div className="paper-box">
+          <div className="paper-box-title">今季の目標</div>
+          <div>{facts.objectiveLine}</div>
+        </div>
+      )}
+
+      {facts.latestDecisionTitle && (
+        <div className="paper-box">
+          <div className="paper-box-title">直近の判断（GM日誌より）</div>
+          <div style={{ fontWeight: 700 }}>{facts.latestDecisionTitle}</div>
+          <div className="muted" style={{ fontSize: 'var(--text-sm)' }}>
+            {facts.latestDecisionChoice}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
