@@ -1475,6 +1475,59 @@ h3.sec {
   white-space: nowrap;
 }
 
+/*
+ * 絵だけのボタン（ホームの入り口）。
+ * 画像は決まった大きさで書き出してあるので、幅いっぱいに合わせれば
+ * 縦横比はそのまま保たれる（aspect-ratio を別途指定する必要が無い）。
+ */
+.btn-img {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 0;
+  border: none;
+  background: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-img img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.btn-img:active img {
+  opacity: 0.82;
+  transform: scale(0.98);
+}
+
+.btn-img:disabled {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+
+.btn-img:disabled:active img {
+  opacity: 1;
+  transform: none;
+}
+
+.btn-img:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
+/* 歴史・記録・発掘・トレードのように、絵のボタンを2列に並べる場所 */
+.icon-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.icon-grid .btn-img {
+  margin-top: 0;
+}
+
 .next-game {
   border-top: 2px solid var(--ink);
   border-bottom: 1px solid var(--rule);

@@ -31,6 +31,14 @@ import { PlayerLink } from '../components/PlayerLink';
 // 次の試合ボタンの絵。Vite が同梱するので、実行時に外へ取りに行くことはない
 import nextGameArt from '../../assets/ui/next-game.webp';
 import nextGamePressArt from '../../assets/ui/next-game-active.webp';
+import nextDayArt from '../../assets/ui/next-day.webp';
+import playerCheckArt from '../../assets/ui/player-check.webp';
+import clubFinanceArt from '../../assets/ui/club-finance.webp';
+import historyArt from '../../assets/ui/history.webp';
+import recordsArt from '../../assets/ui/records.webp';
+import discoveryArt from '../../assets/ui/discovery.webp';
+import tradeArt from '../../assets/ui/trade.webp';
+import gmJournalArt from '../../assets/ui/gm-journal.webp';
 import {
   planSummary,
   targetLabels,
@@ -213,9 +221,7 @@ export function HomeScreen() {
           <span className="sr-only">次の試合へ</span>
         </button>
         <div className="btn-row" style={{ marginTop: 10 }}>
-          <button className="btn secondary" onClick={() => skipOneDay()}>
-            1日進める
-          </button>
+          <PictureButton src={nextDayArt} alt="1日進める" onClick={() => skipOneDay()} />
         </div>
       </section>
 
@@ -260,9 +266,11 @@ export function HomeScreen() {
         <p className="muted" style={{ fontSize: 'var(--text-sm)', marginBottom: 10 }}>
           不調・打撃不振・投手不振の選手をまとめて確認できます。
         </p>
-        <button className="btn secondary" onClick={() => setScreen('playerCheck')}>
-          選手チェックを開く
-        </button>
+        <PictureButton
+          src={playerCheckArt}
+          alt="選手チェックを開く"
+          onClick={() => setScreen('playerCheck')}
+        />
       </div>
 
       {/* ── 4. チーム状態 ── */}
@@ -344,23 +352,13 @@ export function HomeScreen() {
             {state.history.hallOfFame.length}人
           </span>
         </div>
-        <div className="btn-row" style={{ marginTop: 10 }}>
-          <button className="btn secondary" onClick={() => setScreen('history')}>
-            歴史
-          </button>
-          <button className="btn secondary" onClick={() => setScreen('records')}>
-            記録
-          </button>
-          <button className="btn secondary" onClick={() => setScreen('discovery')}>
-            発掘
-          </button>
-          <button className="btn secondary" onClick={() => setScreen('trade')}>
-            トレードを見る
-          </button>
-          <button className="btn secondary" onClick={() => setScreen('news')}>
-            GM日誌
-          </button>
+        <div className="icon-grid" style={{ marginTop: 10 }}>
+          <PictureButton src={historyArt} alt="歴史" onClick={() => setScreen('history')} />
+          <PictureButton src={recordsArt} alt="記録" onClick={() => setScreen('records')} />
+          <PictureButton src={discoveryArt} alt="発掘" onClick={() => setScreen('discovery')} />
+          <PictureButton src={tradeArt} alt="トレードを見る" onClick={() => setScreen('trade')} />
         </div>
+        <PictureButton src={gmJournalArt} alt="GM日誌" onClick={() => setScreen('news')} />
       </div>
 
       {state.lastGrowthReport && !state.seasonFinished && (
@@ -383,6 +381,35 @@ export function HomeScreen() {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * 絵だけのボタン（PHASE: ホームの各入り口を絵に差し替え）。
+ * 読み上げには alt でラベルが伝わる。押した／押せないの見た目は CSS 側で付ける。
+ */
+function PictureButton({
+  src,
+  alt,
+  onClick,
+  disabled,
+  className,
+}: {
+  src: string;
+  alt: string;
+  onClick: () => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      className={`btn-img${className ? ` ${className}` : ''}`}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      <img src={src} alt={alt} />
+    </button>
   );
 }
 
@@ -518,9 +545,11 @@ function ClubSummary() {
           </span>
         </div>
       )}
-      <button className="btn secondary" style={{ marginTop: 10 }} onClick={() => setScreen('club')}>
-        球団経営を見る
-      </button>
+      <PictureButton
+        src={clubFinanceArt}
+        alt="球団経営を見る"
+        onClick={() => setScreen('club')}
+      />
     </div>
   );
 }
