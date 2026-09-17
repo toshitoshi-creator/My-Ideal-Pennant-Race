@@ -922,8 +922,8 @@ await shot('16-season-end');
     const paper = page.locator('.paper-page');
     if ((await paper.count()) === 0) fail('ニュースの誌面が表示されていない');
     else {
-      const first = await paper.innerText();
-      if (!first.includes('面')) fail('誌面にページ番号（○面）が出ていない');
+      const navCount = await page.locator('.paper-nav-count').innerText();
+      if (!navCount.includes('面')) fail('誌面にページ番号（○面）が出ていない');
       else ok('ニュースの誌面が表示されている（順位・成績が既定ページ）');
 
       const farmChip = page.locator('.paper-quick .chip', { hasText: 'ファーム情報' });
@@ -931,7 +931,8 @@ await shot('16-season-end');
         await farmChip.click();
         await page.waitForTimeout(150);
         const farmText = await page.locator('.paper-page').innerText();
-        if (!farmText.includes('ファーム情報')) fail('ファーム情報ページに切り替わらない');
+        const chipClass = await farmChip.getAttribute('class');
+        if (!chipClass?.includes('on') || !farmText.includes('2軍')) fail('ファーム情報ページに切り替わらない');
         else ok('特集ページ（ファーム情報）へ近道で切り替えられる');
       }
 
