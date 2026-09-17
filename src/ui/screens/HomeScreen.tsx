@@ -138,6 +138,47 @@ export function HomeScreen() {
         </div>
       </header>
 
+      {/*
+        ボタンをここに1か所へまとめる（チーム名・順位・勝率のすぐ下）。
+        次の試合と1日進めるは横1列、残りは2列のグリッドにして、
+        どちらも画面の横幅に収まる大きさにする（横スクロールはさせない）。
+      */}
+      <section className="home-actions">
+        <div className="home-actions-row">
+          {/*
+            次の試合はこの画面でいちばん強い動線なので、絵の入ったボタンにしている。
+            押している間だけ2枚目に差し替わる（画像は2枚とも最初から読み込んでおく）。
+            読み上げには「次の試合へ」と伝わるよう、文字も残してある。
+          */}
+          <button
+            className="btn-next-game"
+            disabled={!next}
+            onClick={() => {
+              const result = playNextGame();
+              if (result) setScreen('game');
+            }}
+          >
+            <img className="next-game-idle" src={nextGameArt} alt="" />
+            <img className="next-game-press" src={nextGamePressArt} alt="" />
+            <span className="sr-only">次の試合へ</span>
+          </button>
+          <PictureButton src={nextDayArt} alt="1日進める" onClick={() => skipOneDay()} />
+        </div>
+        <div className="home-actions-grid">
+          <PictureButton
+            src={playerCheckArt}
+            alt="選手チェックを開く"
+            onClick={() => setScreen('playerCheck')}
+          />
+          <PictureButton src={clubFinanceArt} alt="球団経営を見る" onClick={() => setScreen('club')} />
+          <PictureButton src={historyArt} alt="歴史" onClick={() => setScreen('history')} />
+          <PictureButton src={recordsArt} alt="記録" onClick={() => setScreen('records')} />
+          <PictureButton src={discoveryArt} alt="発掘" onClick={() => setScreen('discovery')} />
+          <PictureButton src={tradeArt} alt="トレードを見る" onClick={() => setScreen('trade')} />
+          <PictureButton src={gmJournalArt} alt="GM日誌" onClick={() => setScreen('news')} />
+        </div>
+      </section>
+
       {/* ── 2. 試合前資料 ── いちばん面積を取る（§14） ── */}
       <section className="next-game">
         <Sec en="PRE-GAME BRIEF" ja="試合前資料" size="lead" />
@@ -204,26 +245,6 @@ export function HomeScreen() {
             残り試合はありません（シーズン終了）
           </div>
         )}
-        {/*
-          次の試合はこの画面でいちばん強い動線なので、絵の入ったボタンにしている。
-          押している間だけ2枚目に差し替わる（画像は2枚とも最初から読み込んでおく）。
-          読み上げには「次の試合へ」と伝わるよう、文字も残してある。
-        */}
-        <button
-          className="btn-next-game"
-          disabled={!next}
-          onClick={() => {
-            const result = playNextGame();
-            if (result) setScreen('game');
-          }}
-        >
-          <img className="next-game-idle" src={nextGameArt} alt="" />
-          <img className="next-game-press" src={nextGamePressArt} alt="" />
-          <span className="sr-only">次の試合へ</span>
-        </button>
-        <div className="btn-row" style={{ marginTop: 10 }}>
-          <PictureButton src={nextDayArt} alt="1日進める" onClick={() => skipOneDay()} />
-        </div>
       </section>
 
       {state.seasonFinished && (
@@ -257,22 +278,6 @@ export function HomeScreen() {
           ))}
         </div>
       )}
-
-      {/*
-        PHASE 4.9-A: 「最近調子悪い選手いないかな」から1〜2操作で確認できる入り口。
-        GM Desk の案件（問題があるときだけ出る）とは別に、いつでも自分から開ける。
-      */}
-      <div className="card">
-        <Sec en="PLAYER CHECK" ja="選手チェック" size="sub" />
-        <p className="muted" style={{ fontSize: 'var(--text-sm)', marginBottom: 10 }}>
-          不調・打撃不振・投手不振の選手をまとめて確認できます。
-        </p>
-        <PictureButton
-          src={playerCheckArt}
-          alt="選手チェックを開く"
-          onClick={() => setScreen('playerCheck')}
-        />
-      </div>
 
       {/* ── 4. チーム状態 ── */}
       <div className="card">
@@ -353,13 +358,6 @@ export function HomeScreen() {
             {state.history.hallOfFame.length}人
           </span>
         </div>
-        <div className="icon-grid" style={{ marginTop: 10 }}>
-          <PictureButton src={historyArt} alt="歴史" onClick={() => setScreen('history')} />
-          <PictureButton src={recordsArt} alt="記録" onClick={() => setScreen('records')} />
-          <PictureButton src={discoveryArt} alt="発掘" onClick={() => setScreen('discovery')} />
-          <PictureButton src={tradeArt} alt="トレードを見る" onClick={() => setScreen('trade')} />
-        </div>
-        <PictureButton src={gmJournalArt} alt="GM日誌" onClick={() => setScreen('news')} />
       </div>
 
       {state.lastGrowthReport && !state.seasonFinished && (
@@ -385,10 +383,6 @@ export function HomeScreen() {
   );
 }
 
-/**
- * 絵だけのボタン（PHASE: ホームの各入り口を絵に差し替え）。
- * 読み上げには alt でラベルが伝わる。押した／押せないの見た目は CSS 側で付ける。
- */
 /** チーム状態の1行。数値・ランク・棒をまとめて出す */
 function PowerLine({ label, value, lead }: { label: string; value: number; lead?: boolean }) {
   return (
@@ -468,7 +462,7 @@ function LatestNews() {
 
 /** ホームに出す球団経営のまとめ（PHASE 4.0） */
 function ClubSummary() {
-  const { state, setScreen } = useGame();
+  const { state } = useGame();
   const teamId = state.playerTeamId;
   const club = state.clubs?.[teamId];
   if (!club) return null;
@@ -521,11 +515,6 @@ function ClubSummary() {
           </span>
         </div>
       )}
-      <PictureButton
-        src={clubFinanceArt}
-        alt="球団経営を見る"
-        onClick={() => setScreen('club')}
-      />
     </div>
   );
 }

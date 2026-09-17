@@ -1518,13 +1518,44 @@ h3.sec {
 }
 
 /* 歴史・記録・発掘・トレードのように、絵のボタンを2列に並べる場所 */
-.icon-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+/*
+ * ホームのボタンをまとめる場所。
+ * チーム名・順位・勝率のすぐ下に置く（§ボタンの一括表示）。
+ */
+.home-actions {
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--rule);
 }
 
-.icon-grid .btn-img {
+/* 次の試合 / 1日進める。この2つだけは横1列で並べる */
+.home-actions-row {
+  display: flex;
+  gap: 8px;
+}
+
+.home-actions-row > * {
+  flex: 1 1 0;
+  /* flex item の既定 min-width:auto だと中の img の実寸が下限になり、
+     二分割した幅より画像が大きいときにはみ出す。0 にして必ず縮められるようにする */
+  min-width: 0;
+  margin-top: 0;
+}
+
+/* 残りのボタン。横スクロールさせず、2列に折り返して収める */
+.home-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.home-actions-grid .btn-img {
+  /*
+   * grid item も flex item と同じ理由（既定 min-width:auto が img の実寸を
+   * 下限にしてしまう）で、記録・トレードなど右側の列がはみ出して見切れていた。
+   * minmax(0, 1fr) と合わせて、ここでも 0 にして必ずトラック幅に収まるようにする。
+   */
+  min-width: 0;
   margin-top: 0;
 }
 
