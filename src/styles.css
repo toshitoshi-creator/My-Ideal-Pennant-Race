@@ -4155,14 +4155,23 @@ h3.sec {
   color: var(--ink-2);
 }
 
+.paper-masthead .paper-page-no,
+.paper-masthead .paper-date {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .paper-masthead .paper-page-no {
   font-weight: 800;
   color: var(--ink);
 }
 
 .paper-logo {
-  height: 22px;
+  height: 16px;
   width: auto;
+  max-width: 45%;
+  min-width: 0;
+  object-fit: contain;
 }
 
 .paper-kicker {

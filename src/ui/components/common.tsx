@@ -21,7 +21,10 @@ export function PositionBadge({ player }: { player: Player }) {
       ? colors[0]
       : `linear-gradient(90deg, ${colors.map((c, i) => `${c} ${i * step}% ${(i + 1) * step}%`).join(', ')})`;
   return (
-    <span className="pos" style={{ background, color: 'var(--ink)', borderColor: 'transparent' }}>
+    <span
+      className="pos"
+      style={{ background, backgroundRepeat: 'no-repeat', color: 'var(--ink)', border: 'none' }}
+    >
       {POSITION_SHORT[player.mainPosition]}
     </span>
   );

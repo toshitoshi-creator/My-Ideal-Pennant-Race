@@ -129,7 +129,7 @@ function Masthead({ pageNo, dateLabel }: { pageNo: number; dateLabel: string }) 
     <div className="paper-masthead">
       <span className="paper-page-no">{pageNo}面</span>
       <img className="paper-logo" src={paperLogo} alt="ベースボールニュース" />
-      <span>{dateLabel}</span>
+      <span className="paper-date">{dateLabel}</span>
     </div>
   );
 }
