@@ -3,6 +3,7 @@ import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import { Tabs } from '../components/common';
 import { NewsCard } from '../components/NewsCard';
+import { NewsPaperReader } from '../components/NewsPaper';
 import { CATEGORY_LABELS, markNewsRead, newsOfCategory } from '../../domain/news';
 import { recentStories } from '../../domain/story';
 import { formatDateJa } from '../../domain/dates';
@@ -95,8 +96,19 @@ export function NewsScreen() {
               </div>
             </div>
             <TodayFlow />
+            {/*
+              ニュースの誌面。新聞の1面ずつをめくる形で読む。
+              「順位・成績」「ファーム情報」「コラム」は特集ページとして
+              いつでも読めるようにし、そのあとに実際のニュースが続く。
+            */}
+            <NewsPaperReader items={items} />
+
+            {/*
+              一覧としても読めるように残す（フィルター済み一覧・件数の確認用）。
+              紙面をめくらずに探したいときのための、従来からの見せ方。
+            */}
             <div className="card">
-              <Sec en="CLUB NEWS" ja="ニュース" size="lead" note={`${items.length}件`} />
+              <Sec en="CLUB NEWS" ja="ニュース一覧" size="sub" note={`${items.length}件`} />
               {items.length === 0 ? (
                 <p className="muted">まだニュースはありません。</p>
               ) : (

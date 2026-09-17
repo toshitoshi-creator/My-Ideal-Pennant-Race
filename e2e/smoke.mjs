@@ -911,9 +911,47 @@ await shot('16-season-end');
   await shot('50-news');
 
   // カテゴリで絞り込める
-  await page.locator('.chip', { hasText: '試合' }).first().click();
+  await page.locator('.chip', { hasText: 'すべて' }).first().click();
   await page.waitForTimeout(200);
-  ok('ニュースをカテゴリで絞り込める');
+
+  /*
+   * ニュースの誌面（3面〜）。特集ページ（順位・成績／ファーム情報／コラム）
+   * への近道と、実際のニュースをめくる操作を確かめる。
+   */
+  {
+    const paper = page.locator('.paper-page');
+    if ((await paper.count()) === 0) fail('ニュースの誌面が表示されていない');
+    else {
+      const first = await paper.innerText();
+      if (!first.includes('面')) fail('誌面にページ番号（○面）が出ていない');
+      else ok('ニュースの誌面が表示されている（順位・成績が既定ページ）');
+
+      const farmChip = page.locator('.paper-quick .chip', { hasText: 'ファーム情報' });
+      if ((await farmChip.count()) > 0) {
+        await farmChip.click();
+        await page.waitForTimeout(150);
+        const farmText = await page.locator('.paper-page').innerText();
+        if (!farmText.includes('ファーム情報')) fail('ファーム情報ページに切り替わらない');
+        else ok('特集ページ（ファーム情報）へ近道で切り替えられる');
+      }
+
+      const nextBtn = page.locator('.paper-nav button', { hasText: '次の面' });
+      if ((await nextBtn.count()) > 0 && !(await nextBtn.isDisabled())) {
+        const before = await page.locator('.paper-nav-count').innerText();
+        await nextBtn.click();
+        await page.waitForTimeout(150);
+        const after = await page.locator('.paper-nav-count').innerText();
+        if (before === after) fail('「次の面」を押してもページが進まない');
+        else ok('「次の面」でページが進む');
+      }
+
+      const overflowPaper = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      if (overflowPaper > 0) fail(`誌面表示で横スクロールが出た（${overflowPaper}px）`);
+      else ok('誌面表示に横スクロールが無い');
+    }
+  }
 
   /*
    * PHASE 4.4: 「年度の物語」タブは「シーズンの記録」タブに広がり、
