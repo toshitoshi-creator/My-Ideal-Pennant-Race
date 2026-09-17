@@ -6,6 +6,8 @@ import { formatDateJa } from '../../domain/dates';
 import { nextGameForTeam } from '../../domain/schedule';
 import { Sheet } from '../components/common';
 import { PlayerLink } from '../components/PlayerLink';
+import { PictureButton } from '../components/PictureButton';
+import gameStartArt from '../../assets/ui/game-start.webp';
 import { useCountUp, usePlayback } from '../anim';
 import { buildPreGameBrief, buildPostGameReport } from '../../domain/gameBrief';
 import {
@@ -87,9 +89,7 @@ export function GameScreen() {
                 </ul>
               </div>
             )}
-            <button className="btn primary" style={{ marginTop: 12 }} onClick={() => playNextGame()}>
-              試合開始
-            </button>
+            <PictureButton src={gameStartArt} alt="試合開始" onClick={() => playNextGame()} />
           </>
         ) : (
           <div className="muted">予定されている試合はありません。</div>

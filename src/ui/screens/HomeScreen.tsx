@@ -28,6 +28,7 @@ import { teamVisual, stadiumMoodForDate } from '../../domain/visuals';
 import { TeamMark, StadiumScene } from '../components/visuals/TeamVisuals';
 import { PlayerVisual } from '../components/PlayerVisual';
 import { PlayerLink } from '../components/PlayerLink';
+import { PictureButton } from '../components/PictureButton';
 // 次の試合ボタンの絵。Vite が同梱するので、実行時に外へ取りに行くことはない
 import nextGameArt from '../../assets/ui/next-game.webp';
 import nextGamePressArt from '../../assets/ui/next-game-active.webp';
@@ -388,31 +389,6 @@ export function HomeScreen() {
  * 絵だけのボタン（PHASE: ホームの各入り口を絵に差し替え）。
  * 読み上げには alt でラベルが伝わる。押した／押せないの見た目は CSS 側で付ける。
  */
-function PictureButton({
-  src,
-  alt,
-  onClick,
-  disabled,
-  className,
-}: {
-  src: string;
-  alt: string;
-  onClick: () => void;
-  disabled?: boolean;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      className={`btn-img${className ? ` ${className}` : ''}`}
-      onClick={onClick}
-      disabled={disabled}
-    >
-      <img src={src} alt={alt} />
-    </button>
-  );
-}
-
 /** チーム状態の1行。数値・ランク・棒をまとめて出す */
 function PowerLine({ label, value, lead }: { label: string; value: number; lead?: boolean }) {
   return (
