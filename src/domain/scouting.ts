@@ -166,6 +166,27 @@ export function buildInitialReport(
   return report;
 }
 
+/**
+ * 調査を最後まで終えた状態のレポートを作る（PHASE X: シーズン中の発掘・調査）。
+ * 4項目すべてを進行度100%で評価するので、あとはチームの調査力（scoutAccuracy）
+ * だけが推定の当たり具合を決める。調査力が高いほど、この時点で幅が狭くなる。
+ */
+export function buildCompletedReport(
+  prospect: DraftProspect,
+  ability: TeamScoutAbility,
+  teamId: string,
+  year: number,
+): ScoutReport {
+  const report = emptyReport(prospect.id, year);
+  for (const category of SCOUT_CATEGORIES) {
+    report.progress[category] = 100;
+  }
+  for (const category of SCOUT_CATEGORIES) {
+    refreshEstimate(report, prospect, ability, teamId, category);
+  }
+  return report;
+}
+
 /** 球団の調査記録を取り出す（なければ初期状態を作って保存する） */
 export function reportFor(
   scouting: ScoutingState,

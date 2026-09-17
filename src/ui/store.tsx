@@ -111,6 +111,13 @@ interface StoreValue {
   viewingPlayerId: string | null;
   openPlayer(playerId: string): void;
   closePlayer(): void;
+  /**
+   * ニュースから発掘・調査の画面へ直接飛ぶための入り口。
+   * 画面を discovery にして、開いたときのタブだけ指定する（state は変えない）。
+   */
+  discoveryTab: 'foreign' | 'scout' | null;
+  openDiscovery(tab: 'foreign' | 'scout'): void;
+  clearDiscoveryTab(): void;
   /** CPU球団にトレードを提案する */
   proposeTrade(
     toTeamId: string,
@@ -142,6 +149,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [viewingPlayerId, setViewingPlayerId] = useState<string | null>(null);
   const openPlayer = useCallback((playerId: string) => setViewingPlayerId(playerId), []);
   const closePlayer = useCallback(() => setViewingPlayerId(null), []);
+  const [discoveryTab, setDiscoveryTab] = useState<'foreign' | 'scout' | null>(null);
+  const openDiscovery = useCallback((tab: 'foreign' | 'scout') => {
+    setDiscoveryTab(tab);
+    setScreen('discovery');
+  }, []);
+  const clearDiscoveryTab = useCallback(() => setDiscoveryTab(null), []);
   const toastTimer = useRef<number | null>(null);
   const stateRef = useRef<GameState | null>(null);
   stateRef.current = state;
@@ -619,6 +632,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       viewingPlayerId,
       openPlayer,
       closePlayer,
+      discoveryTab,
+      openDiscovery,
+      clearDiscoveryTab,
     }),
     [
       state,
@@ -658,6 +674,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       viewingPlayerId,
       openPlayer,
       closePlayer,
+      discoveryTab,
+      openDiscovery,
+      clearDiscoveryTab,
     ],
   );
 

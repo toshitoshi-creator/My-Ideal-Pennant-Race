@@ -1055,85 +1055,34 @@ if (retiredCount === 0) ok('今オフの引退者はいなかった');
 else ok(`${retiredCount}人が引退した`);
 await shot('16b-draft');
 
-// PHASE 3.2: スカウト期間
+// PHASE 3.2: スカウト期間（PHASE X: 調査はシーズン中の発掘でしか行えなくなった）
 if (offseason.draft.phase !== 'scouting') fail('スカウト期間から始まっていない');
 else ok('ドラフトはスカウト期間から始まる');
 const prospectCards = await page.locator('.player-card').count();
 if (prospectCards === 0) fail('ドラフト候補が表示されていない');
 else ok(`ドラフト候補が${prospectCards}人表示されている`);
 const scoutText = await page.locator('.screen').innerText();
-for (const label of ['スカウト期間', '将来性', '調査']) {
+for (const label of ['スカウト期間', '発掘']) {
   if (!scoutText.includes(label)) fail(`スカウト画面に「${label}」がない`);
 }
-const pointsBefore = offseason.scouting.teams.phoenix.points;
-ok(`スカウト画面が表示された（調査ポイント ${pointsBefore}）`);
+ok('スカウト画面に、シーズン中の発掘でしか調査できない旨が表示されている');
 
-// 候補を選んで将来性を調査する
+// 候補の詳細を開く（もう調査ボタンは無く、見るだけの画面になっている）
 await page.locator('.player-card button').first().click();
 await page.locator('.sheet').waitFor();
 const detailBefore = await page.locator('.sheet').innerText();
 if (!detailBefore.includes('未調査')) fail('未調査の項目が表示されていない');
 else ok('未調査の項目が「未調査」と表示されている');
-await shot('16b1-scout-detail');
-
-const scoutButtons = page.locator('.sheet button', { hasText: /調査 \d+pt/ });
-const scoutButtonCount = await scoutButtons.count();
-if (scoutButtonCount < 4) fail(`調査ボタンが4項目そろっていない（${scoutButtonCount}）`);
-else ok('現在能力・将来性・性格・特殊能力の4項目を個別に調査できる');
-
-// 将来性を2回調査する
-for (let i = 0; i < 2; i++) {
-  await page.locator('.sheet .spread', { hasText: '将来性' }).locator('button').first().click();
-  await page.waitForTimeout(250);
-}
-const afterScout = await readState();
-const scoutState = afterScout.scouting.teams.phoenix;
-const firstProspectId = Object.keys(scoutState.reports)[0];
-const report = scoutState.reports[firstProspectId];
-if (!report || report.progress.potential === 0) fail('将来性の調査が反映されていない');
-else ok(`将来性の調査が進んだ（進行度 ${report.progress.potential}%）`);
-if (scoutState.points >= pointsBefore) fail('スカウトポイントが消費されていない');
-else ok(`スカウトポイントが消費された（${pointsBefore} → ${scoutState.points}）`);
-if (!report.estimate.potential) fail('将来性の推定が生成されていない');
-else ok(`将来性の推定が得られた（${report.estimate.potential}）`);
-
-const detailAfter = await page.locator('.sheet').innerText();
-if (!detailAfter.includes('信頼度')) fail('信頼度が表示されていない');
+if (!detailBefore.includes('信頼度')) fail('信頼度が表示されていない');
 else ok('推定情報に信頼度が表示されている');
-await shot('16b2-scout-done');
+const scoutButtons = page.locator('.sheet button', { hasText: /調査 \d+pt/ });
+if ((await scoutButtons.count()) > 0) fail('プレイヤーが調査ポイントを使えるボタンが残っている');
+else ok('ドラフト画面からポイントを使った調査ボタンが無くなっている');
+await shot('16b1-scout-detail');
 await page.locator('.sheet').getByRole('button', { name: '閉じる' }).click();
 
-// 別の候補も調査する
-await page.locator('.player-card button').nth(1).click();
-await page.locator('.sheet').waitFor();
-await page.locator('.sheet .spread', { hasText: '現在能力' }).locator('button').first().click();
-await page.waitForTimeout(250);
-const twoScouted = await readState();
-if (Object.keys(twoScouted.scouting.teams.phoenix.reports).length < 2) {
-  fail('2人目の調査が記録されていない');
-} else {
-  ok('複数の候補を調査できる');
-}
-await page.locator('.sheet').getByRole('button', { name: '閉じる' }).click();
-
-// リロードして調査情報が復元されることを確認する
-const scoutSnapshot = await readState();
-await page.reload();
-await page.getByRole('button', { name: '続きから' }).click();
-await page.getByRole('heading', { name: /ドラフト会議/ }).waitFor();
-const reloadedScout = await readState();
-const restored = reloadedScout.scouting.teams.phoenix;
-if (
-  restored.points !== scoutSnapshot.scouting.teams.phoenix.points ||
-  Object.keys(restored.reports).length !== Object.keys(scoutSnapshot.scouting.teams.phoenix.reports).length
-) {
-  fail('リロードでスカウト情報が失われた');
-} else {
-  ok(`リロード後もスカウト情報が残る（ポイント${restored.points} / 調査済み${Object.keys(restored.reports).length}人）`);
-}
-
-// 他球団の調査情報は独立している
-const cpuReports = Object.keys(reloadedScout.scouting.teams.bluewave.reports).length;
+// CPU球団はこれまでどおり自分のスカウト能力で調査している（内部の挙動は変えていない）
+const cpuReports = Object.keys(offseason.scouting.teams.bluewave.reports).length;
 if (cpuReports === 0) fail('CPU球団がスカウトしていない');
 else ok(`CPU球団も独自に調査している（関東ブルーウェーブ ${cpuReports}人）`);
 

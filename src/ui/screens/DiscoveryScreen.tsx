@@ -8,8 +8,9 @@
  *  - 備考は「外から見て分かること」だけ。能力の一覧は書かない。
  *  - 発掘力（見つける力）と調査力（推定の当たり具合）は別物として並べる。
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type {
+  AmateurCandidate,
   DiscoveryAgeBand,
   DiscoveryCondition,
   DiscoveryOrigin,
@@ -23,19 +24,23 @@ import {
   DISCOVERY_TYPE_LABELS,
   ORIGIN_LABELS,
   PITCHER_ROLE_LABELS,
+  amateurReportOf,
+  cancelAmateurSearch,
   cancelForeignSearch,
   emptyCondition,
   discoveryPowerOf,
   foreignReportOf,
   removeAmateurPreset,
   saveAmateurPreset,
-  searchProgress,
+  searchStage,
+  searchStageProgress,
   setAmateurCondition,
   signForeignCandidate,
+  startAmateurSearch,
   startForeignSearch,
 } from '../../domain/discovery';
 import { scoutAbilityOf } from '../../domain/discovery';
-import { SCOUT_ABILITY_LABELS } from '../../domain/scouting';
+import { abilityRangeText, SCOUT_ABILITY_LABELS } from '../../domain/scouting';
 import { formatMoney } from '../../domain/contract';
 import { POSITION_LABELS } from '../../domain/positions';
 import { useGame } from '../store';
@@ -53,7 +58,13 @@ const AGE_BANDS: DiscoveryAgeBand[] = ['young', 'prime', 'veteran'];
 const ORIGINS: DiscoveryOrigin[] = ['highschool', 'college', 'corporate'];
 
 export function DiscoveryScreen() {
-  const [tab, setTab] = useState<Tab>('foreign');
+  const { discoveryTab, clearDiscoveryTab } = useGame();
+  const [tab, setTab] = useState<Tab>(() => discoveryTab ?? 'foreign');
+  useEffect(() => {
+    if (discoveryTab) clearDiscoveryTab();
+    // 開いたときの1回だけ、ニュースからの指定タブを消費する
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <>
       <Tabs
@@ -269,7 +280,8 @@ function ForeignPanel() {
   const discovery = state.discovery;
   const search = discovery?.foreign.search ?? null;
   const candidates = discovery?.foreign.candidates ?? [];
-  const progress = searchProgress(search);
+  const stage = search ? searchStage(search) : null;
+  const stageProgress = search ? searchStageProgress(search) : 0;
 
   const start = () => {
     let message = '';
@@ -292,17 +304,19 @@ function ForeignPanel() {
         {search ? (
           <>
             <div className="stat-line">
-              <span className="muted">発掘中</span>
-              <span style={{ fontWeight: 700 }}>{progress}%</span>
+              <span className="muted">{stage === 'finding' ? '発掘中' : '調査中'}</span>
+              <span style={{ fontWeight: 700 }}>{stageProgress}%</span>
             </div>
-            <div className="meter" aria-label={`発掘の進み具合 ${progress}%`}>
-              <div className="meter-fill" style={{ width: `${progress}%` }} />
+            <div className="meter" aria-label={`${stage === 'finding' ? '発掘' : '調査'}の進み具合 ${stageProgress}%`}>
+              <div className="meter-fill" style={{ width: `${stageProgress}%` }} />
             </div>
             <p className="muted" style={{ fontSize: 'var(--text-xs)', marginTop: 6 }}>
-              日付を進めると調査が進みます。かかる日数は発掘力で決まります。
+              {stage === 'finding'
+                ? '日付を進めると発掘が進みます。かかる日数は発掘力で決まります。'
+                : '候補が見つかりました。日付を進めると調査が進みます。かかる日数・ギャップの狭さは調査力で決まります。'}
             </p>
             <button className="btn secondary" style={{ marginTop: 10 }} onClick={stop}>
-              発掘をやめる
+              {stage === 'finding' ? '発掘をやめる' : '調査をやめる'}
             </button>
           </>
         ) : (
@@ -370,14 +384,14 @@ function CandidateRow({
             推定
           </div>
           <div style={{ fontWeight: 700 }}>
-            {report.estimate.abilityLow}〜{report.estimate.abilityHigh}
+            {report ? `${report.estimate.abilityLow}〜${report.estimate.abilityHigh}` : '調査中'}
           </div>
         </div>
       </div>
 
       <div className="stat-line">
         <span className="muted">将来性</span>
-        <span>{report.estimate.potential ?? '未調査'}</span>
+        <span>{report ? (report.estimate.potential ?? '未調査') : '調査中'}</span>
       </div>
       <div className="stat-line">
         <span className="muted">要求の目安</span>
@@ -484,6 +498,10 @@ function AmateurPanel() {
   const { state, mutate, showToast } = useGame();
   const active = state.discovery?.amateur.active ?? null;
   const presets = state.discovery?.amateur.presets ?? [];
+  const search = state.discovery?.amateur.search ?? null;
+  const candidates = state.discovery?.amateur.candidates ?? [];
+  const stage = search ? searchStage(search) : null;
+  const stageProgress = search ? searchStageProgress(search) : 0;
   const [condition, setCondition] = useState<DiscoveryCondition>(
     () => active ?? emptyCondition(false),
   );
@@ -508,13 +526,29 @@ function AmateurPanel() {
     showToast('条件を保存しました');
   };
 
+  const startSearch = () => {
+    let message = '';
+    mutate((draft) => {
+      const result = startAmateurSearch(draft, condition);
+      message = result.ok ? '発掘を始めました' : (result.reason ?? '始められません');
+    });
+    showToast(message);
+  };
+
+  const stopSearch = () => {
+    mutate((draft) => cancelAmateurSearch(draft));
+    showToast('発掘をやめました');
+  };
+
   return (
     <>
       <div className="card">
-        <Sec en="AMATEUR SCOUTING" ja="アマチュアの発掘指示" />
+        <Sec en="AMATEUR SCOUTING" ja="アマチュアの発掘" />
         <p className="muted" style={{ fontSize: 'var(--text-xs)' }}>
-          出した条件は、次のドラフトで候補リストに載る選手に効きます。
-          指名の優先権が付くわけではなく、他球団も同じ候補を指名できます。
+          この条件でシーズン中に1人ずつ発掘できます。見つかった選手はその場で
+          調べられ、今年のドラフト候補にもそのまま加わります（指名の優先権は
+          付きません）。「この条件で探させる」は従来どおり、
+          発掘力に応じて次のドラフトの候補リストに何人か上乗せするだけの指示です。
         </p>
 
         <ConditionEditor
@@ -523,14 +557,37 @@ function AmateurPanel() {
           showOrigin
         />
 
-        <div className="btn-row" style={{ marginTop: 10 }}>
-          <button className="btn" onClick={apply}>
-            この条件で探させる
-          </button>
-          <button className="btn secondary" onClick={() => setNaming(true)}>
-            条件を保存
-          </button>
-        </div>
+        {search ? (
+          <>
+            <div className="stat-line" style={{ marginTop: 8 }}>
+              <span className="muted">{stage === 'finding' ? '発掘中' : '調査中'}</span>
+              <span style={{ fontWeight: 700 }}>{stageProgress}%</span>
+            </div>
+            <div className="meter" aria-label={`${stage === 'finding' ? '発掘' : '調査'}の進み具合 ${stageProgress}%`}>
+              <div className="meter-fill" style={{ width: `${stageProgress}%` }} />
+            </div>
+            <p className="muted" style={{ fontSize: 'var(--text-xs)', marginTop: 6 }}>
+              {stage === 'finding'
+                ? '日付を進めると発掘が進みます。'
+                : '候補が見つかりました。日付を進めると調査が進みます。かかる日数・ギャップの狭さは調査力で決まります。'}
+            </p>
+            <button className="btn secondary" style={{ marginTop: 10 }} onClick={stopSearch}>
+              {stage === 'finding' ? '発掘をやめる' : '調査をやめる'}
+            </button>
+          </>
+        ) : (
+          <div className="btn-row" style={{ marginTop: 10 }}>
+            <button className="btn" onClick={startSearch}>
+              この条件で発掘する
+            </button>
+            <button className="btn secondary" onClick={apply}>
+              この条件で探させる
+            </button>
+            <button className="btn secondary" onClick={() => setNaming(true)}>
+              条件を保存
+            </button>
+          </div>
+        )}
 
         <div className="stat-line" style={{ marginTop: 8 }}>
           <span className="muted">いまの指示</span>
@@ -540,6 +597,17 @@ function AmateurPanel() {
           <button className="btn secondary" onClick={clear}>
             指示を取り消す
           </button>
+        )}
+      </div>
+
+      <div className="card">
+        <Sec en="CANDIDATES" ja="発掘した候補" size="sub" />
+        {candidates.length === 0 ? (
+          <p className="muted">まだ候補はいません。</p>
+        ) : (
+          candidates.map((candidate) => (
+            <AmateurCandidateRow key={candidate.id} candidate={candidate} />
+          ))
         )}
       </div>
 
@@ -592,6 +660,47 @@ function AmateurPanel() {
         </Sheet>
       )}
     </>
+  );
+}
+
+function AmateurCandidateRow({ candidate }: { candidate: AmateurCandidate }) {
+  const { state } = useGame();
+  const report = amateurReportOf(state, candidate);
+  const player = candidate.prospect.player;
+
+  return (
+    <div className="discovery-card">
+      <div className="spread">
+        <div>
+          <div style={{ fontWeight: 700 }}>{player.name}</div>
+          <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>
+            {ORIGIN_LABELS[candidate.origin]}／{player.age}歳／
+            {player.isPitcher ? '投手' : POSITION_LABELS[player.mainPosition]}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>
+            推定
+          </div>
+          <div style={{ fontWeight: 700 }}>{report ? abilityRangeText(report) : '調査中'}</div>
+        </div>
+      </div>
+
+      <div className="stat-line">
+        <span className="muted">将来性</span>
+        <span>{report ? (report.estimate.potential ?? '未調査') : '調査中'}</span>
+      </div>
+
+      <ul className="note-list">
+        {candidate.notes.map((note) => (
+          <li key={note}>{note}</li>
+        ))}
+      </ul>
+
+      <p className="muted" style={{ fontSize: 'var(--text-xs)' }}>
+        今年のドラフト候補にも加わります。
+      </p>
+    </div>
   );
 }
 

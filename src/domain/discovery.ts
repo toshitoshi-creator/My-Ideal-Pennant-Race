@@ -18,12 +18,15 @@
  * 「発掘開始」「日付が進んだ」「契約」のときだけ。
  */
 import type {
+  AmateurCandidate,
   DiscoveryAgeBand,
   DiscoveryCondition,
   DiscoveryOrigin,
   DiscoveryPitcherRole,
+  DiscoverySearch,
   DiscoveryState,
   DiscoveryType,
+  DraftProspect,
   ForeignCandidate,
   GameState,
   Player,
@@ -36,17 +39,18 @@ import { Rng, seedFrom } from './rng';
 import { createPlayer } from './playerGen';
 import { overallRating } from './rating';
 import { potentialLabel } from './growth';
-import { buildInitialReport } from './scouting';
+import { buildCompletedReport, scoutAbilitySummary } from './scouting';
 import { createContract, marketValue } from './contract';
 import { canAddPlayer } from './roster';
 import { emptyBatting, emptyPitching } from './stats';
+import { pushNews } from './news';
 
 /* ================= 入れ物 ================= */
 
 export function createDiscoveryState(): DiscoveryState {
   return {
     foreign: { search: null, candidates: [], reports: {} },
-    amateur: { presets: [], active: null },
+    amateur: { presets: [], active: null, search: null, candidates: [], reports: {} },
   };
 }
 
@@ -132,6 +136,22 @@ export function conditionMatchChance(discoveryPower: number): number {
 export function amateurExtraProspects(discoveryPower: number): number {
   const power = Math.max(0, Math.min(100, discoveryPower));
   return Math.round((power / 100) * 4);
+}
+
+/**
+ * 見つけたあと、調査を仕上げるまでの日数。
+ * 発掘力（見つける力）ではなく調査力（scoutAbilitySummary。見極める力）で決まる。
+ * 調査力が高いほど短くなり、できあがる ScoutReport の幅（ギャップ）も狭くなる
+ * （幅の狭さそのものは scouting.ts の scoutAccuracy が担う）。
+ */
+export const INVESTIGATE_MIN_DAYS = 3;
+export const INVESTIGATE_MAX_DAYS = 14;
+
+export function investigateDaysFor(scoutAbility: number, rng: Rng): number {
+  const ability = Math.max(0, Math.min(100, scoutAbility));
+  const base = 14 - (ability / 100) * 10;
+  const jitter = rng.int(-2, 2);
+  return Math.max(INVESTIGATE_MIN_DAYS, Math.min(INVESTIGATE_MAX_DAYS, Math.round(base + jitter)));
 }
 
 /* ================= 条件 ================= */
@@ -255,12 +275,15 @@ export function startForeignSearch(
     return { ok: false, reason: 'すでに発掘中です' };
   }
   const power = discoveryPowerOf(state, state.playerTeamId);
+  const scoutAbility = scoutAbilitySummary(scoutAbilityOf(state, state.playerTeamId));
   const rng = discoveryRng(state, 'foreign', 'start', state.date);
   discovery.foreign.search = {
     condition: { ...condition },
     startedDate: state.date,
-    days: foreignSearchDays(power, rng),
+    findDays: foreignSearchDays(power, rng),
+    investigateDays: investigateDaysFor(scoutAbility, rng),
     elapsed: 0,
+    foundIds: [],
   };
   return { ok: true, reason: null };
 }
@@ -275,6 +298,24 @@ export function searchProgress(search: { days: number; elapsed: number } | null)
   return Math.max(0, Math.min(100, Math.round((search.elapsed / search.days) * 100)));
 }
 
+export type SearchStage = 'finding' | 'investigating';
+
+/** いま発掘フェーズか調査フェーズか */
+export function searchStage(search: DiscoverySearch): SearchStage {
+  return search.foundIds.length === 0 ? 'finding' : 'investigating';
+}
+
+/** そのフェーズだけで見た進み具合（0〜100） */
+export function searchStageProgress(search: DiscoverySearch): number {
+  if (searchStage(search) === 'finding') {
+    return searchProgress({ days: search.findDays, elapsed: search.elapsed });
+  }
+  return searchProgress({
+    days: search.investigateDays,
+    elapsed: search.elapsed - search.findDays,
+  });
+}
+
 /**
  * 1日ぶん発掘を進める（advanceDay から1日1回だけ呼ぶ）。
  *
@@ -283,33 +324,112 @@ export function searchProgress(search: { days: number; elapsed: number } | null)
  */
 export function advanceDiscovery(state: GameState): void {
   const discovery = ensureDiscovery(state);
+  advanceForeignSearch(state, discovery);
+  advanceAmateurSearch(state, discovery);
+}
+
+/**
+ * 発掘→調査の2段階を1日ぶん進める。
+ *   findDays 経過      … 候補が見つかる（名前・年齢・守備位置だけ分かる。能力はまだ見せない）
+ *   +investigateDays 経過 … 調査が終わり、ScoutReport ができる（ここでギャップが確定する）
+ */
+function advanceForeignSearch(state: GameState, discovery: DiscoveryState): void {
   const search = discovery.foreign.search;
   if (!search) return;
-
   search.elapsed += 1;
-  if (search.elapsed < search.days) return;
 
-  // 見つかった：候補を作ってレポートを用意する
-  const power = discoveryPowerOf(state, state.playerTeamId);
-  const rng = discoveryRng(state, 'foreign', 'found', state.date, search.startedDate);
-  const count = foreignCandidateCount(power, rng);
-  const ability = scoutAbilityOf(state, state.playerTeamId);
+  if (search.foundIds.length === 0) {
+    if (search.elapsed < search.findDays) return;
 
-  for (let i = 0; i < count; i++) {
-    const candidate = createForeignCandidate(state, search.condition, power, rng, i);
-    discovery.foreign.candidates.push(candidate);
-    discovery.foreign.reports[candidate.id] = buildForeignReport(candidate, ability, state);
-  }
-  // 候補が増えすぎないよう、古いものから落とす
-  const limit = FOREIGN_CANDIDATE_LIMIT * 2;
-  if (discovery.foreign.candidates.length > limit) {
-    const dropped = discovery.foreign.candidates.splice(
-      0,
-      discovery.foreign.candidates.length - limit,
+    const power = discoveryPowerOf(state, state.playerTeamId);
+    const rng = discoveryRng(state, 'foreign', 'found', state.date, search.startedDate);
+    const count = foreignCandidateCount(power, rng);
+    const ids: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const candidate = createForeignCandidate(state, search.condition, power, rng, i);
+      discovery.foreign.candidates.push(candidate);
+      ids.push(candidate.id);
+    }
+    // 候補が増えすぎないよう、古いものから落とす
+    const limit = FOREIGN_CANDIDATE_LIMIT * 2;
+    if (discovery.foreign.candidates.length > limit) {
+      const dropped = discovery.foreign.candidates.splice(
+        0,
+        discovery.foreign.candidates.length - limit,
+      );
+      for (const old of dropped) delete discovery.foreign.reports[old.id];
+    }
+    search.foundIds = ids;
+    pushDiscoveryFoundNotice(
+      state,
+      'foreign',
+      ids
+        .map((id) => discovery.foreign.candidates.find((c) => c.id === id)?.player.name)
+        .filter((name): name is string => !!name),
     );
-    for (const old of dropped) delete discovery.foreign.reports[old.id];
+    return;
   }
+
+  if (search.elapsed < search.findDays + search.investigateDays) return;
+  const ability = scoutAbilityOf(state, state.playerTeamId);
+  const names: string[] = [];
+  for (const id of search.foundIds) {
+    const candidate = discovery.foreign.candidates.find((c) => c.id === id);
+    if (!candidate) continue;
+    discovery.foreign.reports[id] = buildForeignReport(candidate, ability, state);
+    names.push(candidate.player.name);
+  }
+  pushDiscoveryInvestigatedNotice(state, 'foreign', names);
   discovery.foreign.search = null;
+}
+
+/**
+ * アマチュアの発掘（シーズン中に1人ずつ探す）。
+ * 見つかった候補はそのままドラフト候補プールへ合流する（draft.ts の createDraft）ので、
+ * ここで作るのは既存の DraftProspect と同じ形にする。
+ */
+function advanceAmateurSearch(state: GameState, discovery: DiscoveryState): void {
+  const search = discovery.amateur.search;
+  if (!search) return;
+  search.elapsed += 1;
+
+  if (search.foundIds.length === 0) {
+    if (search.elapsed < search.findDays) return;
+
+    const power = discoveryPowerOf(state, state.playerTeamId);
+    const rng = discoveryRng(state, 'amateur', 'found', state.date, search.startedDate);
+    const candidate = createAmateurCandidate(
+      state,
+      search.condition,
+      power,
+      rng,
+      discovery.amateur.candidates.length,
+    );
+    discovery.amateur.candidates.push(candidate);
+    // 候補が増えすぎないよう、古いものから落とす
+    if (discovery.amateur.candidates.length > AMATEUR_CANDIDATE_LIMIT) {
+      const dropped = discovery.amateur.candidates.splice(
+        0,
+        discovery.amateur.candidates.length - AMATEUR_CANDIDATE_LIMIT,
+      );
+      for (const old of dropped) delete discovery.amateur.reports[old.id];
+    }
+    search.foundIds = [candidate.id];
+    pushDiscoveryFoundNotice(state, 'scout', [candidate.prospect.player.name]);
+    return;
+  }
+
+  if (search.elapsed < search.findDays + search.investigateDays) return;
+  const ability = scoutAbilityOf(state, state.playerTeamId);
+  const names: string[] = [];
+  for (const id of search.foundIds) {
+    const candidate = discovery.amateur.candidates.find((c) => c.id === id);
+    if (!candidate) continue;
+    discovery.amateur.reports[id] = buildAmateurReport(candidate.prospect, ability, state);
+    names.push(candidate.prospect.player.name);
+  }
+  pushDiscoveryInvestigatedNotice(state, 'scout', names);
+  discovery.amateur.search = null;
 }
 
 /** 条件から1人ぶんの外国人候補を作る（真の能力はここで確定する。§22） */
@@ -411,15 +531,15 @@ export function biasToType(player: Player, type: DiscoveryType, rng: Rng): void 
 }
 
 /**
- * 候補の推定能力（ScoutReport）。
- * 既存の scouting.ts の推定をそのまま使うので、調査力が高いほど幅が狭くなる。
+ * 候補の推定能力（ScoutReport）。調査が完了した状態（進行度100%）で作るので、
+ * あとはチームの調査力だけが幅（ギャップ）の狭さを決める。
  */
 function buildForeignReport(
   candidate: ForeignCandidate,
   ability: TeamScoutAbility,
   state: GameState,
 ): ScoutReport {
-  return buildInitialReport(
+  return buildCompletedReport(
     {
       id: candidate.id,
       player: candidate.player,
@@ -433,11 +553,12 @@ function buildForeignReport(
   );
 }
 
-/** 表示用に候補のレポートを取り出す（state を書き換えない） */
-export function foreignReportOf(state: GameState, candidate: ForeignCandidate): ScoutReport {
-  const stored = state.discovery?.foreign?.reports?.[candidate.id];
-  if (stored) return stored;
-  return buildForeignReport(candidate, scoutAbilityOf(state, state.playerTeamId), state);
+/**
+ * 表示用に候補のレポートを取り出す（state を書き換えない）。
+ * まだ調査が終わっていない候補には null を返す（調査中の表示に使う）。
+ */
+export function foreignReportOf(state: GameState, candidate: ForeignCandidate): ScoutReport | null {
+  return state.discovery?.foreign?.reports?.[candidate.id] ?? null;
 }
 
 /* ================= 備考 ================= */
@@ -566,12 +687,215 @@ export function setAmateurCondition(state: GameState, condition: DiscoveryCondit
   ensureDiscovery(state).amateur.active = condition ? { ...condition } : null;
 }
 
+/* ================= アマチュアの発掘（シーズン中に1人ずつ探す） ================= */
+
+/**
+ * アマチュアが見つかるまでの日数。
+ * 外国人助っ人より短めにしてある（国内なので、そもそも探す範囲が狭い）。
+ */
+export const AMATEUR_SEARCH_MIN_DAYS = 3;
+export const AMATEUR_SEARCH_MAX_DAYS = 12;
+
+export function amateurSearchDays(discoveryPower: number, rng: Rng): number {
+  const power = Math.max(0, Math.min(100, discoveryPower));
+  const base = 12 - (power / 100) * 8;
+  const jitter = rng.int(-2, 2);
+  return Math.max(AMATEUR_SEARCH_MIN_DAYS, Math.min(AMATEUR_SEARCH_MAX_DAYS, Math.round(base + jitter)));
+}
+
+/** 溜め込める候補の上限（増えすぎると選ぶだけで大変になる） */
+export const AMATEUR_CANDIDATE_LIMIT = 8;
+
+const AMATEUR_ORIGINS: DiscoveryOrigin[] = ['highschool', 'college', 'corporate'];
+
+/**
+ * アマチュアの発掘を始める。
+ * 外国人助っ人と同じ考え方で、見つかるまでの日数は発掘力、
+ * 見つけたあとの調査にかかる日数は調査力で決める。
+ */
+export function startAmateurSearch(
+  state: GameState,
+  condition: DiscoveryCondition,
+): StartSearchResult {
+  const discovery = ensureDiscovery(state);
+  if (discovery.amateur.search) {
+    return { ok: false, reason: 'すでに発掘中です' };
+  }
+  const power = discoveryPowerOf(state, state.playerTeamId);
+  const scoutAbility = scoutAbilitySummary(scoutAbilityOf(state, state.playerTeamId));
+  const rng = discoveryRng(state, 'amateur', 'start', state.date);
+  discovery.amateur.search = {
+    condition: { ...condition },
+    startedDate: state.date,
+    findDays: amateurSearchDays(power, rng),
+    investigateDays: investigateDaysFor(scoutAbility, rng),
+    elapsed: 0,
+    foundIds: [],
+  };
+  return { ok: true, reason: null };
+}
+
+export function cancelAmateurSearch(state: GameState): void {
+  ensureDiscovery(state).amateur.search = null;
+}
+
+/**
+ * 条件から1人ぶんのアマチュア候補を作る。
+ * ドラフト候補（DraftProspect）と同じ形にして、実際のドラフトが始まったときに
+ * そのまま候補プールへ合流できるようにする（draft.ts の createDraft）。
+ */
+function createAmateurCandidate(
+  state: GameState,
+  condition: DiscoveryCondition,
+  discoveryPower: number,
+  rng: Rng,
+  index: number,
+): AmateurCandidate {
+  const exact = rng.chance(conditionMatchChance(discoveryPower));
+
+  const pitcher = condition.pitcher;
+  const mainPosition: PositionId = pitcher
+    ? 'P'
+    : exact && condition.position
+      ? condition.position
+      : rng.pick(BATTER_POSITIONS);
+
+  const origin = exact && condition.origin ? condition.origin : rng.pick(AMATEUR_ORIGINS);
+  const [ageLow, ageHigh] = ORIGIN_AGE_RANGE[origin];
+  const age = rng.int(ageLow, ageHigh);
+
+  // 大学・社会人卒は現在能力がやや高い（draft.ts の generateProspects と同じ考え方）
+  const maturity = (age - 18) * 1.4;
+  const player = createPlayer(rng, {
+    teamId: '',
+    mainPosition,
+    mean: Math.max(8, rng.normal(24 + maturity, 6)),
+    age,
+    startYear: state.year,
+    starterStamina: pitcher && (condition.role ?? 'starter') === 'starter',
+  });
+  player.ext.debutYear = state.year + 1;
+  player.ext.fatigue = 0;
+  player.ext.injury = null;
+  player.ext.slump = null;
+  player.ext.motivation = Math.max(50, Math.min(85, Math.round(rng.normal(64, 8))));
+  player.ext.potential = Math.max(
+    overallRating(player) + 2,
+    Math.min(100, Math.round(rng.normal(32, 7))),
+  );
+
+  if (exact && condition.type) biasToType(player, condition.type, rng);
+
+  const prospect: DraftProspect = {
+    id: `am${state.year}-${state.date}-${index}`,
+    player,
+    draftRank: 0,
+    projectedAbility: overallRating(player),
+    projectedPotential: potentialLabel(player.ext.potential + rng.normal(0, 12)),
+  };
+
+  return {
+    id: prospect.id,
+    prospect,
+    origin,
+    notes: buildNotes(player, rng, origin),
+  };
+}
+
+/**
+ * 候補の推定能力（ScoutReport）。調査が完了した状態（進行度100%）で作るので、
+ * あとはチームの調査力だけが幅（ギャップ）の狭さを決める。
+ */
+function buildAmateurReport(
+  prospect: DraftProspect,
+  ability: TeamScoutAbility,
+  state: GameState,
+): ScoutReport {
+  return buildCompletedReport(prospect, ability, state.playerTeamId, state.year);
+}
+
+/**
+ * 表示用に候補のレポートを取り出す（state を書き換えない）。
+ * まだ調査が終わっていない候補には null を返す（調査中の表示に使う）。
+ */
+export function amateurReportOf(state: GameState, candidate: AmateurCandidate): ScoutReport | null {
+  return state.discovery?.amateur?.reports?.[candidate.id] ?? null;
+}
+
+/* ================= 発掘・調査の通知 ================= */
+
+const DISCOVERY_TAB_LABELS: Record<'foreign' | 'scout', string> = {
+  foreign: '外国人助っ人',
+  scout: 'アマチュア',
+};
+
+function namesLabel(names: string[]): string {
+  if (names.length === 0) return '';
+  if (names.length <= 2) return names.join('・');
+  return `${names[0]}ほか${names.length - 1}人`;
+}
+
+function pushDiscoveryNotice(
+  state: GameState,
+  tab: 'foreign' | 'scout',
+  stage: 'found' | 'investigated',
+  names: string[],
+): void {
+  if (names.length === 0) return;
+  const label = DISCOVERY_TAB_LABELS[tab];
+  const who = namesLabel(names);
+  const message =
+    stage === 'found'
+      ? `${label}候補「${who}」を発掘しました。調査を始めます`
+      : `${label}候補「${who}」の調査が完了しました`;
+
+  state.notices.push({ date: state.date, kind: 'scout', message });
+  if (state.notices.length > 60) state.notices.splice(0, state.notices.length - 60);
+
+  pushNews(state, {
+    category: 'SYSTEM',
+    priority: 'NORMAL',
+    title: stage === 'found' ? `${label}候補を発掘` : `${label}候補の調査完了`,
+    body: message,
+    source: `discovery:${tab}:${stage}:${state.date}`,
+    teamId: state.playerTeamId,
+    action: { screen: 'discovery', tab },
+  });
+}
+
+function pushDiscoveryFoundNotice(state: GameState, tab: 'foreign' | 'scout', names: string[]): void {
+  pushDiscoveryNotice(state, tab, 'found', names);
+}
+
+function pushDiscoveryInvestigatedNotice(
+  state: GameState,
+  tab: 'foreign' | 'scout',
+  names: string[],
+): void {
+  pushDiscoveryNotice(state, tab, 'investigated', names);
+}
+
 /* ================= 小道具 ================= */
 
 /** 古いセーブや壊れたセーブでも落ちないようにする */
 export function ensureDiscovery(state: GameState): DiscoveryState {
   if (!state.discovery) state.discovery = createDiscoveryState();
-  return state.discovery;
+  const discovery = state.discovery;
+  // v16 で amateur に search/candidates/reports が増えた。既存セーブには無いことがある
+  if (discovery.amateur.search === undefined) discovery.amateur.search = null;
+  if (!Array.isArray(discovery.amateur.candidates)) discovery.amateur.candidates = [];
+  if (!discovery.amateur.reports || typeof discovery.amateur.reports !== 'object') {
+    discovery.amateur.reports = {};
+  }
+  // 発掘→調査の2段階（findDays/investigateDays/foundIds）より前の形の
+  // 進行中の発掘は、安全のためいったん取り消す
+  if (discovery.foreign.search && !('findDays' in discovery.foreign.search)) {
+    discovery.foreign.search = null;
+  }
+  if (discovery.amateur.search && !('findDays' in discovery.amateur.search)) {
+    discovery.amateur.search = null;
+  }
+  return discovery;
 }
 
 /** 年が変わったら、去年の助っ人候補は市場から消える */

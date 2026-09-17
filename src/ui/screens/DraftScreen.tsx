@@ -1,15 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Sec } from '../components/Sec';
 import { useGame } from '../store';
-import type { DraftProspect, ScoutCategory, ScoutReport } from '../../domain/types';
+import type { DraftProspect, ScoutReport } from '../../domain/types';
 import { availableProspects, currentPick } from '../../domain/draft';
 import { PlayerVisual, PlayerVisualHero } from '../components/PlayerVisual';
 import { RevealRows } from '../components/Reveal';
 import { POSITION_LABELS } from '../../domain/positions';
 import {
-  SCOUT_CATEGORIES,
-  SCOUT_CATEGORY_LABELS,
-  SCOUT_COST,
   abilityRangeText,
   confidenceLabel,
   overallProgress,
@@ -79,14 +76,6 @@ export function DraftScreen() {
             {scoutingPhase ? 'スカウト期間' : `全${draft.rounds}巡`} / {team.name}
           </div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div className="muted" style={{ fontSize: 11 }}>
-            調査ポイント
-          </div>
-          <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--accent)' }}>
-            {scouting.points}
-          </div>
-        </div>
       </div>
 
       <div className="screen">
@@ -94,8 +83,9 @@ export function DraftScreen() {
           <div className="card" style={{ borderColor: 'var(--accent)' }}>
             <h2>スカウト期間</h2>
             <div className="muted" style={{ marginBottom: 10 }}>
-              候補をタップして調査します。ポイントは有限なので、誰を重点的に調べるかが勝負です。
-              調査を終えたらドラフト会議を始めてください。
+              候補の調査は、シーズン中の発掘（GM DESK → 発掘 → スカウト）でしかできません。
+              シーズン中に見つけて調べた選手だけ、ここでも詳しい情報が分かります。
+              確認が済んだらドラフト会議を始めてください。
             </div>
             <div className="row" style={{ flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
               {(Object.keys(SCOUT_ABILITY_LABELS) as Array<keyof typeof SCOUT_ABILITY_LABELS>).map(
@@ -420,8 +410,6 @@ function ProspectDetail({
   onPick: () => void;
   onClose: () => void;
 }) {
-  const { state, scout } = useGame();
-  const scouting = state.scouting.teams[state.playerTeamId];
   const player = prospect.player;
   const positives = report.estimate.skills.filter((s) => s.polarity === 'positive');
   const negatives = report.estimate.skills.filter((s) => s.polarity === 'negative');
@@ -500,52 +488,6 @@ function ProspectDetail({
                 ・{skill.text}
               </div>
             ))}
-          </div>
-        )}
-      </div>
-
-      <div className="card">
-        <div className="spread" style={{ marginBottom: 8 }}>
-          <h2 style={{ margin: 0 }}>調査する</h2>
-          <span className="muted">残り {scouting.points} ポイント</span>
-        </div>
-        {SCOUT_CATEGORIES.map((category) => {
-          const progress = report.progress[category];
-          const cost = SCOUT_COST[category];
-          const done = progress >= 100;
-          const affordable = scouting.points >= cost;
-          return (
-            <div key={category} className="spread" style={{ padding: '7px 0' }}>
-              <span style={{ flex: 1 }}>
-                <span style={{ fontSize: 14, fontWeight: 700 }}>
-                  {SCOUT_CATEGORY_LABELS[category]}
-                </span>
-                <span className="row" style={{ gap: 6, marginTop: 2 }}>
-                  <ProgressBar value={progress} />
-                  <span className="muted" style={{ fontSize: 11 }}>
-                    {progress}%
-                  </span>
-                </span>
-              </span>
-              <button
-                className="chip"
-                style={{
-                  padding: '10px 12px',
-                  background: done || !affordable ? 'var(--paper-2)' : 'var(--accent)',
-                  borderColor: done || !affordable ? 'var(--rule)' : 'var(--accent)',
-                  color: done || !affordable ? 'var(--ink-3)' : 'var(--accent-ink)',
-                }}
-                disabled={done || !affordable}
-                onClick={() => scout(prospect.id, category as ScoutCategory)}
-              >
-                {done ? '完了' : `調査 ${cost}pt`}
-              </button>
-            </div>
-          );
-        })}
-        {scouting.points <= 0 && (
-          <div style={{ color: 'var(--bad)', fontSize: 13, marginTop: 8, fontWeight: 700 }}>
-            今季の調査ポイントを使い切りました
           </div>
         )}
       </div>

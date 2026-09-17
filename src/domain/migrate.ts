@@ -367,10 +367,15 @@ export function migrateV15ToV16(state: GameState): void {
     }
     if (discovery.foreign.search === undefined) discovery.foreign.search = null;
     if (!discovery.amateur || typeof discovery.amateur !== 'object') {
-      discovery.amateur = { presets: [], active: null };
+      discovery.amateur = { presets: [], active: null, search: null, candidates: [], reports: {} };
     }
     if (!Array.isArray(discovery.amateur.presets)) discovery.amateur.presets = [];
     if (discovery.amateur.active === undefined) discovery.amateur.active = null;
+    if (discovery.amateur.search === undefined) discovery.amateur.search = null;
+    if (!Array.isArray(discovery.amateur.candidates)) discovery.amateur.candidates = [];
+    if (!discovery.amateur.reports || typeof discovery.amateur.reports !== 'object') {
+      discovery.amateur.reports = {};
+    }
   }
   state.version = 16;
 }

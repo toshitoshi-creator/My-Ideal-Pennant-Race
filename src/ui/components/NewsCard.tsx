@@ -29,7 +29,7 @@ export function NewsCard({
   /** 上から順に現れさせるための並び順（PHASE 4.1） */
   index?: number;
 }) {
-  const { state } = useGame();
+  const { state, openDiscovery } = useGame();
   const big = item.priority === 'BREAKING' || item.priority === 'HIGH';
   const team = state.teams.find((t) => t.id === item.teamId);
   const reduced = useReducedMotion();
@@ -66,7 +66,23 @@ export function NewsCard({
       </div>
       <NewsVisual item={item} tier={tier} />
       <h3 className="news-title">
-        {item.playerId ? <PlayerLink playerId={item.playerId}>{item.title}</PlayerLink> : item.title}
+        {item.playerId ? (
+          <PlayerLink playerId={item.playerId}>{item.title}</PlayerLink>
+        ) : item.action ? (
+          <button
+            type="button"
+            className="player-link"
+            onClick={(e) => {
+              e.stopPropagation();
+              openDiscovery(item.action!.tab);
+            }}
+            aria-label={`${item.title}を見る`}
+          >
+            {item.title}
+          </button>
+        ) : (
+          item.title
+        )}
       </h3>
       {tier !== 'brief' && <p className="news-body">{item.body}</p>}
     </article>

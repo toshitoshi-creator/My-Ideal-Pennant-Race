@@ -95,6 +95,7 @@ export interface NewsDraft {
   playerId?: string | null;
   relatedTeamIds?: string[];
   relatedPlayerIds?: string[];
+  action?: NewsItem['action'];
 }
 
 /**
@@ -124,6 +125,7 @@ export function pushNews(state: GameState, draft: NewsDraft): NewsItem | null {
   };
   if (draft.relatedTeamIds?.length) item.relatedTeamIds = draft.relatedTeamIds;
   if (draft.relatedPlayerIds?.length) item.relatedPlayerIds = draft.relatedPlayerIds;
+  if (draft.action) item.action = draft.action;
   news.items.push(item);
   if (news.items.length > NEWS_LIMIT) {
     news.items.splice(0, news.items.length - NEWS_LIMIT);

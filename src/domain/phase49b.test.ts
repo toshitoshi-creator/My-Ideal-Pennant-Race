@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { createNewGame, SAVE_VERSION } from './newGame';
 import { advanceDay, cloneState, validateState } from './engine';
-import { startNextSeason } from './season';
+import { startNextSeason, startOffseason } from './season';
 import { migrateV15ToV16 } from './migrate';
 import { Rng, seedFrom } from './rng';
 import { buildRadar, analyzePlayer } from './playerAnalysis';
@@ -38,13 +38,19 @@ import {
   formatStandingsValue,
 } from './standingsHistory';
 import {
+  AMATEUR_CANDIDATE_LIMIT,
+  AMATEUR_SEARCH_MAX_DAYS,
+  AMATEUR_SEARCH_MIN_DAYS,
   FOREIGN_CANDIDATE_LIMIT,
   FOREIGN_SEARCH_MAX_DAYS,
   FOREIGN_SEARCH_MIN_DAYS,
   advanceDiscovery,
   ageBandOf,
   amateurExtraProspects,
+  amateurReportOf,
+  amateurSearchDays,
   buildNotes,
+  cancelAmateurSearch,
   cancelForeignSearch,
   clearStaleCandidates,
   conditionMatchChance,
@@ -54,6 +60,7 @@ import {
   foreignCandidateCount,
   foreignReportOf,
   foreignSearchDays,
+  investigateDaysFor,
   matchesCondition,
   pitcherRoleOf,
   removeAmateurPreset,
@@ -61,6 +68,7 @@ import {
   searchProgress,
   setAmateurCondition,
   signForeignCandidate,
+  startAmateurSearch,
   startForeignSearch,
   typeOf,
 } from './discovery';
@@ -532,11 +540,22 @@ describe('PHASE4.9-B F. 調査力と発掘力の切り分け', () => {
  * G. 外国人助っ人の発掘
  * ============================================================== */
 
+/** 発掘フェーズだけ進める（候補は見つかるが、まだ調査は終わっていない） */
 function searchTo(state: GameState): GameState {
   let s = state;
   startForeignSearch(s, emptyCondition(false));
   for (let i = 0; i < 40; i++) {
     if ((s.discovery.foreign.candidates.length ?? 0) > 0) break;
+    s = advanceDay(s).state;
+  }
+  return s;
+}
+
+/** 発掘→調査の両方を終わらせる */
+function investigateTo(state: GameState): GameState {
+  let s = searchTo(state);
+  for (let i = 0; i < 40; i++) {
+    if (!s.discovery.foreign.search) break;
     s = advanceDay(s).state;
   }
   return s;
@@ -553,7 +572,7 @@ describe('PHASE4.9-B G. 外国人助っ人', () => {
   it('発掘を始めると日数が決まる', () => {
     const state = newGame();
     expect(startForeignSearch(state, emptyCondition(false)).ok).toBe(true);
-    expect(state.discovery.foreign.search!.days).toBeGreaterThanOrEqual(FOREIGN_SEARCH_MIN_DAYS);
+    expect(state.discovery.foreign.search!.findDays).toBeGreaterThanOrEqual(FOREIGN_SEARCH_MIN_DAYS);
   });
 
   it('発掘中は二重に始められない', () => {
@@ -575,18 +594,39 @@ describe('PHASE4.9-B G. 外国人助っ人', () => {
     expect(searchProgress({ days: 10, elapsed: 30 })).toBe(100);
   });
 
-  it('日付を進めると候補が見つかる', () => {
+  it('発掘フェーズが終わると候補が見つかるが、調査はまだ終わっていない', () => {
     const state = searchTo(newGame());
     expect(state.discovery.foreign.candidates.length).toBeGreaterThan(0);
-    expect(state.discovery.foreign.search).toBeNull();
+    expect(state.discovery.foreign.search).toBeTruthy();
+    for (const candidate of state.discovery.foreign.candidates) {
+      expect(foreignReportOf(state, candidate)).toBeNull();
+    }
   });
 
-  it('見つかった候補には必ず推定レポートが付く', () => {
-    const state = searchTo(newGame());
+  it('調査フェーズが終わると search が空になり、レポートができる', () => {
+    const state = investigateTo(newGame());
+    expect(state.discovery.foreign.search).toBeNull();
+    expect(state.discovery.foreign.candidates.length).toBeGreaterThan(0);
     for (const candidate of state.discovery.foreign.candidates) {
-      const report = foreignReportOf(state, candidate);
+      expect(foreignReportOf(state, candidate)).toBeTruthy();
+    }
+  });
+
+  it('見つかった候補には必ず推定レポートが付く（調査完了後）', () => {
+    const state = investigateTo(newGame());
+    for (const candidate of state.discovery.foreign.candidates) {
+      const report = foreignReportOf(state, candidate)!;
       expect(report.estimate.abilityLow).toBeLessThanOrEqual(report.estimate.abilityHigh);
     }
+  });
+
+  it('調査力が高いほど、調査にかかる日数が短い', () => {
+    const avg = (ability: number) => {
+      let total = 0;
+      for (let i = 0; i < 300; i++) total += investigateDaysFor(ability, new Rng(seedFrom(`inv:${ability}:${i}`)));
+      return total / 300;
+    };
+    expect(avg(90)).toBeLessThan(avg(20));
   });
 
   it('候補はまだ球団に所属していない', () => {
@@ -698,6 +738,167 @@ describe('PHASE4.9-B G. 外国人助っ人', () => {
     cancelForeignSearch(state);
     advanceDiscovery(state);
     expect(state.rngState).toBe(before);
+  });
+});
+
+/* ================================================================
+ * G2. アマチュアの発掘（シーズン中に1人ずつ探す）
+ * ============================================================== */
+
+/** 発掘フェーズだけ進める（候補は見つかるが、まだ調査は終わっていない） */
+function amateurSearchTo(state: GameState): GameState {
+  let s = state;
+  startAmateurSearch(s, emptyCondition(false));
+  for (let i = 0; i < 40; i++) {
+    if ((s.discovery.amateur.candidates.length ?? 0) > 0) break;
+    s = advanceDay(s).state;
+  }
+  return s;
+}
+
+/** 発掘→調査の両方を終わらせる */
+function amateurInvestigateTo(state: GameState): GameState {
+  let s = amateurSearchTo(state);
+  for (let i = 0; i < 40; i++) {
+    if (!s.discovery.amateur.search) break;
+    s = advanceDay(s).state;
+  }
+  return s;
+}
+
+describe('PHASE4.9-B G2. アマチュアの発掘', () => {
+  it('新しいゲームは発掘データを持っている', () => {
+    const state = newGame();
+    expect(state.discovery.amateur.candidates).toEqual([]);
+    expect(state.discovery.amateur.search).toBeNull();
+  });
+
+  it('発掘を始めると日数が決まる', () => {
+    const state = newGame();
+    expect(startAmateurSearch(state, emptyCondition(false)).ok).toBe(true);
+    expect(state.discovery.amateur.search!.findDays).toBeGreaterThanOrEqual(AMATEUR_SEARCH_MIN_DAYS);
+    expect(state.discovery.amateur.search!.findDays).toBeLessThanOrEqual(AMATEUR_SEARCH_MAX_DAYS);
+  });
+
+  it('日数は外国人助っ人より短い傾向がある（国内なので）', () => {
+    const avg = (fn: (power: number, rng: Rng) => number, power: number) => {
+      let total = 0;
+      for (let i = 0; i < 300; i++) total += fn(power, new Rng(seedFrom(`cmp:${power}:${i}`)));
+      return total / 300;
+    };
+    expect(avg(amateurSearchDays, 50)).toBeLessThan(avg(foreignSearchDays, 50));
+  });
+
+  it('発掘中は二重に始められない', () => {
+    const state = newGame();
+    startAmateurSearch(state, emptyCondition(false));
+    expect(startAmateurSearch(state, emptyCondition(false)).ok).toBe(false);
+  });
+
+  it('やめれば発掘中ではなくなる', () => {
+    const state = newGame();
+    startAmateurSearch(state, emptyCondition(false));
+    cancelAmateurSearch(state);
+    expect(state.discovery.amateur.search).toBeNull();
+  });
+
+  it('発掘フェーズが終わると候補が見つかるが、調査はまだ終わっていない', () => {
+    const state = amateurSearchTo(newGame());
+    expect(state.discovery.amateur.candidates.length).toBeGreaterThan(0);
+    expect(state.discovery.amateur.search).toBeTruthy();
+    for (const candidate of state.discovery.amateur.candidates) {
+      expect(amateurReportOf(state, candidate)).toBeNull();
+    }
+  });
+
+  it('調査フェーズが終わると search が空になり、レポートができる', () => {
+    const state = amateurInvestigateTo(newGame());
+    expect(state.discovery.amateur.search).toBeNull();
+    for (const candidate of state.discovery.amateur.candidates) {
+      expect(amateurReportOf(state, candidate)).toBeTruthy();
+    }
+  });
+
+  it('見つかった候補には必ず推定レポートが付く（調査完了後）', () => {
+    const state = amateurInvestigateTo(newGame());
+    for (const candidate of state.discovery.amateur.candidates) {
+      const report = amateurReportOf(state, candidate)!;
+      expect(report.estimate.abilityLow).toBeLessThanOrEqual(report.estimate.abilityHigh);
+    }
+  });
+
+  it('候補はまだどの球団にも所属していない', () => {
+    const state = amateurSearchTo(newGame());
+    for (const candidate of state.discovery.amateur.candidates) {
+      expect(candidate.prospect.player.teamId).toBe('');
+      expect(state.players.some((p) => p.id === candidate.prospect.player.id)).toBe(false);
+    }
+  });
+
+  it('候補が増えすぎない', () => {
+    let state = newGame();
+    for (let i = 0; i < 12; i++) {
+      state = amateurSearchTo(state);
+    }
+    expect(state.discovery.amateur.candidates.length).toBeLessThanOrEqual(AMATEUR_CANDIDATE_LIMIT);
+  });
+
+  it('発掘は試合用のRNGを消費しない', () => {
+    const state = newGame();
+    const before = state.rngState;
+    startAmateurSearch(state, emptyCondition(false));
+    cancelAmateurSearch(state);
+    advanceDiscovery(state);
+    expect(state.rngState).toBe(before);
+  });
+
+  it('見つけた候補は、そのまま今年のドラフト候補プールに合流する', () => {
+    let state = amateurSearchTo(newGame(30, 12345));
+    expect(state.discovery.amateur.candidates.length).toBeGreaterThan(0);
+    const foundIds = state.discovery.amateur.candidates.map((c) => c.id);
+
+    state = playSeason(state);
+    state = cloneState(state);
+    startOffseason(state);
+
+    expect(state.draft).toBeTruthy();
+    const draftIds = new Set(state.draft!.prospects.map((p) => p.id));
+    for (const id of foundIds) {
+      expect(draftIds.has(id)).toBe(true);
+    }
+  });
+
+  it('ドラフトに合流すると、シーズン中に調べたレポートが調査結果へ引き継がれる', () => {
+    let state = amateurInvestigateTo(newGame(30, 12345));
+    const candidate = state.discovery.amateur.candidates[0];
+    const before = amateurReportOf(state, candidate);
+    expect(before).toBeTruthy();
+
+    state = playSeason(state);
+    state = cloneState(state);
+    startOffseason(state);
+
+    const carried = state.scouting.teams[PLAYER_TEAM].reports[candidate.id];
+    expect(carried).toBeTruthy();
+    expect(carried).toEqual(before);
+  });
+
+  it('ドラフトへ合流したあと、発掘の入れ物は空になる', () => {
+    let state = amateurSearchTo(newGame(30, 12345));
+    expect(state.discovery.amateur.candidates.length).toBeGreaterThan(0);
+
+    state = playSeason(state);
+    state = cloneState(state);
+    startOffseason(state);
+
+    expect(state.discovery.amateur.candidates).toEqual([]);
+    expect(state.discovery.amateur.reports).toEqual({});
+  });
+
+  it('シーズンを通して進めても state は壊れない', () => {
+    let state = amateurSearchTo(newGame(30, 555));
+    state = playSeason(state);
+    expect(validateState(state)).toEqual([]);
   });
 });
 

@@ -258,6 +258,23 @@ export function createDraft(state: GameState, rng: Rng): DraftState | null {
     });
   }
   /*
+   * PHASE X: シーズン中にスカウトが個別に発掘して調べていた候補を、
+   * そのまま今年のドラフト候補プールへ合流させる。
+   * 見つけた時点の ScoutReport は season.ts が state.scouting へ引き継ぐので、
+   * ここでは候補（DraftProspect）を混ぜるだけでよい。
+   */
+  const scouted = state.discovery?.amateur.candidates ?? [];
+  if (scouted.length > 0) {
+    for (const candidate of scouted) {
+      if (prospects.some((p) => p.id === candidate.prospect.id)) continue;
+      prospects.push({ ...candidate.prospect });
+    }
+    prospects.sort((a, b) => scoutingScore(b) - scoutingScore(a));
+    prospects.forEach((prospect, index) => {
+      prospect.draftRank = index + 1;
+    });
+  }
+  /*
    * 支配下70人枠が埋まっている球団は指名順から外す。
    * 1巡目は「枠が空いていなくても全球団が指名する」扱いなので、
    * 指名順に残したままだと 70人を超えてしまう。

@@ -290,6 +290,22 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
       if (!scouting) continue;
       scouting.points += scoutPointBonus(facilityLevel(state, team.id, 'scouting'));
     }
+    /*
+     * PHASE X: シーズン中に個別発掘で調べていたアマチュア候補は、いま
+     * createDraft でドラフト候補プールへ合流済み。ここで見つけた時点の
+     * ScoutReport をプレイヤー球団の調査記録へ引き継ぎ（resetScoutingForDraft
+     * が空にした直後なので上書きの心配はない）、使い終わった発掘の入れ物は空にする。
+     */
+    const discovery = state.discovery;
+    const playerScouting = state.scouting.teams[state.playerTeamId];
+    if (discovery && playerScouting) {
+      for (const candidate of discovery.amateur.candidates) {
+        const report = discovery.amateur.reports[candidate.id];
+        if (report) playerScouting.reports[candidate.id] = report;
+      }
+      discovery.amateur.candidates = [];
+      discovery.amateur.reports = {};
+    }
     runCpuScouting(state, rng);
   }
 

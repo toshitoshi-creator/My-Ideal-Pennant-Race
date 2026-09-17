@@ -809,14 +809,28 @@ export interface DiscoveryCondition {
 }
 
 /** 発掘中の状態 */
+/**
+ * 発掘（見つける）→調査（見極める）の2段階で進む。
+ *
+ *   findDays       … 見つかるまでの日数。発掘力で決まる
+ *   investigateDays … 見つけたあと、調査を仕上げるまでの日数。調査力で決まる
+ *
+ * findDays が経過すると foundIds に候補が入り（名前・年齢・守備位置だけは分かる）、
+ * そこからさらに investigateDays が経つと ScoutReport が作られて調査が完了する。
+ * 調査力が高いほど investigateDays は短く、できあがる ScoutReport の幅（ギャップ）も狭い。
+ */
 export interface DiscoverySearch {
   condition: DiscoveryCondition;
   /** 発掘を始めたゲーム内の日付 */
   startedDate: string;
   /** 見つかるまでに必要な日数（発掘力で決まる） */
-  days: number;
+  findDays: number;
+  /** 見つかったあと、調査に必要な日数（調査力で決まる） */
+  investigateDays: number;
   /** 経過した日数 */
   elapsed: number;
+  /** 発掘が終わって、調査中の候補のID（見つかる前は空） */
+  foundIds: string[];
 }
 
 /**
@@ -848,6 +862,21 @@ export interface DiscoveryPreset {
 }
 
 /**
+ * シーズン中に発掘したアマチュア候補。
+ *
+ * ドラフト候補（DraftProspect）そのものを持たせておき、実際のドラフトが
+ * 始まったときはそのまま候補プールへ合流させる。見つけた時点で作った
+ * ScoutReport も引き継がれるので、シーズン中に調べたぶんが無駄にならない。
+ */
+export interface AmateurCandidate {
+  id: string;
+  prospect: DraftProspect;
+  origin: DiscoveryOrigin;
+  /** スカウトが集めた情報。能力の一覧そのものは書かない（§37と同じ考え方） */
+  notes: string[];
+}
+
+/**
  * 発掘（PHASE 4.9-B）の保存データ。
  *
  * 既存のスカウト（ScoutingState）は「ドラフト候補の調査」を受け持つ。
@@ -864,8 +893,14 @@ export interface DiscoveryState {
   amateur: {
     /** 保存した発掘条件 */
     presets: DiscoveryPreset[];
-    /** 今シーズンのドラフトに向けて指示している条件 */
+    /** 今シーズンのドラフトに向けて指示している条件（従来どおり、追加候補の抽選に効く） */
     active: DiscoveryCondition | null;
+    /** シーズン中、1人ずつ探している発掘 */
+    search: DiscoverySearch | null;
+    /** シーズン中に見つけた候補（ドラフトが始まると候補プールへ合流して空になる） */
+    candidates: AmateurCandidate[];
+    /** 候補ごとの調査結果（プレイヤー球団のぶんだけ） */
+    reports: Record<string, ScoutReport>;
   };
 }
 
@@ -906,7 +941,8 @@ export type NoticeKind =
   | 'season'
   | 'growth'
   | 'retire'
-  | 'draft';
+  | 'draft'
+  | 'scout';
 
 export interface GameNotice {
   date: string;
@@ -1286,6 +1322,11 @@ export interface NewsItem {
   source: string;
   /** 既読なら true */
   read?: boolean;
+  /**
+   * 見出しを押したときに直接開く画面（あれば）。
+   * 発掘・調査が完了したニュースから、そのまま結果画面へ飛べるようにする。
+   */
+  action?: { screen: 'discovery'; tab: 'foreign' | 'scout' };
 }
 
 /** 下剋上の度合い */
