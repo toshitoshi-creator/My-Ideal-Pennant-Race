@@ -28,6 +28,9 @@ import { teamVisual, stadiumMoodForDate } from '../../domain/visuals';
 import { TeamMark, StadiumScene } from '../components/visuals/TeamVisuals';
 import { PlayerVisual } from '../components/PlayerVisual';
 import { PlayerLink } from '../components/PlayerLink';
+// 次の試合ボタンの絵。Vite が同梱するので、実行時に外へ取りに行くことはない
+import nextGameArt from '../../assets/ui/next-game.webp';
+import nextGamePressArt from '../../assets/ui/next-game-active.webp';
 import {
   planSummary,
   targetLabels,
@@ -192,17 +195,24 @@ export function HomeScreen() {
             残り試合はありません（シーズン終了）
           </div>
         )}
-        <div className="btn-row" style={{ marginTop: 12 }}>
-          <button
-            className="btn primary"
-            disabled={!next}
-            onClick={() => {
-              const result = playNextGame();
-              if (result) setScreen('game');
-            }}
-          >
-            次の試合へ
-          </button>
+        {/*
+          次の試合はこの画面でいちばん強い動線なので、絵の入ったボタンにしている。
+          押している間だけ2枚目に差し替わる（画像は2枚とも最初から読み込んでおく）。
+          読み上げには「次の試合へ」と伝わるよう、文字も残してある。
+        */}
+        <button
+          className="btn-next-game"
+          disabled={!next}
+          onClick={() => {
+            const result = playNextGame();
+            if (result) setScreen('game');
+          }}
+        >
+          <img className="next-game-idle" src={nextGameArt} alt="" />
+          <img className="next-game-press" src={nextGamePressArt} alt="" />
+          <span className="sr-only">次の試合へ</span>
+        </button>
+        <div className="btn-row" style={{ marginTop: 10 }}>
           <button className="btn secondary" onClick={() => skipOneDay()}>
             1日進める
           </button>
