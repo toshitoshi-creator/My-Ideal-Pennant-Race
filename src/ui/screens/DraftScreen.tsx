@@ -15,6 +15,13 @@ import {
   SCOUT_ABILITY_LABELS,
 } from '../../domain/scouting';
 import { Sheet, PositionBadge } from '../components/common';
+import { PictureButton } from '../components/PictureButton';
+import draftStartArt from '../../assets/ui/draft-start.webp';
+import draftToContractArt from '../../assets/ui/draft-to-contract.webp';
+import draftCancelArt from '../../assets/ui/draft-cancel.webp';
+import draftPickArt from '../../assets/ui/draft-pick.webp';
+import draftPickThisArt from '../../assets/ui/draft-pick-this.webp';
+import draftPickThisConfirmArt from '../../assets/ui/draft-pick-this-confirm.webp';
 
 type Filter = 'all' | 'pitcher' | 'fielder' | 'scouted';
 
@@ -99,9 +106,7 @@ export function DraftScreen() {
                 スカウト総合 {scoutAbilitySummary(scouting.ability)}
               </span>
             </div>
-            <button className="btn primary" onClick={() => startDraftPicks()}>
-              ドラフト会議を始める
-            </button>
+            <PictureButton src={draftStartArt} alt="ドラフト会議を始める" onClick={() => startDraftPicks()} />
           </div>
         ) : (
           <div className="card" style={{ borderColor: myTurn ? 'var(--accent)' : undefined }}>
@@ -127,9 +132,7 @@ export function DraftScreen() {
                 <div className="muted" style={{ marginTop: 4, marginBottom: 10 }}>
                   指名した選手は新人契約を結び、2軍からのスタートになります。
                 </div>
-                <button className="btn primary" onClick={() => startContracts()}>
-                  契約更改へ
-                </button>
+                <PictureButton src={draftToContractArt} alt="契約更改へ" onClick={() => startContracts()} />
               </>
             )}
           </div>
@@ -275,18 +278,15 @@ export function DraftScreen() {
             </div>
           </div>
           <div className="btn-row">
-            <button className="btn secondary" onClick={() => setConfirming(null)}>
-              やめる
-            </button>
-            <button
-              className="btn primary"
+            <PictureButton src={draftCancelArt} alt="やめる" onClick={() => setConfirming(null)} />
+            <PictureButton
+              src={draftPickArt}
+              alt="指名する"
               onClick={() => {
                 draftPick(confirming.id);
                 setConfirming(null);
               }}
-            >
-              指名する
-            </button>
+            />
           </div>
         </Sheet>
       )}
@@ -388,11 +388,7 @@ function ProspectCard({
         ))}
       </div>
 
-      {onPick && (
-        <button className="btn primary" style={{ padding: '11px 12px' }} onClick={onPick}>
-          この選手を指名
-        </button>
-      )}
+      {onPick && <PictureButton src={draftPickThisArt} alt="この選手を指名" onClick={onPick} />}
     </div>
   );
 }
@@ -492,11 +488,7 @@ function ProspectDetail({
         )}
       </div>
 
-      {canPick && (
-        <button className="btn primary" onClick={onPick}>
-          この選手を指名する
-        </button>
-      )}
+      {canPick && <PictureButton src={draftPickThisConfirmArt} alt="この選手を指名する" onClick={onPick} />}
     </Sheet>
   );
 }

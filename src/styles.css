@@ -1517,6 +1517,36 @@ h3.sec {
   border-radius: var(--radius);
 }
 
+.btn-row .btn-img {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+
+.paper-nav .btn-img {
+  flex: 0 0 auto;
+  width: 128px;
+  margin-top: 0;
+}
+
+.btn-img.sheet-close {
+  flex: 0 0 auto;
+  width: 90px;
+  margin-top: 0;
+}
+
+.btn-img.skip-img {
+  flex: 0 0 auto;
+  width: 80px;
+  margin-top: 0;
+}
+
+.btn-img.appbar-quit {
+  flex: 0 0 auto;
+  width: 132px;
+  margin-top: 0;
+}
+
 /* 歴史・記録・発掘・トレードのように、絵のボタンを2列に並べる場所 */
 /*
  * ホームのボタンをまとめる場所。

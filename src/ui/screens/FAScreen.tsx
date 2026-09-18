@@ -25,6 +25,14 @@ import {
 } from '../../domain/contract';
 import { FinanceRows } from './ContractScreen';
 import { Sheet, PositionBadge } from '../components/common';
+import { PictureButton } from '../components/PictureButton';
+import autoSignArt from '../../assets/ui/fa-auto-sign.webp';
+import closeMarketArt from '../../assets/ui/fa-close-market.webp';
+import checkTeamFirstArt from '../../assets/ui/fa-check-team-first.webp';
+import toNewSeasonArt from '../../assets/ui/fa-to-new-season.webp';
+import withdrawOfferArt from '../../assets/ui/fa-withdraw-offer.webp';
+import changeOfferArt from '../../assets/ui/fa-change-offer.webp';
+import makeOfferArt from '../../assets/ui/fa-make-offer.webp';
 
 type Filter = 'all' | 'fielder' | 'pitcher' | 'young' | 'core' | 'veteran';
 
@@ -188,15 +196,9 @@ export function FAScreen() {
               ))
             )}
 
-            <button className="btn secondary" onClick={() => autoFA()}>
-              おまかせで補強する
-            </button>
-            <button className="btn primary" style={{ marginTop: 10 }} onClick={() => resolveFA()}>
-              FA市場を締め切る
-            </button>
-            <button className="btn" style={{ marginTop: 10 }} onClick={() => hideFA()}>
-              先に球団を確認する
-            </button>
+            <PictureButton src={autoSignArt} alt="おまかせで補強する" onClick={() => autoFA()} />
+            <PictureButton src={closeMarketArt} alt="FA市場を締め切る" onClick={() => resolveFA()} />
+            <PictureButton src={checkTeamFirstArt} alt="先に球団を確認する" onClick={() => hideFA()} />
           </>
         )}
       </div>
@@ -287,9 +289,7 @@ function ResultsCard({ onFinish }: { onFinish: () => void }) {
         )}
       </div>
 
-      <button className="btn primary" onClick={onFinish}>
-        新シーズンへ
-      </button>
+      <PictureButton src={toNewSeasonArt} alt="新シーズンへ" onClick={onFinish} />
     </>
   );
 }
@@ -475,25 +475,22 @@ function OfferSheet({
       </div>
 
       {existing && (
-        <button
-          className="btn secondary"
-          style={{ marginBottom: 10 }}
+        <PictureButton
+          src={withdrawOfferArt}
+          alt="この提示を取り下げる"
           onClick={() => {
             cancelFAOffer(player.id);
             onClose();
           }}
-        >
-          この提示を取り下げる
-        </button>
+        />
       )}
-      <button
-        className="btn primary"
+      <PictureButton
+        src={existing ? changeOfferArt : makeOfferArt}
+        alt={existing ? 'この条件に変更する' : 'この条件でオファーする'}
         onClick={() => {
           if (makeFAOffer(player.id, salary, years)) onClose();
         }}
-      >
-        {existing ? 'この条件に変更する' : 'この条件でオファーする'}
-      </button>
+      />
     </Sheet>
   );
 }

@@ -8,6 +8,9 @@
  */
 import { useMemo, useState } from 'react';
 import type { NewsItem } from '../../domain/types';
+import { PictureButton } from './PictureButton';
+import prevPageArt from '../../assets/ui/news-prev-page.webp';
+import nextPageArt from '../../assets/ui/news-next-page.webp';
 import { CATEGORY_LABELS, PRIORITY_LABELS } from '../../domain/news';
 import {
   KICKER_LABELS,
@@ -90,23 +93,21 @@ export function NewsPaperReader({ items }: { items: NewsItem[] }) {
       <PaperPage page={page} pageNo={pageNo} />
 
       <div className="paper-nav">
-        <button
-          className="chip"
+        <PictureButton
+          src={prevPageArt}
+          alt="前の面"
           disabled={shown === 0}
           onClick={() => setIndex((i) => Math.max(0, i - 1))}
-        >
-          ← 前の面
-        </button>
+        />
         <span className="paper-nav-count">
           {pageNo}面 ({shown + 1}/{pages.length})
         </span>
-        <button
-          className="chip"
+        <PictureButton
+          src={nextPageArt}
+          alt="次の面"
           disabled={shown >= pages.length - 1}
           onClick={() => setIndex((i) => Math.min(pages.length - 1, i + 1))}
-        >
-          次の面 →
-        </button>
+        />
       </div>
     </div>
   );

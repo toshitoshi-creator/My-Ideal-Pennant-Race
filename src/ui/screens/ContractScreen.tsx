@@ -19,6 +19,9 @@ import {
 } from '../../domain/contract';
 import { RankBadge, Sheet, PositionBadge } from '../components/common';
 import { PlayerVisual, PlayerVisualSmall } from '../components/PlayerVisual';
+import { PictureButton } from '../components/PictureButton';
+import toFaArt from '../../assets/ui/contract-to-fa.webp';
+import signArt from '../../assets/ui/contract-sign.webp';
 
 /**
  * 契約更改（PHASE 3.3）。
@@ -97,9 +100,7 @@ export function ContractScreen() {
               契約が成立しなかった選手は球団を去り、FA市場へ移ります。
               FA市場に進むと契約更改には戻れません。
             </div>
-            <button className="btn primary" onClick={() => startFA()}>
-              FA市場へ
-            </button>
+            <PictureButton src={toFaArt} alt="FA市場へ" onClick={() => startFA()} />
           </div>
         )}
 
@@ -318,15 +319,14 @@ function NegotiationSheet({ player, onClose }: { player: Player; onClose: () => 
         </div>
       </div>
 
-      <button
-        className="btn primary"
+      <PictureButton
+        src={signArt}
+        alt="この条件で契約する"
         onClick={() => {
           offerContract(player.id, salary, years);
           onClose();
         }}
-      >
-        この条件で契約する
-      </button>
+      />
     </Sheet>
   );
 }

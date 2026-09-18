@@ -935,7 +935,7 @@ await shot('16-season-end');
         else ok('特集ページ（ファーム情報）へ近道で切り替えられる');
       }
 
-      const nextBtn = page.locator('.paper-nav button', { hasText: '次の面' });
+      const nextBtn = page.locator('.paper-nav').getByRole('button', { name: '次の面' });
       if ((await nextBtn.count()) > 0 && !(await nextBtn.isDisabled())) {
         const before = await page.locator('.paper-nav-count').innerText();
         await nextBtn.click();
@@ -2580,7 +2580,8 @@ await page.locator('.player-card').first().waitFor();
 await page.waitForTimeout(200);
 {
   const srcs = await page.locator('img').evaluateAll((els) => els.map((el) => el.currentSrc || el.src));
-  const external = srcs.filter((src) => src && !src.startsWith(location.origin) && !src.startsWith('data:'));
+  const pageOrigin = new URL(BASE).origin;
+  const external = srcs.filter((src) => src && !src.startsWith(pageOrigin) && !src.startsWith('data:'));
   if (external.length > 0) fail(`外部画像URLが${external.length}件ある（${external[0]}）`);
   else ok(`外部画像URLは0件（img ${srcs.length}件）`);
 }

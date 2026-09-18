@@ -4,6 +4,8 @@ import { TeamAnalysisPanel } from '../components/TeamAnalysisPanel';
 import { Tabs } from '../components/common';
 import { Sec } from '../components/Sec';
 import { DecisionStamp } from '../components/DecisionStamp';
+import { PictureButton } from '../components/PictureButton';
+import confirmArt from '../../assets/ui/club-confirm.webp';
 import { PlayerLink } from '../components/PlayerLink';
 import { recordDecision } from '../../domain/decisions';
 import { rankOfTeam } from '../../domain/standings';
@@ -181,8 +183,9 @@ function Overview() {
                 {event.body}
               </div>
               {event.choices.length === 0 ? (
-                <button
-                  className="btn secondary"
+                <PictureButton
+                  src={confirmArt}
+                  alt="確認した"
                   onClick={() => {
                     let saved: DecisionRecord | null = null;
                     mutate((draft) => {
@@ -198,9 +201,7 @@ function Overview() {
                     });
                     setStamp(saved);
                   }}
-                >
-                  確認した
-                </button>
+                />
               ) : (
                 event.choices.map((choice) => (
                   <button

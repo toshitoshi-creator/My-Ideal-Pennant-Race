@@ -6,6 +6,8 @@
  */
 import type { ReactNode } from 'react';
 import { usePlayback, useCountUp, useReducedMotion, staggerDelay } from '../anim';
+import { PictureButton } from './PictureButton';
+import skipArt from '../../assets/ui/game-skip.webp';
 
 export interface RevealRow {
   label: string;
@@ -41,9 +43,7 @@ export function RevealRows({
             {title ?? ''}
           </span>
           {!play.done && (
-            <button className="skip-btn" onClick={play.skip}>
-              スキップ
-            </button>
+            <PictureButton src={skipArt} alt="スキップ" className="skip-img" onClick={play.skip} />
           )}
         </div>
       )}

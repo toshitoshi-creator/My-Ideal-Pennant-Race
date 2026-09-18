@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import { rankOf, RANK_COLORS } from '../../domain/rank';
 import { positionBadgeColors, POSITION_SHORT } from '../../domain/positions';
 import type { Player } from '../../domain/types';
+import { PictureButton } from './PictureButton';
+import closeArt from '../../assets/ui/common-close.webp';
 
 export function RankBadge({ value }: { value: number }) {
   const rank = rankOf(value);
@@ -72,13 +74,7 @@ export function Sheet({
       <div className="sheet">
         <div className="spread" style={{ marginBottom: 12 }}>
           <strong style={{ fontSize: 17 }}>{title}</strong>
-          <button
-            className="chip"
-            style={{ padding: '7px 14px', fontSize: 14 }}
-            onClick={onClose}
-          >
-            閉じる
-          </button>
+          <PictureButton src={closeArt} alt="閉じる" className="sheet-close" onClick={onClose} />
         </div>
         {children}
       </div>

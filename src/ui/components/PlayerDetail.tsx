@@ -36,6 +36,9 @@ import { contractStatus, formatSalary, marketValue } from '../../domain/contract
 import { expressionOf, EXPRESSION_LABELS } from '../../domain/playerAppearance';
 import { PlayerVisualById, PlayerVisualLarge } from './PlayerVisual';
 import { useFirstVisit, useReducedMotion } from '../anim';
+import { PictureButton } from './PictureButton';
+import promoteArt from '../../assets/ui/player-promote.webp';
+import demoteArt from '../../assets/ui/player-demote.webp';
 
 type DetailTab = 'info' | 'analysis';
 
@@ -253,19 +256,20 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
       </>
       )}
 
-      {isPlayerTeam && (
+      {isPlayerTeam && check.allowed && (
+        <PictureButton
+          src={target === 'first' ? promoteArt : demoteArt}
+          alt={target === 'first' ? '1軍に登録する' : '2軍に降格する'}
+          onClick={changeRoster}
+        />
+      )}
+      {isPlayerTeam && !check.allowed && (
         <button
-          className={`btn ${check.allowed || swappable ? 'primary' : ''}`}
-          disabled={!check.allowed && !swappable}
-          onClick={check.allowed ? changeRoster : () => setShowSwapPicker(true)}
+          className={`btn ${swappable ? 'primary' : ''}`}
+          disabled={!swappable}
+          onClick={() => setShowSwapPicker(true)}
         >
-          {check.allowed
-            ? target === 'first'
-              ? '1軍に登録する'
-              : '2軍に降格する'
-            : swappable
-              ? '入れ替える選手を選択'
-              : (check.reason ?? '変更できません')}
+          {swappable ? '入れ替える選手を選択' : (check.reason ?? '変更できません')}
         </button>
       )}
 

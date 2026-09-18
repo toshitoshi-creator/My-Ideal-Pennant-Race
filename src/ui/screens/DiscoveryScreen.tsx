@@ -50,6 +50,11 @@ import { PictureButton } from '../components/PictureButton';
 import { TradeScreen } from './TradeScreen';
 import discoverStartArt from '../../assets/ui/discover-start.webp';
 import discoverStopArt from '../../assets/ui/discover-stop.webp';
+import offerArt from '../../assets/ui/discovery-offer.webp';
+import applyArt from '../../assets/ui/discovery-apply.webp';
+import offerSubmitArt from '../../assets/ui/discovery-offer-submit.webp';
+import saveCondArt from '../../assets/ui/discovery-save-cond.webp';
+import clearOrderArt from '../../assets/ui/discovery-clear-order.webp';
 
 type Tab = 'foreign' | 'trade' | 'scout';
 
@@ -408,9 +413,7 @@ function CandidateRow({
           交渉は終わっています。
         </p>
       ) : (
-        <button className="btn secondary" onClick={onOffer}>
-          契約金を提示
-        </button>
+        <PictureButton src={offerArt} alt="契約金を提示" onClick={onOffer} />
       )}
     </div>
   );
@@ -480,9 +483,7 @@ function OfferSheet({ candidateId, onClose }: { candidateId: string; onClose: ()
           <span style={{ fontWeight: 700 }}>{formatMoney(salary * years)}</span>
         </div>
 
-        <button className="btn" style={{ marginTop: 10 }} onClick={offer}>
-          この条件で提示する
-        </button>
+        <PictureButton src={offerSubmitArt} alt="この条件で提示する" onClick={offer} />
         <p className="muted" style={{ fontSize: 'var(--text-xs)', marginTop: 6 }}>
           契約しても能力が変わることはありません。隠れていた能力が見えるようになるだけです。
         </p>
@@ -576,12 +577,8 @@ function AmateurPanel() {
           <>
             <PictureButton src={discoverStartArt} alt="この条件で発掘する" onClick={startSearch} />
             <div className="btn-row" style={{ marginTop: 10 }}>
-              <button className="btn secondary" onClick={apply}>
-                この条件で探させる
-              </button>
-              <button className="btn secondary" onClick={() => setNaming(true)}>
-                条件を保存
-              </button>
+              <PictureButton src={applyArt} alt="この条件で探させる" onClick={apply} />
+              <PictureButton src={saveCondArt} alt="条件を保存" onClick={() => setNaming(true)} />
             </div>
           </>
         )}
@@ -590,11 +587,7 @@ function AmateurPanel() {
           <span className="muted">いまの指示</span>
           <span>{active ? conditionSummary(active) : '指示なし'}</span>
         </div>
-        {active && (
-          <button className="btn secondary" onClick={clear}>
-            指示を取り消す
-          </button>
-        )}
+        {active && <PictureButton src={clearOrderArt} alt="指示を取り消す" onClick={clear} />}
       </div>
 
       <div className="card">

@@ -8,6 +8,7 @@ import { Sheet } from '../components/common';
 import { PlayerLink } from '../components/PlayerLink';
 import { PictureButton } from '../components/PictureButton';
 import gameStartArt from '../../assets/ui/game-start.webp';
+import skipArt from '../../assets/ui/game-skip.webp';
 import { useCountUp, usePlayback } from '../anim';
 import { buildPreGameBrief, buildPostGameReport } from '../../domain/gameBrief';
 import {
@@ -247,9 +248,7 @@ export function GameResultView({
           {play.done ? '試合終了' : `${shownInnings}回まで`}
         </span>
         {!play.done && (
-          <button className="skip-btn" onClick={play.skip}>
-            スキップ
-          </button>
+          <PictureButton src={skipArt} alt="スキップ" className="skip-img" onClick={play.skip} />
         )}
       </div>
       {/*

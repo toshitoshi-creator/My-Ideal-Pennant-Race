@@ -28,6 +28,11 @@ import {
 import { RankBadge, Sheet, PositionBadge } from '../components/common';
 import { PlayerVisual } from '../components/PlayerVisual';
 import { PlayerLink } from '../components/PlayerLink';
+import { PictureButton } from '../components/PictureButton';
+import backHomeArt from '../../assets/ui/trade-back-home.webp';
+import acceptArt from '../../assets/ui/trade-accept.webp';
+import rejectArt from '../../assets/ui/trade-reject.webp';
+import proposeArt from '../../assets/ui/trade-propose.webp';
 
 type Filter = 'all' | 'pitcher' | 'catcher' | 'infield' | 'outfield' | 'young' | 'veteran' | 'core';
 
@@ -165,9 +170,7 @@ export function TradeScreen() {
 
       <TradeHistoryCard />
 
-      <button className="btn secondary" style={{ marginTop: 4 }} onClick={() => setScreen('home')}>
-        ホームに戻る
-      </button>
+      <PictureButton src={backHomeArt} alt="ホームに戻る" onClick={() => setScreen('home')} />
 
       {reviewing && (
         <ReviewSheet offerId={reviewing} onClose={() => setReviewing(null)} />
@@ -268,25 +271,22 @@ function ReviewSheet({ offerId, onClose }: { offerId: string; onClose: () => voi
           能力だけでなく、年齢・契約・ポジションの厚みから見た評価です。
         </div>
       </div>
-      <button
-        className="btn primary"
+      <PictureButton
+        src={acceptArt}
+        alt="トレードを受け入れる"
         onClick={() => {
           acceptTradeOffer(offer.id);
           onClose();
         }}
-      >
-        トレードを受け入れる
-      </button>
-      <button
-        className="btn secondary"
-        style={{ marginTop: 10 }}
+      />
+      <PictureButton
+        src={rejectArt}
+        alt="断る"
         onClick={() => {
           declineTradeOffer(offer.id);
           onClose();
         }}
-      >
-        断る
-      </button>
+      />
     </Sheet>
   );
 }
@@ -420,9 +420,9 @@ function TradeBuilder({ partner }: { partner: Team }) {
         ) : (
           <div className="muted">両球団から最低1人ずつ選んでください。</div>
         )}
-        <button
-          className="btn primary"
-          style={{ marginTop: 10 }}
+        <PictureButton
+          src={proposeArt}
+          alt="この内容でトレードを提案する"
           disabled={!ready}
           onClick={() => {
             const result = proposeTrade(partner.id, mine, theirs);
@@ -431,9 +431,7 @@ function TradeBuilder({ partner }: { partner: Team }) {
               setTheirs([]);
             }
           }}
-        >
-          この内容でトレードを提案する
-        </button>
+        />
       </div>
 
       {detail && <PlayerSheet player={detail} onClose={() => setDetail(null)} />}

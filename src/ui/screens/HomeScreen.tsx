@@ -40,6 +40,9 @@ import recordsArt from '../../assets/ui/records.webp';
 import discoveryArt from '../../assets/ui/discovery.webp';
 import tradeArt from '../../assets/ui/trade.webp';
 import gmJournalArt from '../../assets/ui/gm-journal.webp';
+import toOffseasonArt from '../../assets/ui/home-to-offseason.webp';
+import toPostseasonArt from '../../assets/ui/home-to-postseason.webp';
+import seeAllArt from '../../assets/ui/home-see-all.webp';
 import {
   planSummary,
   targetLabels,
@@ -254,9 +257,7 @@ export function HomeScreen() {
             {state.year}年シーズン終了。{record.wins}勝{record.losses}敗{record.draws}分（{rank}位）
           </div>
           <PostseasonNotice />
-          <button className="btn primary" onClick={() => advanceSeason()}>
-            オフシーズンへ
-          </button>
+          <PictureButton src={toOffseasonArt} alt="オフシーズンへ" onClick={() => advanceSeason()} />
         </div>
       )}
 
@@ -431,9 +432,7 @@ function PostseasonNotice() {
             : '今年の日本一が決まりました。'
           : '各リーグの上位3球団でクライマックスシリーズを行い、勝者が日本シリーズに進みます。'}
       </div>
-      <button className="btn secondary" onClick={() => setScreen('postseason')}>
-        ポストシーズンを見る
-      </button>
+      <PictureButton src={toPostseasonArt} alt="ポストシーズンを見る" onClick={() => setScreen('postseason')} />
     </div>
   );
 }
@@ -453,9 +452,7 @@ function LatestNews() {
       {items.map((item, i) => (
         <NewsCard key={item.id} item={item} index={i} />
       ))}
-      <button className="btn secondary" style={{ marginTop: 10 }} onClick={() => setScreen('news')}>
-        すべて見る
-      </button>
+      <PictureButton src={seeAllArt} alt="すべて見る" onClick={() => setScreen('news')} />
     </div>
   );
 }

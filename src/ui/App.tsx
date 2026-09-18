@@ -19,6 +19,8 @@ import { DiscoveryScreen } from './screens/DiscoveryScreen';
 import { PlayerCheckScreen } from './screens/PlayerCheckScreen';
 import { PlayerDetailHost } from './components/PlayerDetailHost';
 import { formatDateJa } from '../domain/dates';
+import { PictureButton } from './components/PictureButton';
+import saveQuitArt from '../assets/ui/app-save-quit.webp';
 
 /*
  * ナビゲーション。絵文字のアイコンはやめ、文字だけにする。
@@ -91,9 +93,7 @@ function Root() {
             {state.year}年 {formatDateJa(state.date)}
           </div>
         </div>
-        <button className="chip" style={{ padding: '8px 12px' }} onClick={quitToTitle}>
-          保存して終了
-        </button>
+        <PictureButton src={saveQuitArt} alt="保存して終了" className="appbar-quit" onClick={quitToTitle} />
       </div>
 
       {/* PHASE 4.1: 画面が切り替わったことが分かる軽い演出（reduced-motion では効かない） */}
