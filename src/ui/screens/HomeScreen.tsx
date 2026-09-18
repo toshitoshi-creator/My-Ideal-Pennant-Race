@@ -452,7 +452,7 @@ function LatestNews() {
       {items.map((item, i) => (
         <NewsCard key={item.id} item={item} index={i} />
       ))}
-      <PictureButton src={seeAllArt} alt="すべて見る" onClick={() => setScreen('news')} />
+      <PictureButton src={seeAllArt} alt="すべて見る" className="see-all-img" onClick={() => setScreen('news')} />
     </div>
   );
 }

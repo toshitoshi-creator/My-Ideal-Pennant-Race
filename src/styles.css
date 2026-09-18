@@ -1541,6 +1541,12 @@ h3.sec {
   margin-top: 0;
 }
 
+.btn-img.see-all-img {
+  width: 180px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .btn-img.appbar-quit {
   flex: 0 0 auto;
   width: 132px;
