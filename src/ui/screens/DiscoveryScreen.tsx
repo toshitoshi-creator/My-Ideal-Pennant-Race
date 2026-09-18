@@ -46,7 +46,10 @@ import { POSITION_LABELS } from '../../domain/positions';
 import { useGame } from '../store';
 import { Sec } from '../components/Sec';
 import { Sheet, Tabs } from '../components/common';
+import { PictureButton } from '../components/PictureButton';
 import { TradeScreen } from './TradeScreen';
+import discoverStartArt from '../../assets/ui/discover-start.webp';
+import discoverStopArt from '../../assets/ui/discover-stop.webp';
 
 type Tab = 'foreign' | 'trade' | 'scout';
 
@@ -315,16 +318,12 @@ function ForeignPanel() {
                 ? '日付を進めると発掘が進みます。かかる日数は発掘力で決まります。'
                 : '候補が見つかりました。日付を進めると調査が進みます。かかる日数・ギャップの狭さは調査力で決まります。'}
             </p>
-            <button className="btn secondary" style={{ marginTop: 10 }} onClick={stop}>
-              {stage === 'finding' ? '発掘をやめる' : '調査をやめる'}
-            </button>
+            <PictureButton src={discoverStopArt} alt={stage === 'finding' ? '発掘をやめる' : '調査をやめる'} onClick={stop} />
           </>
         ) : (
           <>
             <ConditionEditor condition={condition} onChange={setCondition} showAge />
-            <button className="btn" style={{ marginTop: 10 }} onClick={start}>
-              この条件で発掘する
-            </button>
+            <PictureButton src={discoverStartArt} alt="この条件で発掘する" onClick={start} />
             <p className="muted" style={{ fontSize: 'var(--text-xs)', marginTop: 6 }}>
               条件に合う選手が必ず見つかるわけではありません。
               発掘力が高いほど、条件どおりの選手が見つかりやすくなります。
@@ -571,22 +570,20 @@ function AmateurPanel() {
                 ? '日付を進めると発掘が進みます。'
                 : '候補が見つかりました。日付を進めると調査が進みます。かかる日数・ギャップの狭さは調査力で決まります。'}
             </p>
-            <button className="btn secondary" style={{ marginTop: 10 }} onClick={stopSearch}>
-              {stage === 'finding' ? '発掘をやめる' : '調査をやめる'}
-            </button>
+            <PictureButton src={discoverStopArt} alt={stage === 'finding' ? '発掘をやめる' : '調査をやめる'} onClick={stopSearch} />
           </>
         ) : (
-          <div className="btn-row" style={{ marginTop: 10 }}>
-            <button className="btn" onClick={startSearch}>
-              この条件で発掘する
-            </button>
-            <button className="btn secondary" onClick={apply}>
-              この条件で探させる
-            </button>
-            <button className="btn secondary" onClick={() => setNaming(true)}>
-              条件を保存
-            </button>
-          </div>
+          <>
+            <PictureButton src={discoverStartArt} alt="この条件で発掘する" onClick={startSearch} />
+            <div className="btn-row" style={{ marginTop: 10 }}>
+              <button className="btn secondary" onClick={apply}>
+                この条件で探させる
+              </button>
+              <button className="btn secondary" onClick={() => setNaming(true)}>
+                条件を保存
+              </button>
+            </div>
+          </>
         )}
 
         <div className="stat-line" style={{ marginTop: 8 }}>
