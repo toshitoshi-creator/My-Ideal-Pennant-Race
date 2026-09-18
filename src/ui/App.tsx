@@ -20,6 +20,7 @@ import { PlayerCheckScreen } from './screens/PlayerCheckScreen';
 import { PlayerDetailHost } from './components/PlayerDetailHost';
 import { formatDateJa } from '../domain/dates';
 import { PictureButton } from './components/PictureButton';
+import { LoadingFlourish } from './components/LoadingFlourish';
 import saveQuitArt from '../assets/ui/app-save-quit.webp';
 
 /*
@@ -46,10 +47,26 @@ export function App() {
 function Root() {
   const { state, screen, setScreen, toast, quitToTitle, faHidden } = useStore();
 
+  /*
+   * 画面の切り替わりのたびに読み込み演出を挟む（§後日のロード対応）。
+   * どの分岐で return しても同じ key の変化を追えるよう、状態から
+   * 1つの文字列を作る（タイトル→本編の切り替わりもここに含める）。
+   */
+  const transitionKey = !state
+    ? 'title'
+    : state.draft
+      ? 'draft'
+      : state.contractPhase
+        ? 'contract'
+        : state.fa && !faHidden
+          ? 'fa'
+          : `screen:${screen}`;
+
   if (!state) {
     return (
       <>
         <TitleScreen />
+        <LoadingFlourish key={transitionKey} />
         {toast && <div className="toast">{toast}</div>}
       </>
     );
@@ -60,6 +77,7 @@ function Root() {
     return (
       <>
         <DraftScreen />
+        <LoadingFlourish key={transitionKey} />
         {toast && <div className="toast">{toast}</div>}
       </>
     );
@@ -68,6 +86,7 @@ function Root() {
     return (
       <>
         <ContractScreen />
+        <LoadingFlourish key={transitionKey} />
         {toast && <div className="toast">{toast}</div>}
       </>
     );
@@ -77,6 +96,7 @@ function Root() {
     return (
       <>
         <FAScreen />
+        <LoadingFlourish key={transitionKey} />
         {toast && <div className="toast">{toast}</div>}
       </>
     );
@@ -112,6 +132,7 @@ function Root() {
       {screen === 'playerCheck' && <PlayerCheckScreen />}
       {screen === 'discovery' && <DiscoveryScreen />}
       </div>
+      <LoadingFlourish key={transitionKey} />
 
       <nav className="nav">
         {NAV.map((item) => (

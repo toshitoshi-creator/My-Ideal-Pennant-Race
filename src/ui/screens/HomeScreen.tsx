@@ -459,7 +459,7 @@ function LatestNews() {
 
 /** ホームに出す球団経営のまとめ（PHASE 4.0） */
 function ClubSummary() {
-  const { state } = useGame();
+  const { state, setScreen } = useGame();
   const teamId = state.playerTeamId;
   const club = state.clubs?.[teamId];
   if (!club) return null;
@@ -474,12 +474,16 @@ function ClubSummary() {
     >
       <Sec en="CLUB STATUS" ja="球団の状態" />
       {events.length > 0 && (
-        <div className="panel" style={{ marginTop: 0 }}>
+        <button
+          className="panel panel-link"
+          style={{ marginTop: 0 }}
+          onClick={() => setScreen('club')}
+        >
           <span className="label" style={{ color: 'var(--accent)' }}>要判断</span>
           <div style={{ fontWeight: 700, marginTop: 2 }}>
             判断が必要な案件が{events.length}件あります
           </div>
-        </div>
+        </button>
       )}
       <div className="stat-line">
         <span className="muted">球団方針</span>

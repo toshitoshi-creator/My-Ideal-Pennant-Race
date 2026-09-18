@@ -233,6 +233,19 @@ button {
   border-left-color: var(--rule-2);
 }
 
+.panel-link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.panel-link:active {
+  background: var(--paper-3);
+}
+
 .btn {
   display: block;
   width: 100%;
@@ -1151,6 +1164,43 @@ h3.sec {
 
 .screen-anim {
   animation: screen-in 150ms ease-out both;
+}
+
+/*
+ * 画面切り替えの読み込み演出（いまは待ち時間が無くても先に挟んでおく）。
+ * 表示や操作は止めない（pointer-events: none）。
+ */
+.loading-flourish {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 12, 20, 0.55);
+  pointer-events: none;
+  animation: loading-flourish-fade 550ms ease-out both;
+}
+
+.loading-flourish img {
+  width: min(72vw, 320px);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.45);
+}
+
+@keyframes loading-flourish-fade {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 /* 順番に現れるカード（§19） */
@@ -2260,6 +2310,15 @@ h3.sec {
   color: var(--ink-2);
 }
 
+.game-result-banner {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  margin: 8px 0 10px;
+  animation: final-in 400ms ease-out both;
+}
+
 @keyframes final-in {
   from {
     opacity: 0;
@@ -2268,6 +2327,9 @@ h3.sec {
 
 @media (prefers-reduced-motion: reduce) {
   .final-result {
+    animation: none;
+  }
+  .game-result-banner {
     animation: none;
   }
 }

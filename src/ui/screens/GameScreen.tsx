@@ -9,6 +9,8 @@ import { PlayerLink } from '../components/PlayerLink';
 import { PictureButton } from '../components/PictureButton';
 import gameStartArt from '../../assets/ui/game-start.webp';
 import skipArt from '../../assets/ui/game-skip.webp';
+import gameWinArt from '../../assets/ui/game-win.webp';
+import gameLossArt from '../../assets/ui/game-loss.webp';
 import { useCountUp, usePlayback } from '../anim';
 import { buildPreGameBrief, buildPostGameReport } from '../../domain/gameBrief';
 import {
@@ -276,6 +278,13 @@ export function GameResultView({
           </>
         )}
       </div>
+      {play.done && winner && (
+        <img
+          src={winner.id === state.playerTeamId ? gameWinArt : gameLossArt}
+          alt={winner.id === state.playerTeamId ? '勝利' : '敗北'}
+          className="game-result-banner"
+        />
+      )}
       <div className="scroll-x">
         <table className="linescore">
           <thead>
