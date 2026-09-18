@@ -196,9 +196,9 @@ export function FAScreen() {
               ))
             )}
 
-            <PictureButton src={autoSignArt} alt="おまかせで補強する" onClick={() => autoFA()} />
-            <PictureButton src={closeMarketArt} alt="FA市場を締め切る" onClick={() => resolveFA()} />
-            <PictureButton src={checkTeamFirstArt} alt="先に球団を確認する" onClick={() => hideFA()} />
+            <PictureButton src={autoSignArt} alt="おまかせで補強する" className="label-btn" onClick={() => autoFA()} />
+            <PictureButton src={closeMarketArt} alt="FA市場を締め切る" className="label-btn" onClick={() => resolveFA()} />
+            <PictureButton src={checkTeamFirstArt} alt="先に球団を確認する" className="label-btn" onClick={() => hideFA()} />
           </>
         )}
       </div>
@@ -289,7 +289,7 @@ function ResultsCard({ onFinish }: { onFinish: () => void }) {
         )}
       </div>
 
-      <PictureButton src={toNewSeasonArt} alt="新シーズンへ" onClick={onFinish} />
+      <PictureButton src={toNewSeasonArt} alt="新シーズンへ" className="label-btn" onClick={onFinish} />
     </>
   );
 }
@@ -478,6 +478,7 @@ function OfferSheet({
         <PictureButton
           src={withdrawOfferArt}
           alt="この提示を取り下げる"
+          className="label-btn"
           onClick={() => {
             cancelFAOffer(player.id);
             onClose();
@@ -487,6 +488,7 @@ function OfferSheet({
       <PictureButton
         src={existing ? changeOfferArt : makeOfferArt}
         alt={existing ? 'この条件に変更する' : 'この条件でオファーする'}
+        className="label-btn"
         onClick={() => {
           if (makeFAOffer(player.id, salary, years)) onClose();
         }}

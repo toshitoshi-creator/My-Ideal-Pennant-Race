@@ -257,7 +257,7 @@ export function HomeScreen() {
             {state.year}年シーズン終了。{record.wins}勝{record.losses}敗{record.draws}分（{rank}位）
           </div>
           <PostseasonNotice />
-          <PictureButton src={toOffseasonArt} alt="オフシーズンへ" onClick={() => advanceSeason()} />
+          <PictureButton src={toOffseasonArt} alt="オフシーズンへ" className="label-btn" onClick={() => advanceSeason()} />
         </div>
       )}
 
@@ -432,7 +432,7 @@ function PostseasonNotice() {
             : '今年の日本一が決まりました。'
           : '各リーグの上位3球団でクライマックスシリーズを行い、勝者が日本シリーズに進みます。'}
       </div>
-      <PictureButton src={toPostseasonArt} alt="ポストシーズンを見る" onClick={() => setScreen('postseason')} />
+      <PictureButton src={toPostseasonArt} alt="ポストシーズンを見る" className="label-btn" onClick={() => setScreen('postseason')} />
     </div>
   );
 }

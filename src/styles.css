@@ -1547,6 +1547,18 @@ h3.sec {
   margin-right: auto;
 }
 
+/*
+ * 発掘/ドラフト/トレード等の「ラベルだけのボタン」画像。
+ * 元画像の縦横比が実際のボタンより縦長で、幅いっぱいに広げると大きすぎるため、
+ * 高さを通常のボタンに近い値に抑え、幅は縦横比のまま中央に寄せる。
+ */
+.btn-img.label-btn img {
+  width: auto;
+  height: auto;
+  max-height: 50px;
+  margin: 0 auto;
+}
+
 .btn-img.appbar-quit {
   flex: 0 0 auto;
   width: 132px;

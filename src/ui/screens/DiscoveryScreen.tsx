@@ -51,7 +51,6 @@ import { TradeScreen } from './TradeScreen';
 import discoverStartArt from '../../assets/ui/discover-start.webp';
 import discoverStopArt from '../../assets/ui/discover-stop.webp';
 import offerArt from '../../assets/ui/discovery-offer.webp';
-import applyArt from '../../assets/ui/discovery-apply.webp';
 import offerSubmitArt from '../../assets/ui/discovery-offer-submit.webp';
 import saveCondArt from '../../assets/ui/discovery-save-cond.webp';
 import clearOrderArt from '../../assets/ui/discovery-clear-order.webp';
@@ -323,12 +322,12 @@ function ForeignPanel() {
                 ? '日付を進めると発掘が進みます。かかる日数は発掘力で決まります。'
                 : '候補が見つかりました。日付を進めると調査が進みます。かかる日数・ギャップの狭さは調査力で決まります。'}
             </p>
-            <PictureButton src={discoverStopArt} alt={stage === 'finding' ? '発掘をやめる' : '調査をやめる'} onClick={stop} />
+            <PictureButton src={discoverStopArt} alt={stage === 'finding' ? '発掘をやめる' : '調査をやめる'} className="label-btn" onClick={stop} />
           </>
         ) : (
           <>
             <ConditionEditor condition={condition} onChange={setCondition} showAge />
-            <PictureButton src={discoverStartArt} alt="この条件で発掘する" onClick={start} />
+            <PictureButton src={discoverStartArt} alt="この条件で発掘する" className="label-btn" onClick={start} />
             <p className="muted" style={{ fontSize: 'var(--text-xs)', marginTop: 6 }}>
               条件に合う選手が必ず見つかるわけではありません。
               発掘力が高いほど、条件どおりの選手が見つかりやすくなります。
@@ -413,7 +412,7 @@ function CandidateRow({
           交渉は終わっています。
         </p>
       ) : (
-        <PictureButton src={offerArt} alt="契約金を提示" onClick={onOffer} />
+        <PictureButton src={offerArt} alt="契約金を提示" className="label-btn" onClick={onOffer} />
       )}
     </div>
   );
@@ -483,7 +482,7 @@ function OfferSheet({ candidateId, onClose }: { candidateId: string; onClose: ()
           <span style={{ fontWeight: 700 }}>{formatMoney(salary * years)}</span>
         </div>
 
-        <PictureButton src={offerSubmitArt} alt="この条件で提示する" onClick={offer} />
+        <PictureButton src={offerSubmitArt} alt="この条件で提示する" className="label-btn" onClick={offer} />
         <p className="muted" style={{ fontSize: 'var(--text-xs)', marginTop: 6 }}>
           契約しても能力が変わることはありません。隠れていた能力が見えるようになるだけです。
         </p>
@@ -507,11 +506,6 @@ function AmateurPanel() {
   );
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
-
-  const apply = () => {
-    mutate((draft) => setAmateurCondition(draft, condition));
-    showToast('スカウトに指示を出しました');
-  };
 
   const clear = () => {
     mutate((draft) => setAmateurCondition(draft, null));
@@ -547,8 +541,7 @@ function AmateurPanel() {
         <p className="muted" style={{ fontSize: 'var(--text-xs)' }}>
           この条件でシーズン中に1人ずつ発掘できます。見つかった選手はその場で
           調べられ、今年のドラフト候補にもそのまま加わります（指名の優先権は
-          付きません）。「この条件で探させる」は従来どおり、
-          発掘力に応じて次のドラフトの候補リストに何人か上乗せするだけの指示です。
+          付きません）。
         </p>
 
         <ConditionEditor
@@ -571,15 +564,12 @@ function AmateurPanel() {
                 ? '日付を進めると発掘が進みます。'
                 : '候補が見つかりました。日付を進めると調査が進みます。かかる日数・ギャップの狭さは調査力で決まります。'}
             </p>
-            <PictureButton src={discoverStopArt} alt={stage === 'finding' ? '発掘をやめる' : '調査をやめる'} onClick={stopSearch} />
+            <PictureButton src={discoverStopArt} alt={stage === 'finding' ? '発掘をやめる' : '調査をやめる'} className="label-btn" onClick={stopSearch} />
           </>
         ) : (
           <>
-            <PictureButton src={discoverStartArt} alt="この条件で発掘する" onClick={startSearch} />
-            <div className="btn-row" style={{ marginTop: 10 }}>
-              <PictureButton src={applyArt} alt="この条件で探させる" onClick={apply} />
-              <PictureButton src={saveCondArt} alt="条件を保存" onClick={() => setNaming(true)} />
-            </div>
+            <PictureButton src={discoverStartArt} alt="この条件で発掘する" className="label-btn" onClick={startSearch} />
+            <PictureButton src={saveCondArt} alt="条件を保存" className="label-btn" onClick={() => setNaming(true)} />
           </>
         )}
 
@@ -587,7 +577,7 @@ function AmateurPanel() {
           <span className="muted">いまの指示</span>
           <span>{active ? conditionSummary(active) : '指示なし'}</span>
         </div>
-        {active && <PictureButton src={clearOrderArt} alt="指示を取り消す" onClick={clear} />}
+        {active && <PictureButton src={clearOrderArt} alt="指示を取り消す" className="label-btn" onClick={clear} />}
       </div>
 
       <div className="card">

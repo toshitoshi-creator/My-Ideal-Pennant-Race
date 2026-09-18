@@ -260,6 +260,7 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
         <PictureButton
           src={target === 'first' ? promoteArt : demoteArt}
           alt={target === 'first' ? '1軍に登録する' : '2軍に降格する'}
+          className="label-btn"
           onClick={changeRoster}
         />
       )}

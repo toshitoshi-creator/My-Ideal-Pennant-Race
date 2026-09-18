@@ -100,7 +100,7 @@ export function ContractScreen() {
               契約が成立しなかった選手は球団を去り、FA市場へ移ります。
               FA市場に進むと契約更改には戻れません。
             </div>
-            <PictureButton src={toFaArt} alt="FA市場へ" onClick={() => startFA()} />
+            <PictureButton src={toFaArt} alt="FA市場へ" className="label-btn" onClick={() => startFA()} />
           </div>
         )}
 
@@ -322,6 +322,7 @@ function NegotiationSheet({ player, onClose }: { player: Player; onClose: () => 
       <PictureButton
         src={signArt}
         alt="この条件で契約する"
+        className="label-btn"
         onClick={() => {
           offerContract(player.id, salary, years);
           onClose();

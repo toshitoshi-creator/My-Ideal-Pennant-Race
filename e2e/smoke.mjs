@@ -371,19 +371,14 @@ await shot('07c-player-check');
       else fail('発掘のトレードタブに既存のトレード画面が出ない');
     }
 
-    // スカウトタブ：条件の保存
+    // スカウトタブ：発掘（探させる指示は廃止し、発掘の開始のみになっている）
     const scoutTab = page.locator('.tabs button', { hasText: 'スカウト' });
     if ((await scoutTab.count()) > 0) {
       await scoutTab.first().click();
       await page.waitForTimeout(250);
-      const applyBtn = page.getByRole('button', { name: 'この条件で探させる' });
-      if ((await applyBtn.count()) > 0) {
-        await applyBtn.first().click();
-        await page.waitForTimeout(200);
-        const withCondition = await readState();
-        if (withCondition.discovery?.amateur?.active) ok('スカウトへの発掘条件を保存できる');
-        else fail('スカウトへの発掘条件が保存されない');
-      }
+      const legacyApplyBtn = page.getByRole('button', { name: 'この条件で探させる' });
+      if ((await legacyApplyBtn.count()) > 0) fail('廃止したはずの「この条件で探させる」ボタンが残っている');
+      else ok('スカウトタブに「この条件で探させる」ボタンが無い（発掘に一本化）');
       await shot('07g-discovery-scout');
     }
 

@@ -106,7 +106,7 @@ export function DraftScreen() {
                 スカウト総合 {scoutAbilitySummary(scouting.ability)}
               </span>
             </div>
-            <PictureButton src={draftStartArt} alt="ドラフト会議を始める" onClick={() => startDraftPicks()} />
+            <PictureButton src={draftStartArt} alt="ドラフト会議を始める" className="label-btn" onClick={() => startDraftPicks()} />
           </div>
         ) : (
           <div className="card" style={{ borderColor: myTurn ? 'var(--accent)' : undefined }}>
@@ -132,7 +132,7 @@ export function DraftScreen() {
                 <div className="muted" style={{ marginTop: 4, marginBottom: 10 }}>
                   指名した選手は新人契約を結び、2軍からのスタートになります。
                 </div>
-                <PictureButton src={draftToContractArt} alt="契約更改へ" onClick={() => startContracts()} />
+                <PictureButton src={draftToContractArt} alt="契約更改へ" className="label-btn" onClick={() => startContracts()} />
               </>
             )}
           </div>
@@ -278,10 +278,11 @@ export function DraftScreen() {
             </div>
           </div>
           <div className="btn-row">
-            <PictureButton src={draftCancelArt} alt="やめる" onClick={() => setConfirming(null)} />
+            <PictureButton src={draftCancelArt} alt="やめる" className="label-btn" onClick={() => setConfirming(null)} />
             <PictureButton
               src={draftPickArt}
               alt="指名する"
+              className="label-btn"
               onClick={() => {
                 draftPick(confirming.id);
                 setConfirming(null);
@@ -388,7 +389,7 @@ function ProspectCard({
         ))}
       </div>
 
-      {onPick && <PictureButton src={draftPickThisArt} alt="この選手を指名" onClick={onPick} />}
+      {onPick && <PictureButton src={draftPickThisArt} alt="この選手を指名" className="label-btn" onClick={onPick} />}
     </div>
   );
 }
@@ -488,7 +489,7 @@ function ProspectDetail({
         )}
       </div>
 
-      {canPick && <PictureButton src={draftPickThisConfirmArt} alt="この選手を指名する" onClick={onPick} />}
+      {canPick && <PictureButton src={draftPickThisConfirmArt} alt="この選手を指名する" className="label-btn" onClick={onPick} />}
     </Sheet>
   );
 }

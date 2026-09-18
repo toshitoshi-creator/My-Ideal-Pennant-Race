@@ -186,6 +186,7 @@ function Overview() {
                 <PictureButton
                   src={confirmArt}
                   alt="確認した"
+                  className="label-btn"
                   onClick={() => {
                     let saved: DecisionRecord | null = null;
                     mutate((draft) => {

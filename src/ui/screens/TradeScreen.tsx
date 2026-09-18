@@ -170,7 +170,7 @@ export function TradeScreen() {
 
       <TradeHistoryCard />
 
-      <PictureButton src={backHomeArt} alt="ホームに戻る" onClick={() => setScreen('home')} />
+      <PictureButton src={backHomeArt} alt="ホームに戻る" className="label-btn" onClick={() => setScreen('home')} />
 
       {reviewing && (
         <ReviewSheet offerId={reviewing} onClose={() => setReviewing(null)} />
@@ -274,6 +274,7 @@ function ReviewSheet({ offerId, onClose }: { offerId: string; onClose: () => voi
       <PictureButton
         src={acceptArt}
         alt="トレードを受け入れる"
+        className="label-btn"
         onClick={() => {
           acceptTradeOffer(offer.id);
           onClose();
@@ -282,6 +283,7 @@ function ReviewSheet({ offerId, onClose }: { offerId: string; onClose: () => voi
       <PictureButton
         src={rejectArt}
         alt="断る"
+        className="label-btn"
         onClick={() => {
           declineTradeOffer(offer.id);
           onClose();
@@ -423,6 +425,7 @@ function TradeBuilder({ partner }: { partner: Team }) {
         <PictureButton
           src={proposeArt}
           alt="この内容でトレードを提案する"
+          className="label-btn"
           disabled={!ready}
           onClick={() => {
             const result = proposeTrade(partner.id, mine, theirs);
