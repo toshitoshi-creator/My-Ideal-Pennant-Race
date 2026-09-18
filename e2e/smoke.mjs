@@ -379,6 +379,37 @@ await shot('07c-player-check');
       const legacyApplyBtn = page.getByRole('button', { name: 'この条件で探させる' });
       if ((await legacyApplyBtn.count()) > 0) fail('廃止したはずの「この条件で探させる」ボタンが残っている');
       else ok('スカウトタブに「この条件で探させる」ボタンが無い（発掘に一本化）');
+
+      // アマチュアの発掘はまとめて何人でも見つかり、上限（100人）が案内されている
+      const scoutStartBtn = page.getByRole('button', { name: 'この条件で発掘する' });
+      if ((await scoutStartBtn.count()) > 0) {
+        const capText = await page.getByText(/最大100人/).count();
+        if (capText > 0) ok('アマチュアの発掘は最大100人まとめて発掘できると案内されている');
+        else fail('アマチュアの発掘に上限（100人）の案内が出ていない');
+
+        await scoutStartBtn.first().click();
+        await page.waitForTimeout(250);
+        const scoutSearching = await readState();
+        if (scoutSearching.discovery?.amateur?.search) {
+          ok('アマチュアの発掘を開始できた（発掘中の状態が保存される）');
+        } else {
+          fail('アマチュアの発掘を開始しても保存に反映されない');
+        }
+        const countText = await page.getByText(/\/100人/).count();
+        if (countText > 0) ok('発掘した候補の人数（0/100人）が表示されている');
+        else fail('発掘した候補の人数が表示されていない');
+
+        const scoutStopBtn = page.getByRole('button', { name: '発掘をやめる' });
+        if ((await scoutStopBtn.count()) > 0) {
+          await scoutStopBtn.first().click();
+          await page.waitForTimeout(200);
+          const scoutStopped = await readState();
+          if (!scoutStopped.discovery?.amateur?.search) ok('アマチュアの発掘をやめられる');
+          else fail('アマチュアの発掘をやめても状態が残っている');
+        }
+      } else {
+        fail('アマチュアの発掘の開始ボタンが無い');
+      }
       await shot('07g-discovery-scout');
     }
 

@@ -47,9 +47,12 @@ import {
   advanceDiscovery,
   ageBandOf,
   amateurExtraProspects,
+  amateurInvestigationProgress,
   amateurReportOf,
   amateurSearchDays,
+  amateurSearchProgress,
   buildNotes,
+  cancelAmateurInvestigation,
   cancelAmateurSearch,
   cancelForeignSearch,
   clearStaleCandidates,
@@ -68,6 +71,7 @@ import {
   searchProgress,
   setAmateurCondition,
   signForeignCandidate,
+  startAmateurInvestigation,
   startAmateurSearch,
   startForeignSearch,
   typeOf,
@@ -745,7 +749,7 @@ describe('PHASE4.9-B G. 外国人助っ人', () => {
  * G2. アマチュアの発掘（シーズン中に1人ずつ探す）
  * ============================================================== */
 
-/** 発掘フェーズだけ進める（候補は見つかるが、まだ調査は終わっていない） */
+/** 発掘を始めて、候補が1人見つかるまで進める（発掘は続いたまま） */
 function amateurSearchTo(state: GameState): GameState {
   let s = state;
   startAmateurSearch(s, emptyCondition(false));
@@ -756,11 +760,13 @@ function amateurSearchTo(state: GameState): GameState {
   return s;
 }
 
-/** 発掘→調査の両方を終わらせる */
+/** 見つけた1人目の候補について、個別の調査を完了させる */
 function amateurInvestigateTo(state: GameState): GameState {
   let s = amateurSearchTo(state);
+  const candidateId = s.discovery.amateur.candidates[0].id;
+  startAmateurInvestigation(s, candidateId);
   for (let i = 0; i < 40; i++) {
-    if (!s.discovery.amateur.search) break;
+    if (amateurReportOf(s, s.discovery.amateur.candidates[0])) break;
     s = advanceDay(s).state;
   }
   return s;
@@ -802,29 +808,85 @@ describe('PHASE4.9-B G2. アマチュアの発掘', () => {
     expect(state.discovery.amateur.search).toBeNull();
   });
 
-  it('発掘フェーズが終わると候補が見つかるが、調査はまだ終わっていない', () => {
+  it('候補が1人見つかっても、発掘そのものは続く（まとめて何人でも見つかる）', () => {
     const state = amateurSearchTo(newGame());
     expect(state.discovery.amateur.candidates.length).toBeGreaterThan(0);
     expect(state.discovery.amateur.search).toBeTruthy();
+    for (const candidate of state.discovery.amateur.candidates) {
+      expect(candidate.investigation).toBeNull();
+      expect(amateurReportOf(state, candidate)).toBeNull();
+    }
+  });
+
+  it('発掘を続けると2人目も見つかる', () => {
+    let state = amateurSearchTo(newGame(30, 999));
+    const firstCount = state.discovery.amateur.candidates.length;
+    for (let i = 0; i < 60; i++) {
+      state = advanceDay(state).state;
+      if (state.discovery.amateur.candidates.length > firstCount) break;
+    }
+    expect(state.discovery.amateur.candidates.length).toBeGreaterThan(firstCount);
+  });
+
+  it('見つけた候補を選んで調査を依頼できる', () => {
+    const state = amateurSearchTo(newGame());
+    const candidateId = state.discovery.amateur.candidates[0].id;
+    expect(startAmateurInvestigation(state, candidateId).ok).toBe(true);
+    expect(state.discovery.amateur.candidates[0].investigation).toBeTruthy();
+  });
+
+  it('同じ候補を二重に調査できない', () => {
+    const state = amateurSearchTo(newGame());
+    const candidateId = state.discovery.amateur.candidates[0].id;
+    startAmateurInvestigation(state, candidateId);
+    expect(startAmateurInvestigation(state, candidateId).ok).toBe(false);
+  });
+
+  it('調査をやめれば調査中ではなくなる（能力はまだ分からない）', () => {
+    const state = amateurSearchTo(newGame());
+    const candidateId = state.discovery.amateur.candidates[0].id;
+    startAmateurInvestigation(state, candidateId);
+    cancelAmateurInvestigation(state, candidateId);
+    expect(state.discovery.amateur.candidates[0].investigation).toBeNull();
+    expect(amateurReportOf(state, state.discovery.amateur.candidates[0])).toBeNull();
+  });
+
+  it('調査が終わるとレポートができ、調査中ではなくなる', () => {
+    const state = amateurInvestigateTo(newGame());
+    const candidate = state.discovery.amateur.candidates[0];
+    expect(candidate.investigation).toBeNull();
+    expect(amateurReportOf(state, candidate)).toBeTruthy();
+  });
+
+  it('見つかった候補には必ず推定レポートが付く（調査完了後）', () => {
+    const state = amateurInvestigateTo(newGame());
+    const report = amateurReportOf(state, state.discovery.amateur.candidates[0])!;
+    expect(report.estimate.abilityLow).toBeLessThanOrEqual(report.estimate.abilityHigh);
+  });
+
+  it('調査していない候補は発掘が続いたままでも未調査のままでいる', () => {
+    let state = amateurSearchTo(newGame(30, 321));
+    for (let i = 0; i < 10; i++) state = advanceDay(state).state;
     for (const candidate of state.discovery.amateur.candidates) {
       expect(amateurReportOf(state, candidate)).toBeNull();
     }
   });
 
-  it('調査フェーズが終わると search が空になり、レポートができる', () => {
-    const state = amateurInvestigateTo(newGame());
-    expect(state.discovery.amateur.search).toBeNull();
-    for (const candidate of state.discovery.amateur.candidates) {
-      expect(amateurReportOf(state, candidate)).toBeTruthy();
+  it('複数の候補を並行して調査できる', () => {
+    let state = amateurSearchTo(newGame(30, 4242));
+    for (let i = 0; i < 60 && state.discovery.amateur.candidates.length < 2; i++) {
+      state = advanceDay(state).state;
     }
-  });
-
-  it('見つかった候補には必ず推定レポートが付く（調査完了後）', () => {
-    const state = amateurInvestigateTo(newGame());
-    for (const candidate of state.discovery.amateur.candidates) {
-      const report = amateurReportOf(state, candidate)!;
-      expect(report.estimate.abilityLow).toBeLessThanOrEqual(report.estimate.abilityHigh);
+    expect(state.discovery.amateur.candidates.length).toBeGreaterThanOrEqual(2);
+    const [a, b] = state.discovery.amateur.candidates;
+    startAmateurInvestigation(state, a.id);
+    startAmateurInvestigation(state, b.id);
+    for (let i = 0; i < 40; i++) {
+      state = advanceDay(state).state;
+      if (amateurReportOf(state, a) && amateurReportOf(state, b)) break;
     }
+    expect(amateurReportOf(state, a)).toBeTruthy();
+    expect(amateurReportOf(state, b)).toBeTruthy();
   });
 
   it('候補はまだどの球団にも所属していない', () => {
@@ -835,12 +897,26 @@ describe('PHASE4.9-B G2. アマチュアの発掘', () => {
     }
   });
 
-  it('候補が増えすぎない', () => {
-    let state = newGame();
-    for (let i = 0; i < 12; i++) {
-      state = amateurSearchTo(state);
+  it('候補は上限（AMATEUR_CANDIDATE_LIMIT）を超えて増えず、達すると発掘が自動的に止まる', () => {
+    const state = amateurSearchTo(newGame(30, 111));
+    const template = state.discovery.amateur.candidates[0];
+    // 上限の1人手前まで、テストのためにスタブ候補を直接積む
+    for (let i = state.discovery.amateur.candidates.length; i < AMATEUR_CANDIDATE_LIMIT - 1; i++) {
+      state.discovery.amateur.candidates.push({
+        ...template,
+        id: `${template.id}-stub${i}`,
+        investigation: null,
+      });
     }
-    expect(state.discovery.amateur.candidates.length).toBeLessThanOrEqual(AMATEUR_CANDIDATE_LIMIT);
+    expect(state.discovery.amateur.candidates.length).toBe(AMATEUR_CANDIDATE_LIMIT - 1);
+    startAmateurSearch(state, emptyCondition(false));
+    let next = state;
+    for (let i = 0; i < 40; i++) {
+      next = advanceDay(next).state;
+      if (next.discovery.amateur.candidates.length >= AMATEUR_CANDIDATE_LIMIT) break;
+    }
+    expect(next.discovery.amateur.candidates.length).toBe(AMATEUR_CANDIDATE_LIMIT);
+    expect(next.discovery.amateur.search).toBeNull();
   });
 
   it('発掘は試合用のRNGを消費しない', () => {
@@ -850,6 +926,29 @@ describe('PHASE4.9-B G2. アマチュアの発掘', () => {
     cancelAmateurSearch(state);
     advanceDiscovery(state);
     expect(state.rngState).toBe(before);
+  });
+
+  it('発掘中の進み具合が0〜100の範囲で増えていく', () => {
+    const state = newGame();
+    startAmateurSearch(state, emptyCondition(false));
+    const search = state.discovery.amateur.search!;
+    expect(amateurSearchProgress(search)).toBe(0);
+    search.elapsed = Math.floor(search.findDays / 2);
+    const mid = amateurSearchProgress(search);
+    expect(mid).toBeGreaterThan(0);
+    expect(mid).toBeLessThan(100);
+  });
+
+  it('調査していない候補の進み具合は0で、調査中は0〜100で増えていく', () => {
+    const state = amateurSearchTo(newGame());
+    const candidate = state.discovery.amateur.candidates[0];
+    expect(amateurInvestigationProgress(candidate)).toBe(0);
+    startAmateurInvestigation(state, candidate.id);
+    const investigation = candidate.investigation!;
+    investigation.elapsed = Math.floor(investigation.investigateDays / 2);
+    const mid = amateurInvestigationProgress(candidate);
+    expect(mid).toBeGreaterThan(0);
+    expect(mid).toBeLessThan(100);
   });
 
   it('見つけた候補は、そのまま今年のドラフト候補プールに合流する', () => {
@@ -883,9 +982,10 @@ describe('PHASE4.9-B G2. アマチュアの発掘', () => {
     expect(carried).toEqual(before);
   });
 
-  it('ドラフトへ合流したあと、発掘の入れ物は空になる', () => {
+  it('ドラフトへ合流したあと、発掘の入れ物は空になる（発掘中でも止まる）', () => {
     let state = amateurSearchTo(newGame(30, 12345));
     expect(state.discovery.amateur.candidates.length).toBeGreaterThan(0);
+    expect(state.discovery.amateur.search).toBeTruthy();
 
     state = playSeason(state);
     state = cloneState(state);
@@ -893,6 +993,7 @@ describe('PHASE4.9-B G2. アマチュアの発掘', () => {
 
     expect(state.discovery.amateur.candidates).toEqual([]);
     expect(state.discovery.amateur.reports).toEqual({});
+    expect(state.discovery.amateur.search).toBeNull();
   });
 
   it('シーズンを通して進めても state は壊れない', () => {

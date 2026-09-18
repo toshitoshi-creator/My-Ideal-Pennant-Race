@@ -862,6 +862,21 @@ export interface DiscoveryPreset {
 }
 
 /**
+ * 発掘済みの候補を、個別に調査しているときの状態。
+ *
+ * 発掘（見つける）はまとめて何人でも進められるが、調査（見極める）は
+ * 見つけた候補の中から選んだ人だけ、個別に日数をかけて行う。
+ */
+export interface AmateurInvestigation {
+  /** 調査を始めたゲーム内の日付 */
+  startedDate: string;
+  /** 調査が終わるまでの日数（調査力で決まる） */
+  investigateDays: number;
+  /** 経過した日数 */
+  elapsed: number;
+}
+
+/**
  * シーズン中に発掘したアマチュア候補。
  *
  * ドラフト候補（DraftProspect）そのものを持たせておき、実際のドラフトが
@@ -874,6 +889,25 @@ export interface AmateurCandidate {
   origin: DiscoveryOrigin;
   /** スカウトが集めた情報。能力の一覧そのものは書かない（§37と同じ考え方） */
   notes: string[];
+  /** この候補を個別に調査しているときの状態（していなければ null） */
+  investigation: AmateurInvestigation | null;
+}
+
+/**
+ * アマチュアの発掘（見つけるだけ）。
+ *
+ * 1人見つかるたびに次の1人までの日数を発掘力で決め直し、上限
+ * （AMATEUR_CANDIDATE_LIMIT）に達するかやめるまで続く。見つけた候補の
+ * 能力は、個別に調査（AmateurInvestigation）するまで分からない。
+ */
+export interface AmateurBulkSearch {
+  condition: DiscoveryCondition;
+  /** 発掘を始めたゲーム内の日付 */
+  startedDate: string;
+  /** 次の1人が見つかるまでの日数（発掘力で決まる） */
+  findDays: number;
+  /** 直近で1人見つけてからの経過日数 */
+  elapsed: number;
 }
 
 /**
@@ -895,8 +929,8 @@ export interface DiscoveryState {
     presets: DiscoveryPreset[];
     /** 今シーズンのドラフトに向けて指示している条件（従来どおり、追加候補の抽選に効く） */
     active: DiscoveryCondition | null;
-    /** シーズン中、1人ずつ探している発掘 */
-    search: DiscoverySearch | null;
+    /** シーズン中、まとめて進めている発掘（見つけるだけ） */
+    search: AmateurBulkSearch | null;
     /** シーズン中に見つけた候補（ドラフトが始まると候補プールへ合流して空になる） */
     candidates: AmateurCandidate[];
     /** 候補ごとの調査結果（プレイヤー球団のぶんだけ） */

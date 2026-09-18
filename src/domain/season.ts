@@ -305,6 +305,8 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
       }
       discovery.amateur.candidates = [];
       discovery.amateur.reports = {};
+      // アマチュアの発掘・調査はドラフト会議までの機能。始まったら止める
+      discovery.amateur.search = null;
     }
     runCpuScouting(state, rng);
   }

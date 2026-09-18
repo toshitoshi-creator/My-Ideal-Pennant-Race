@@ -21,10 +21,14 @@ import type {
 } from '../../domain/types';
 import {
   AGE_BAND_LABELS,
+  AMATEUR_CANDIDATE_LIMIT,
   DISCOVERY_TYPE_LABELS,
   ORIGIN_LABELS,
   PITCHER_ROLE_LABELS,
+  amateurInvestigationProgress,
   amateurReportOf,
+  amateurSearchProgress,
+  cancelAmateurInvestigation,
   cancelAmateurSearch,
   cancelForeignSearch,
   emptyCondition,
@@ -36,6 +40,7 @@ import {
   searchStageProgress,
   setAmateurCondition,
   signForeignCandidate,
+  startAmateurInvestigation,
   startAmateurSearch,
   startForeignSearch,
 } from '../../domain/discovery';
@@ -499,8 +504,7 @@ function AmateurPanel() {
   const presets = state.discovery?.amateur.presets ?? [];
   const search = state.discovery?.amateur.search ?? null;
   const candidates = state.discovery?.amateur.candidates ?? [];
-  const stage = search ? searchStage(search) : null;
-  const stageProgress = search ? searchStageProgress(search) : 0;
+  const findProgress = search ? amateurSearchProgress(search) : 0;
   const [condition, setCondition] = useState<DiscoveryCondition>(
     () => active ?? emptyCondition(false),
   );
@@ -539,9 +543,11 @@ function AmateurPanel() {
       <div className="card">
         <Sec en="AMATEUR SCOUTING" ja="アマチュアの発掘" />
         <p className="muted" style={{ fontSize: 'var(--text-xs)' }}>
-          この条件でシーズン中に1人ずつ発掘できます。見つかった選手はその場で
-          調べられ、今年のドラフト候補にもそのまま加わります（指名の優先権は
-          付きません）。
+          この条件でシーズン中、ドラフト会議が始まるまでまとめて発掘できます
+          （最大{AMATEUR_CANDIDATE_LIMIT}人）。発掘した候補の能力はまだ分かりません。
+          気になる候補は「発掘した候補」から個別に調査を依頼してください。
+          見つかった選手は今年のドラフト候補にもそのまま加わります
+          （指名の優先権は付きません）。
         </p>
 
         <ConditionEditor
@@ -553,18 +559,16 @@ function AmateurPanel() {
         {search ? (
           <>
             <div className="stat-line" style={{ marginTop: 8 }}>
-              <span className="muted">{stage === 'finding' ? '発掘中' : '調査中'}</span>
-              <span style={{ fontWeight: 700 }}>{stageProgress}%</span>
+              <span className="muted">次の候補まで</span>
+              <span style={{ fontWeight: 700 }}>{findProgress}%</span>
             </div>
-            <div className="meter" aria-label={`${stage === 'finding' ? '発掘' : '調査'}の進み具合 ${stageProgress}%`}>
-              <div className="meter-fill" style={{ width: `${stageProgress}%` }} />
+            <div className="meter" aria-label={`発掘の進み具合 ${findProgress}%`}>
+              <div className="meter-fill" style={{ width: `${findProgress}%` }} />
             </div>
             <p className="muted" style={{ fontSize: 'var(--text-xs)', marginTop: 6 }}>
-              {stage === 'finding'
-                ? '日付を進めると発掘が進みます。'
-                : '候補が見つかりました。日付を進めると調査が進みます。かかる日数・ギャップの狭さは調査力で決まります。'}
+              日付を進めると発掘が進みます。{candidates.length}/{AMATEUR_CANDIDATE_LIMIT}人
             </p>
-            <PictureButton src={discoverStopArt} alt={stage === 'finding' ? '発掘をやめる' : '調査をやめる'} className="label-btn" onClick={stopSearch} />
+            <PictureButton src={discoverStopArt} alt="発掘をやめる" className="label-btn" onClick={stopSearch} />
           </>
         ) : (
           <>
@@ -644,9 +648,25 @@ function AmateurPanel() {
 }
 
 function AmateurCandidateRow({ candidate }: { candidate: AmateurCandidate }) {
-  const { state } = useGame();
+  const { state, mutate, showToast } = useGame();
   const report = amateurReportOf(state, candidate);
   const player = candidate.prospect.player;
+  const investigating = !!candidate.investigation;
+  const investigateProgress = amateurInvestigationProgress(candidate);
+
+  const investigate = () => {
+    let message = '';
+    mutate((draft) => {
+      const result = startAmateurInvestigation(draft, candidate.id);
+      message = result.ok ? '調査を始めました' : (result.reason ?? '調査を始められません');
+    });
+    showToast(message);
+  };
+
+  const stopInvestigate = () => {
+    mutate((draft) => cancelAmateurInvestigation(draft, candidate.id));
+    showToast('調査をやめました');
+  };
 
   return (
     <div className="discovery-card">
@@ -662,13 +682,15 @@ function AmateurCandidateRow({ candidate }: { candidate: AmateurCandidate }) {
           <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>
             推定
           </div>
-          <div style={{ fontWeight: 700 }}>{report ? abilityRangeText(report) : '調査中'}</div>
+          <div style={{ fontWeight: 700 }}>
+            {report ? abilityRangeText(report) : investigating ? '調査中' : '未調査'}
+          </div>
         </div>
       </div>
 
       <div className="stat-line">
         <span className="muted">将来性</span>
-        <span>{report ? (report.estimate.potential ?? '未調査') : '調査中'}</span>
+        <span>{report ? (report.estimate.potential ?? '未調査') : investigating ? '調査中' : '未調査'}</span>
       </div>
 
       <ul className="note-list">
@@ -677,9 +699,28 @@ function AmateurCandidateRow({ candidate }: { candidate: AmateurCandidate }) {
         ))}
       </ul>
 
-      <p className="muted" style={{ fontSize: 'var(--text-xs)' }}>
-        今年のドラフト候補にも加わります。
-      </p>
+      {report ? (
+        <p className="muted" style={{ fontSize: 'var(--text-xs)' }}>
+          調査済み。今年のドラフト候補にも加わります。
+        </p>
+      ) : investigating ? (
+        <>
+          <div className="meter" aria-label={`調査の進み具合 ${investigateProgress}%`} style={{ marginTop: 4 }}>
+            <div className="meter-fill" style={{ width: `${investigateProgress}%` }} />
+          </div>
+          <div className="stat-line">
+            <span className="muted">調査の進み具合</span>
+            <span>{investigateProgress}%</span>
+          </div>
+          <button className="btn secondary" onClick={stopInvestigate}>
+            調査をやめる
+          </button>
+        </>
+      ) : (
+        <button className="btn secondary" onClick={investigate}>
+          調査する
+        </button>
+      )}
     </div>
   );
 }
