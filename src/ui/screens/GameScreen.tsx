@@ -103,7 +103,7 @@ export function GameScreen() {
         <>
           <div className="card">
             <Sec en="SCOREBOOK" ja="試合結果" size="lead" />
-            <GameResultView state={state} result={lastResult} />
+            <GameResultView key={lastResult.id} state={state} result={lastResult} />
           </div>
           <PostGameSection result={lastResult} />
           <div className="card">
@@ -148,7 +148,7 @@ export function GameScreen() {
       {detail && (
         <Sheet title={`${formatDateJa(detail.date)} の試合`} onClose={() => setDetail(null)}>
           <div className="card">
-            <GameResultView state={state} result={detail} />
+            <GameResultView key={detail.id} state={state} result={detail} />
           </div>
           {detail.commentary.length > 0 && (
             <div className="card">
