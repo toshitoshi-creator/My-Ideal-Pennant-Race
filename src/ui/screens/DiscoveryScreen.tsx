@@ -52,7 +52,9 @@ import { useGame } from '../store';
 import { Sec } from '../components/Sec';
 import { Sheet, Tabs } from '../components/common';
 import { PictureButton } from '../components/PictureButton';
+import { ScreenBackground } from '../components/ScreenBackground';
 import { TradeScreen } from './TradeScreen';
+import discoveryBg from '../../assets/backgrounds/bg-discovery.webp';
 import discoverStartArt from '../../assets/ui/discover-start.webp';
 import discoverStopArt from '../../assets/ui/discover-stop.webp';
 import offerArt from '../../assets/ui/discovery-offer.webp';
@@ -92,8 +94,11 @@ export function DiscoveryScreen() {
         <TradeScreen />
       ) : (
         <div className="screen">
+          <ScreenBackground src={discoveryBg} alt="" />
+          <div className="screen-content">
           <ScoutAbilityCard />
           {tab === 'foreign' ? <ForeignPanel /> : <AmateurPanel />}
+          </div>
         </div>
       )}
     </>

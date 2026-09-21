@@ -3,6 +3,8 @@ import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import { Tabs } from '../components/common';
 import { PlayerLink } from '../components/PlayerLink';
+import { ScreenBackground } from '../components/ScreenBackground';
+import recordsBg from '../../assets/backgrounds/bg-records.webp';
 import {
   CAREER_RECORD_LABELS,
   LEADER_KEYS,
@@ -43,12 +45,15 @@ export function RecordsScreen() {
   if (state.history.seasons.length === 0) {
     return (
       <div className="screen">
+        <ScreenBackground src={recordsBg} alt="" />
+        <div className="screen-content">
         <div className="card">
           <Sec en="RECORD BOOK" ja="記録" size="lead" />
           <p className="muted">
             まだ記録がありません。1シーズンを終えると、リーグ記録・球団記録が
             ここに残っていきます。
           </p>
+        </div>
         </div>
       </div>
     );
@@ -67,10 +72,13 @@ export function RecordsScreen() {
         onChange={setTab}
       />
       <div className="screen">
+        <ScreenBackground src={recordsBg} alt="" />
+        <div className="screen-content">
         {tab === 'league' && <LeagueRecords />}
         {tab === 'team' && <TeamRecords />}
         {tab === 'season' && <SeasonBest />}
         {tab === 'career' && <CareerBest />}
+        </div>
       </div>
     </>
   );

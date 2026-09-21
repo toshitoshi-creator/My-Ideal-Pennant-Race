@@ -29,6 +29,8 @@ import { TeamMark, StadiumScene } from '../components/visuals/TeamVisuals';
 import { PlayerVisual } from '../components/PlayerVisual';
 import { PlayerLink } from '../components/PlayerLink';
 import { PictureButton } from '../components/PictureButton';
+import { ScreenBackground } from '../components/ScreenBackground';
+import homeBg from '../../assets/backgrounds/bg-home.webp';
 // 次の試合ボタンの絵。Vite が同梱するので、実行時に外へ取りに行くことはない
 import nextGameArt from '../../assets/ui/next-game.webp';
 import nextGamePressArt from '../../assets/ui/next-game-active.webp';
@@ -105,6 +107,8 @@ export function HomeScreen() {
 
   return (
     <div className="screen">
+      <ScreenBackground src={homeBg} alt="" />
+      <div className="screen-content">
       {/* ── 1. 今日の状況 ── 記録用紙の頭 ── */}
       <header className="desk-head">
         <div className="desk-head-top">
@@ -380,6 +384,7 @@ export function HomeScreen() {
           }}
         />
       )}
+      </div>
     </div>
   );
 }

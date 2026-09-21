@@ -69,6 +69,30 @@ ok('球団を選んでゲームを開始できた');
 await shot('03-home');
 
 const readState = () => page.evaluate(() => JSON.parse(localStorage.getItem('mipr:save:v1')));
+// スコアブードを横スワイプ（マウスのドラッグとして送る。正の dx で右スワイプ）
+const swipeScorebook = async (dx) => {
+  const box = await page.locator('.swipe-card').boundingBox();
+  const startX = box.x + box.width / 2;
+  const y = box.y + Math.min(40, box.height / 2);
+  await page.mouse.move(startX, y);
+  await page.mouse.down();
+  await page.mouse.move(startX + dx, y, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(150);
+};
+// スキップして（あれば）試合を最終結果まで進める
+const waitGameFinal = async () => {
+  const skipBtn = page.getByRole('button', { name: 'スキップ' });
+  if (await skipBtn.count()) await skipBtn.click().catch(() => {});
+  await page.waitForFunction(
+    () => (document.body.innerText || '').includes('試合終了'),
+    undefined,
+    { timeout: 8000 },
+  );
+  // 「試合終了」表示のあとも得点の数字は useCountUp で約240ms かけて数え上がるため、
+  // 数字が落ち着くまで少し待つ（すぐ .big-score を読むと途中の数字を拾ってしまう）
+  await page.waitForTimeout(300);
+};
 let state = await readState();
 if (!state) fail('セーブデータが作られていない');
 else ok(`セーブ作成 (seed ${state.seed} / ${state.players.length}選手 / 開始日 ${state.date})`);
@@ -516,6 +540,55 @@ else ok(`勝敗記録: ${state.records.phoenix.wins}勝${state.records.phoenix.l
 const playedAll = state.results.length;
 if (playedAll !== 6) fail(`その日の全6試合が処理されていない (${playedAll})`);
 else ok('12球団すべての試合が処理された');
+
+// スコアブックの左右スワイプ
+{
+  // まだ1試合しかないので、右スワイプ（過去へ）は何も起きない
+  await swipeScorebook(140);
+  await page.waitForTimeout(150);
+  const hintBefore = await page.locator('.swipe-hint').innerText();
+  if (hintBefore.includes('◀')) fail('試合が1件しかないのに右スワイプ（過去）が有効になっている');
+  else ok('試合が1件のときは右スワイプ（過去）が無効');
+
+  const scoreBefore = await page.locator('.big-score').innerText();
+
+  // 最新の試合を見ている状態で左スワイプ → 次の試合に進む確認が出る
+  await swipeScorebook(-140);
+  await page.locator('.sheet').waitFor();
+  const confirmText = await page.locator('.sheet').innerText();
+  if (!confirmText.includes('次の試合に進みます')) fail('左スワイプで次の試合への確認画面が出なかった');
+  else ok('最新の試合から左スワイプすると、次の試合への確認画面が出る');
+  await shot('11b-swipe-confirm');
+
+  await page.getByRole('button', { name: 'はい' }).click();
+  await page.waitForTimeout(300);
+  await waitGameFinal();
+  ok('確認画面で「はい」を押すと次の試合が実行された');
+
+  state = await readState();
+  if (state.records.phoenix.games !== 2) fail(`確認後に試合数が増えていない (${state.records.phoenix.games})`);
+  else ok('確認後の試合が2試合目として記録された');
+
+  // 右スワイプで1試合前（1試合目）の結果に戻れる
+  await swipeScorebook(140);
+  await page.waitForTimeout(150);
+  await waitGameFinal();
+  const noteOlder = await page.locator('.swipe-card .sec-note').innerText();
+  if (!noteOlder.includes('過去')) fail('右スワイプで過去の試合に切り替わらなかった');
+  else ok('右スワイプで1試合前の結果に切り替わった');
+  const scoreOlder = await page.locator('.big-score').innerText();
+  if (scoreOlder !== scoreBefore) fail('過去の試合のスコアが1試合目のものと一致しない');
+  else ok('過去の試合のスコアは1試合目のものと一致する');
+
+  // 左スワイプで最新（2試合目）の結果に戻れる
+  await swipeScorebook(-140);
+  await page.waitForTimeout(150);
+  await waitGameFinal();
+  const noteBack = await page.locator('.swipe-card .sec-note').innerText();
+  if (noteBack.includes('過去')) fail('左スワイプで最新の試合に戻らなかった');
+  else ok('左スワイプで最新の試合に戻った');
+  await shot('11c-swipe-back');
+}
 
 // 順位表
 await page.locator('.nav').getByText('順位').click();

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import { Tabs } from '../components/common';
+import { ScreenBackground } from '../components/ScreenBackground';
+import journalBg from '../../assets/backgrounds/bg-journal.webp';
 import { NewsCard } from '../components/NewsCard';
 import { NewsPaperReader } from '../components/NewsPaper';
 import { CATEGORY_LABELS, markNewsRead, newsOfCategory } from '../../domain/news';
@@ -77,6 +79,8 @@ export function NewsScreen() {
         onChange={setTab}
       />
       <div className="screen">
+        {tab === 'journal' && <ScreenBackground src={journalBg} alt="" />}
+        <div className="screen-content">
         {tab === 'news' ? (
           <>
             <div className="card">
@@ -135,6 +139,7 @@ export function NewsScreen() {
         ) : (
           <GmJournal />
         )}
+        </div>
       </div>
     </>
   );

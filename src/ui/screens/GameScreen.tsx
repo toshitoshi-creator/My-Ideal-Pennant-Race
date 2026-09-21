@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import type { GameResult } from '../../domain/types';
@@ -7,6 +7,8 @@ import { nextGameForTeam } from '../../domain/schedule';
 import { Sheet } from '../components/common';
 import { PlayerLink } from '../components/PlayerLink';
 import { PictureButton } from '../components/PictureButton';
+import { ScreenBackground } from '../components/ScreenBackground';
+import gameBg from '../../assets/backgrounds/bg-game.webp';
 import gameStartArt from '../../assets/ui/game-start.webp';
 import skipArt from '../../assets/ui/game-skip.webp';
 import gameWinArt from '../../assets/ui/game-win.webp';
@@ -42,12 +44,61 @@ export function GameScreen() {
     .slice()
     .reverse();
 
-  const sameDayResults = lastResult
-    ? state.results.filter((r) => r.date === lastResult.date && r.id !== lastResult.id)
+  /*
+   * スコアブックの左右スワイプ。index 0 が最新の試合結果で、
+   * 数字が大きいほど過去にさかのぼる。新しい試合を消化したら
+   * 必ず最新（0）に戻す。
+   */
+  const [viewIndex, setViewIndex] = useState(0);
+  useEffect(() => {
+    setViewIndex(0);
+  }, [lastResult?.id]);
+  const clampedIndex =
+    playerResults.length === 0 ? 0 : Math.min(viewIndex, playerResults.length - 1);
+  const viewedResult = playerResults[clampedIndex] ?? null;
+  const canViewOlder = clampedIndex + 1 < playerResults.length;
+  const canViewNewer = clampedIndex > 0;
+
+  const [confirmNext, setConfirmNext] = useState(false);
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+
+  const viewOlder = () => {
+    if (canViewOlder) setViewIndex(clampedIndex + 1);
+  };
+  // 最新の試合を見ている状態でさらに左へスワイプしたら、次の試合に進むかどうかを尋ねる
+  const viewNewerOrNext = () => {
+    if (canViewNewer) {
+      setViewIndex(clampedIndex - 1);
+    } else if (next) {
+      setConfirmNext(true);
+    }
+  };
+  const onScorebookPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    swipeStart.current = { x: e.clientX, y: e.clientY };
+  };
+  const onScorebookPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    if (!start) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    // 横の動きが十分大きく、縦スクロールより明らかに横向きのときだけスワイプとみなす
+    if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (dx > 0) viewOlder();
+    else viewNewerOrNext();
+  };
+  const onScorebookPointerCancel = () => {
+    swipeStart.current = null;
+  };
+
+  const sameDayResults = viewedResult
+    ? state.results.filter((r) => r.date === viewedResult.date && r.id !== viewedResult.id)
     : [];
 
   return (
     <div className="screen">
+      <ScreenBackground src={gameBg} alt="" />
+      <div className="screen-content">
       {/* ── 試合前資料（§14）。今日の試合に関係する情報だけを短く ── */}
       <div className="card">
         <Sec en="PRE-GAME BRIEF" ja="試合前資料" size="lead" />
@@ -99,17 +150,31 @@ export function GameScreen() {
         )}
       </div>
 
-      {lastResult && (
+      {viewedResult && (
         <>
-          <div className="card">
-            <Sec en="SCOREBOOK" ja="試合結果" size="lead" />
-            <GameResultView key={lastResult.id} state={state} result={lastResult} />
+          <div
+            className="card swipe-card"
+            onPointerDown={onScorebookPointerDown}
+            onPointerUp={onScorebookPointerUp}
+            onPointerCancel={onScorebookPointerCancel}
+          >
+            <Sec
+              en="SCOREBOOK"
+              ja="試合結果"
+              size="lead"
+              note={`${formatDateJa(viewedResult.date)}${clampedIndex === 0 ? '' : '（過去）'}`}
+            />
+            <div className="muted swipe-hint">
+              {canViewOlder ? '◀ スワイプで前の試合　' : ''}
+              {canViewNewer ? 'スワイプで次の試合 ▶' : next ? 'スワイプで次の試合へ ▶' : ''}
+            </div>
+            <GameResultView key={viewedResult.id} state={state} result={viewedResult} />
           </div>
-          <PostGameSection result={lastResult} />
+          <PostGameSection result={viewedResult} />
           <div className="card">
             <Sec en="PLAY BY PLAY" ja="簡易実況" size="sub" />
             <div className="commentary">
-              {lastResult.commentary.map((line, i) => (
+              {viewedResult.commentary.map((line, i) => (
                 <div key={i} className={line.startsWith('　') ? '' : 'head'}>
                   {line}
                 </div>
@@ -164,6 +229,30 @@ export function GameScreen() {
           )}
         </Sheet>
       )}
+
+      {/* スコアブックを左スワイプで最新まで進めたときの、次の試合へ進む確認 */}
+      {confirmNext && (
+        <Sheet title="確認" onClose={() => setConfirmNext(false)}>
+          <div className="card">
+            <p style={{ fontSize: 15 }}>次の試合に進みます。よろしいですか？</p>
+          </div>
+          <div className="btn-row">
+            <button className="btn secondary" onClick={() => setConfirmNext(false)}>
+              いいえ
+            </button>
+            <button
+              className="btn"
+              onClick={() => {
+                setConfirmNext(false);
+                playNextGame();
+              }}
+            >
+              はい
+            </button>
+          </div>
+        </Sheet>
+      )}
+      </div>
     </div>
   );
 }

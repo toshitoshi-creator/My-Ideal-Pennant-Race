@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import { Sheet, Tabs } from '../components/common';
+import { ScreenBackground } from '../components/ScreenBackground';
+import historyBg from '../../assets/backgrounds/bg-history.webp';
 import {
   AWARD_LABELS,
   LEADER_LABELS,
@@ -32,12 +34,15 @@ export function HistoryScreen() {
   if (state.history.seasons.length === 0) {
     return (
       <div className="screen">
+        <ScreenBackground src={historyBg} alt="" />
+        <div className="screen-content">
         <div className="card">
           <Sec en="CLUB HISTORY" ja="球団の歴史" size="lead" />
           <p className="muted">
             まだ記録がありません。1シーズンを終えると、その年の順位・タイトル・記録が
             ここに残っていきます。
           </p>
+        </div>
         </div>
       </div>
     );
@@ -55,9 +60,12 @@ export function HistoryScreen() {
         onChange={setTab}
       />
       <div className="screen">
+        <ScreenBackground src={historyBg} alt="" />
+        <div className="screen-content">
         {tab === 'timeline' && <Timeline />}
         {tab === 'teams' && <TeamWalk />}
         {tab === 'hof' && <HallOfFame />}
+        </div>
       </div>
     </>
   );

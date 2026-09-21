@@ -12,12 +12,14 @@ import { useMemo, useState } from 'react';
 import { Sec } from '../components/Sec';
 import { Tabs } from '../components/common';
 import { PlayerLink } from '../components/PlayerLink';
+import { ScreenBackground } from '../components/ScreenBackground';
 import { useGame } from '../store';
 import type { Player } from '../../domain/types';
 import { checkTeamPlayers, type PlayerCheckStatus } from '../../domain/playerEvaluation';
 import { CONDITION_LABELS, fatigueLabel } from '../../domain/condition';
 import { POSITION_LABELS } from '../../domain/positions';
 import { formatAverage, formatInnings } from '../../domain/stats';
+import playerCheckBg from '../../assets/backgrounds/bg-player-check.webp';
 
 type CheckFilter = 'all' | 'condition' | 'batting' | 'pitching';
 type RosterFilter = 'all' | 'first' | 'second';
@@ -67,6 +69,8 @@ export function PlayerCheckScreen() {
     <>
       <Tabs tabs={CHECK_TABS} value={filter} onChange={setFilter} />
       <div className="screen">
+        <ScreenBackground src={playerCheckBg} alt="" />
+        <div className="screen-content">
         <div className="card">
           <Sec en="PLAYER CHECK" ja="選手チェック" size="lead" note={`${rows.length}人`} />
           <p className="muted" style={{ fontSize: 'var(--text-sm)', marginBottom: 8 }}>
@@ -87,6 +91,7 @@ export function PlayerCheckScreen() {
             ))}
           </div>
         )}
+        </div>
       </div>
     </>
   );
