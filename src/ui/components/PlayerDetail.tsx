@@ -20,6 +20,7 @@ import {
 } from '../../domain/roster';
 import { MARKET_GRADE_LABELS, marketGrade } from '../../domain/freeAgency';
 import { average, formatAverage, formatEra, formatInnings } from '../../domain/stats';
+import { StatTile, avgTone, eraTone } from './StatTone';
 import { formatDateJa } from '../../domain/dates';
 import { personalityDef } from '../../domain/personality';
 import { potentialLabel, growthTypeDef } from '../../domain/growth';
@@ -151,24 +152,54 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
 
       {tab === 'info' && (
       <>
+      {/*
+        まず今季成績と能力（いちばん見たい数字）を先頭に置き、
+        コンディション・契約・個性はそのあとに続ける。
+      */}
       <div className="card">
-        <Sec en="CONDITION" ja="コンディション" />
-        <StatusPanel player={player} teamMorale={state.teamMorale[player.teamId] ?? 50} />
-      </div>
-
-      <div className="card">
-        <Sec en="CONTRACT" ja="契約" />
-        <ContractPanel player={player} />
-      </div>
-
-      <div className="card">
-        <Sec en="PROFILE" ja="個性" />
-        <PersonalityPanel player={player} />
-      </div>
-
-      <div className="card">
-        <Sec en="SPECIAL" ja="特殊能力" />
-        <SpecialAbilityPanel player={player} />
+        <Sec en="SEASON RECORD" ja="今季成績" />
+        {/* ひと目でわかる主要な数字 */}
+        <div className="stat-tiles">
+          {player.isPitcher ? (
+            <>
+              <StatTile label="防御率" value={formatEra(stats.pitching)} tone={eraTone(stats.pitching)} />
+              <StatTile label="勝-敗" value={`${stats.pitching.wins}-${stats.pitching.losses}`} />
+              <StatTile label="投球回" value={formatInnings(stats.pitching.outs)} />
+              <StatTile label="奪三振" value={stats.pitching.strikeouts} />
+            </>
+          ) : (
+            <>
+              <StatTile
+                label="打率"
+                value={formatAverage(average(stats.batting))}
+                tone={avgTone(stats.batting)}
+              />
+              <StatTile label="本塁打" value={stats.batting.homeRuns} />
+              <StatTile label="打点" value={stats.batting.rbi} />
+              <StatTile label="盗塁" value={stats.batting.steals} />
+            </>
+          )}
+        </div>
+        {player.isPitcher ? (
+          <>
+            <KeyValue label="登板 / 先発" value={`${stats.pitching.games} / ${stats.pitching.starts}`} />
+            <KeyValue label="セーブ" value={stats.pitching.saves} />
+            <KeyValue label="奪三振 / 与四球" value={`${stats.pitching.strikeouts} / ${stats.pitching.walks}`} />
+            <KeyValue
+              label="失点 / 自責点"
+              value={`${stats.pitching.runsAllowed} / ${stats.pitching.earnedRuns}`}
+            />
+          </>
+        ) : null}
+        {(!player.isPitcher || stats.batting.atBats > 0) && (
+          <>
+            <KeyValue label="試合" value={stats.batting.games} />
+            <KeyValue label="打数 / 安打" value={`${stats.batting.atBats} / ${stats.batting.hits}`} />
+            {player.isPitcher && <KeyValue label="打率" value={formatAverage(average(stats.batting))} />}
+            <KeyValue label="得点 / 盗塁" value={`${stats.batting.runs} / ${stats.batting.steals}`} />
+            <KeyValue label="三振 / 四球" value={`${stats.batting.strikeouts} / ${stats.batting.walks}`} />
+          </>
+        )}
       </div>
 
       <div className="card">
@@ -225,26 +256,23 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
       )}
 
       <div className="card">
-        <Sec en="SEASON RECORD" ja="今季成績" />
-        {player.isPitcher ? (
-          <>
-            <KeyValue label="登板 / 先発" value={`${stats.pitching.games} / ${stats.pitching.starts}`} />
-            <KeyValue label="勝敗" value={`${stats.pitching.wins}勝 ${stats.pitching.losses}敗`} />
-            <KeyValue label="投球回" value={formatInnings(stats.pitching.outs)} />
-            <KeyValue label="防御率" value={formatEra(stats.pitching)} />
-            <KeyValue label="奪三振 / 与四球" value={`${stats.pitching.strikeouts} / ${stats.pitching.walks}`} />
-            <KeyValue
-              label="失点 / 自責点"
-              value={`${stats.pitching.runsAllowed} / ${stats.pitching.earnedRuns}`}
-            />
-          </>
-        ) : null}
-        <KeyValue label="試合" value={stats.batting.games} />
-        <KeyValue label="打数 / 安打" value={`${stats.batting.atBats} / ${stats.batting.hits}`} />
-        <KeyValue label="打率" value={formatAverage(average(stats.batting))} />
-        <KeyValue label="本塁打 / 打点" value={`${stats.batting.homeRuns} / ${stats.batting.rbi}`} />
-        <KeyValue label="得点 / 盗塁" value={`${stats.batting.runs} / ${stats.batting.steals}`} />
-        <KeyValue label="三振 / 四球" value={`${stats.batting.strikeouts} / ${stats.batting.walks}`} />
+        <Sec en="CONDITION" ja="コンディション" />
+        <StatusPanel player={player} teamMorale={state.teamMorale[player.teamId] ?? 50} />
+      </div>
+
+      <div className="card">
+        <Sec en="CONTRACT" ja="契約" />
+        <ContractPanel player={player} />
+      </div>
+
+      <div className="card">
+        <Sec en="PROFILE" ja="個性" />
+        <PersonalityPanel player={player} />
+      </div>
+
+      <div className="card">
+        <Sec en="SPECIAL" ja="特殊能力" />
+        <SpecialAbilityPanel player={player} />
       </div>
 
       {history && history.seasons.length > 0 && (

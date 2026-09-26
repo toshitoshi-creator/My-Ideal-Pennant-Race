@@ -116,10 +116,13 @@ export function LiveBroadcast({
   state,
   result,
   onClose,
+  onNext,
 }: {
   state: GameState;
   result: GameResult;
   onClose: () => void;
+  /** 次の試合がある（シーズン中）ときだけ渡す */
+  onNext?: () => void;
 }) {
   const reduced = useReducedMotion();
   const halves = useMemo(() => buildHalves(result), [result]);
@@ -391,6 +394,18 @@ export function LiveBroadcast({
           >
             試合の資料を見る
           </button>
+          {onNext && (
+            <button
+              type="button"
+              className="live-next"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNext();
+              }}
+            >
+              次の試合へ ▶
+            </button>
+          )}
         </div>
       )}
 

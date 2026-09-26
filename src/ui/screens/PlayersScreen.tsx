@@ -26,6 +26,8 @@ export function PlayersScreen() {
   const { state } = useGame();
   const [filter, setFilter] = useState<Filter>('all');
   const [selected, setSelected] = useState<Player | null>(null);
+  // 一覧の2行目：能力を見るか、今季成績（野手は打率・投手は防御率）を見るか
+  const [view, setView] = useState<'ability' | 'stats'>('ability');
 
   const roster = useMemo(
     () =>
@@ -62,14 +64,35 @@ export function PlayersScreen() {
           <StatsTables />
         ) : (
           <>
-            <div className="muted" style={{ marginBottom: 8 }}>
-              {shown.length}人（保有 {roster.length}人 / 上限 70人）　選手をタップで詳細
+            <div className="list-toolbar">
+              <span className="muted">
+                {shown.length}人（保有 {roster.length}人 / 上限 70人）
+              </span>
+              <div className="seg" role="group" aria-label="一覧の表示">
+                <button
+                  type="button"
+                  className={view === 'ability' ? 'on' : ''}
+                  aria-pressed={view === 'ability'}
+                  onClick={() => setView('ability')}
+                >
+                  能力
+                </button>
+                <button
+                  type="button"
+                  className={view === 'stats' ? 'on' : ''}
+                  aria-pressed={view === 'stats'}
+                  onClick={() => setView('stats')}
+                >
+                  打率・防御率
+                </button>
+              </div>
             </div>
             {shown.map((player) => (
               <PlayerCard
                 key={player.id}
                 player={player}
                 today={state.date}
+                view={view}
                 onClick={() => setSelected(player)}
               />
             ))}
