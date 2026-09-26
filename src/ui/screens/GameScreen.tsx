@@ -25,6 +25,7 @@ import {
 import { StadiumScene, TeamMark } from '../components/visuals/TeamVisuals';
 import { EventScene } from '../components/visuals/EventScene';
 import { PlayerVisual } from '../components/PlayerVisual';
+import { wasBroadcast } from '../components/LiveBroadcast';
 import { useFirstVisit, useReducedMotion } from '../anim';
 
 export function GameScreen() {
@@ -315,7 +316,8 @@ export function GameResultView({
    * 途中でスキップしても、リロードしても、結果は 1 ミリも変わらない。
    */
   const innings = Math.max(result.away.inningRuns.length, result.home.inningRuns.length);
-  const play = usePlayback(innings + 1, 190, true);
+  // 中継で一度見せた試合は、スコアブックでは繰り返さない
+  const play = usePlayback(innings + 1, 190, !wasBroadcast(result.id));
   // step 回まで進んだ時点の得点（表示専用）
   const shownInnings = Math.min(innings, play.step);
   const partial = (runs: number[]) =>
@@ -330,7 +332,8 @@ export function GameResultView({
       <div className="big-score">
         <span className="t">{away.shortName}</span>
         <span className="s">
-          {awayShown} - {homeShown}
+          <span className="score-digit" key={`a${awayRuns}`}>{awayShown}</span> -{' '}
+          <span className="score-digit" key={`h${homeRuns}`}>{homeShown}</span>
         </span>
         <span className="t">{home.shortName}</span>
       </div>
@@ -343,8 +346,8 @@ export function GameResultView({
         )}
       </div>
       {/*
-        PHASE 4.3: 試合が終わったら、まず FINAL を静かに出し、
-        少し遅れて勝敗を出す（§6）。ポップアップも紙吹雪も出さない。
+        PHASE 4.3: 試合が終わったら、まず FINAL を出し、少し遅れて勝敗を出す（§6）。
+        紙吹雪などの大きな演出は中継（LiveBroadcast）側が受け持つ。
       */}
       <div className="final-line">
         {play.done && (
@@ -391,7 +394,9 @@ export function GameResultView({
             <tr>
               <td className="team">{away.shortName}</td>
               {result.away.inningRuns.map((r, i) => (
-                <td key={i}>{i < shownInnings ? r : ''}</td>
+                <td key={i} className={i < shownInnings ? `ls-on${r > 0 ? ' ls-run' : ''}` : undefined}>
+                  {i < shownInnings ? r : ''}
+                </td>
               ))}
               <td className="total">{awayRuns}</td>
               <td>{play.done ? result.away.hits : ''}</td>
@@ -400,7 +405,7 @@ export function GameResultView({
             <tr>
               <td className="team">{home.shortName}</td>
               {result.home.inningRuns.map((r, i) => (
-                <td key={i}>
+                <td key={i} className={i < shownInnings ? `ls-on${r > 0 ? ' ls-run' : ''}` : undefined}>
                   {i >= shownInnings
                     ? ''
                     : i === result.innings - 1 &&

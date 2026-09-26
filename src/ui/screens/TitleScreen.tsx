@@ -1,9 +1,28 @@
 import { useState } from 'react';
+import type { CSSProperties } from 'react';
 import { useStore } from '../store';
 import { TEAM_SEEDS } from '../../domain/teams';
 import { LEAGUES } from '../../domain/teams';
 import { SEASON_LENGTH_OPTIONS } from '../../domain/schedule';
 import type { SeasonLength } from '../../domain/types';
+import titleBg from '../../assets/backgrounds/bg-game.webp';
+
+const TITLE_WORDS = ['My', 'Ideal', 'Pennant', 'Race'];
+
+/** タイトルの野球ボール。縫い目ごと回る */
+function TitleBall() {
+  return (
+    <svg className="title-ball" viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="32" r="29" fill="#fbf8f1" stroke="#d9d2c3" strokeWidth="2" />
+      <g className="title-ball-seams" fill="none" stroke="#c8352b" strokeWidth="2.2" strokeLinecap="round">
+        <path d="M17 8c7 7 10 15 10 24s-3 17-10 24" />
+        <path d="M47 8c-7 7-10 15-10 24s3 17 10 24" />
+        <path d="M20 14l4-2M22 20l4-1.5M23.5 27l4-.8M23.5 37l4 .8M22 44l4 1.5M20 50l4 2" />
+        <path d="M44 14l-4-2M42 20l-4-1.5M40.5 27l-4-.8M40.5 37l-4 .8M42 44l-4 1.5M44 50l-4 2" />
+      </g>
+    </svg>
+  );
+}
 
 /** 取り返しのつかない操作の確認（ブラウザのダイアログは使わない） */
 type Confirming = 'new' | 'delete' | null;
@@ -18,8 +37,34 @@ export function TitleScreen() {
   if (phase === 'title') {
     return (
       <div className="title-screen">
-        <h1>My Ideal Pennant Race</h1>
-        <div className="jp">プロ野球 球団経営シミュレーション</div>
+        <div className="title-bg" aria-hidden="true">
+          <img src={titleBg} alt="" />
+          <div className="title-rays" />
+          <div className="title-dust">
+            {Array.from({ length: 18 }, (_, i) => (
+              <span
+                key={i}
+                style={{
+                  left: `${(i * 37) % 100}%`,
+                  animationDelay: `${((i * 13) % 50) / 10}s`,
+                  animationDuration: `${6 + ((i * 7) % 6)}s`,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="title-logo">
+          <TitleBall />
+          <h1 aria-label="My Ideal Pennant Race">
+            {TITLE_WORDS.map((word, i) => (
+              <span key={word} className="title-word" style={{ animationDelay: `${180 + i * 110}ms` }}>
+                {word}
+              </span>
+            ))}
+          </h1>
+          <div className="jp">プロ野球 球団経営シミュレーション</div>
+        </div>
+        <div className="title-menu">
         {saveExists && (
           <button
             className="btn primary"
@@ -90,8 +135,9 @@ export function TitleScreen() {
           </section>
         )}
 
-        <div className="muted" style={{ textAlign: 'center', marginTop: 8 }}>
+        <div className="title-tagline">
           監督兼GMとして、編成と采配でチームを勝利へ導こう。
+        </div>
         </div>
       </div>
     );
@@ -109,11 +155,17 @@ export function TitleScreen() {
             <h2>
               {league.name}　{league.useDH ? 'DH制あり' : 'DH制なし'}
             </h2>
-            {TEAM_SEEDS.filter((t) => t.leagueId === league.id).map((team) => (
+            {TEAM_SEEDS.filter((t) => t.leagueId === league.id).map((team, i) => (
               <button
                 key={team.id}
                 className={`team-pick ${teamId === team.id ? 'on' : ''}`}
-                style={{ borderLeftColor: team.color }}
+                style={
+                  {
+                    borderLeftColor: team.color,
+                    animationDelay: `${i * 55}ms`,
+                    '--team': team.color,
+                  } as CSSProperties
+                }
                 onClick={() => setTeamId(team.id)}
               >
                 <span className="grow">

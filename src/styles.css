@@ -1195,43 +1195,6 @@ h3.sec {
   animation: screen-in 150ms ease-out both;
 }
 
-/*
- * 画面切り替えの読み込み演出（いまは待ち時間が無くても先に挟んでおく）。
- * 表示や操作は止めない（pointer-events: none）。
- */
-.loading-flourish {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(10, 12, 20, 0.55);
-  pointer-events: none;
-  animation: loading-flourish-fade 550ms ease-out both;
-}
-
-.loading-flourish img {
-  width: min(72vw, 320px);
-  border-radius: var(--radius);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.45);
-}
-
-@keyframes loading-flourish-fade {
-  0% {
-    opacity: 0;
-  }
-  15% {
-    opacity: 1;
-  }
-  70% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-
 /* 順番に現れるカード（§19） */
 @keyframes card-in {
   from {
@@ -2351,6 +2314,7 @@ h3.sec {
 /* スコアブックは左右スワイプで前後の試合に切り替えられる（縦スクロールは邪魔しない） */
 .swipe-card {
   touch-action: pan-y;
+  scroll-margin-top: 64px;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -4418,4 +4382,1995 @@ h3.sec {
   text-align: center;
   padding: 20px 0;
   color: var(--ink-2);
+}
+
+/* =====================================================================
+ * GAME FEEL — 手ざわりと動き
+ *
+ * 紙とインクの資料はそのままに、「触ると応える」ゲームらしさを足す層。
+ * 押す・切り替わる・点が入る・勝つ、の瞬間にだけ強く動かし、
+ * 読む時間には動かさない。prefers-reduced-motion ではすべて止める。
+ * ===================================================================== */
+
+:root {
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-snap: cubic-bezier(0.2, 0.9, 0.1, 1);
+  --glow-brass: oklch(80% 0.15 85);
+}
+
+/* ---------- 押した場所に広がる輪 ---------- */
+.tap-ring,
+.tap-spark {
+  position: fixed;
+  z-index: 400;
+  pointer-events: none;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.tap-ring {
+  width: 64px;
+  height: 64px;
+  border: 2px solid oklch(62% 0.17 26 / 0.8);
+  animation: tap-ring 520ms var(--ease-out) both;
+}
+
+.tap-spark {
+  width: 14px;
+  height: 14px;
+  background: radial-gradient(circle, oklch(98% 0.05 85) 0%, oklch(80% 0.16 80 / 0.7) 45%, transparent 70%);
+  animation: tap-spark 380ms ease-out both;
+}
+
+@keyframes tap-ring {
+  from {
+    transform: translate(-50%, -50%) scale(0.15);
+    opacity: 1;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1.1);
+    opacity: 0;
+    border-width: 0.5px;
+  }
+}
+
+@keyframes tap-spark {
+  from {
+    transform: translate(-50%, -50%) scale(0.4);
+    opacity: 1;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(2.6);
+    opacity: 0;
+  }
+}
+
+/* ---------- ボタン：押すと沈み、離すと弾む ---------- */
+.btn {
+  transition:
+    transform 260ms var(--ease-spring),
+    box-shadow 200ms ease,
+    background-color 160ms ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.95);
+  transition-duration: 60ms;
+}
+
+.btn.primary {
+  box-shadow: 0 3px 0 oklch(18% 0.012 265), 0 6px 14px oklch(24.5% 0.012 265 / 0.25);
+}
+
+.btn.primary:active:not(:disabled) {
+  box-shadow: 0 1px 0 oklch(18% 0.012 265), 0 2px 6px oklch(24.5% 0.012 265 / 0.2);
+  transform: translateY(2px) scale(0.97);
+}
+
+/* 主ボタンには時々光の筋が走る */
+.btn.primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.35) 50%, transparent 65%);
+  transform: translateX(-120%);
+  animation: btn-shine 3.6s ease-in-out 1.2s infinite;
+  pointer-events: none;
+}
+
+@keyframes btn-shine {
+  0%,
+  62% {
+    transform: translateX(-120%);
+  }
+  82%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+/* 絵のボタン */
+.btn-img {
+  position: relative;
+  transition:
+    transform 320ms var(--ease-spring),
+    filter 200ms ease;
+}
+
+.btn-img img {
+  transition:
+    transform 320ms var(--ease-spring),
+    opacity 120ms ease;
+  filter: drop-shadow(0 3px 4px oklch(20% 0.02 265 / 0.28));
+}
+
+.btn-img:active:not(:disabled) {
+  transform: scale(0.93) translateY(2px);
+  transition-duration: 70ms;
+}
+
+.btn-img:active img {
+  opacity: 1;
+  transform: none;
+  filter: brightness(1.12) drop-shadow(0 1px 1px oklch(20% 0.02 265 / 0.3));
+}
+
+@media (hover: hover) {
+  .btn-img:hover:not(:disabled) {
+    transform: translateY(-2px) scale(1.02);
+  }
+  .btn:hover:not(:disabled) {
+    filter: brightness(1.06);
+  }
+}
+
+/* 絵の形に沿った光の筋（マスクは PictureButton が渡す） */
+.btn-img:not(.label-btn):not(:disabled)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  -webkit-mask-image: var(--btn-mask);
+  mask-image: var(--btn-mask);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.55) 46%,
+    rgba(255, 255, 255, 0.1) 54%,
+    transparent 64%
+  );
+  background-size: 300% 100%;
+  background-position: 120% 0;
+  animation: img-shine 5.2s ease-in-out infinite;
+  mix-blend-mode: soft-light;
+}
+
+.btn-img:nth-child(2n)::after {
+  animation-delay: 0.7s;
+}
+.btn-img:nth-child(3n)::after {
+  animation-delay: 1.5s;
+}
+.btn-img:nth-child(5n)::after {
+  animation-delay: 2.3s;
+}
+
+@keyframes img-shine {
+  0%,
+  70% {
+    background-position: 120% 0;
+  }
+  92%,
+  100% {
+    background-position: -20% 0;
+  }
+}
+
+/* ホームの絵ボタンは画面を開いたとき、順にポンと置かれる */
+.home-actions .btn-img,
+.home-actions .btn-next-game {
+  animation: btn-drop 440ms var(--ease-spring) both;
+}
+.home-actions-row > :nth-child(2) {
+  animation-delay: 60ms;
+}
+.home-actions-grid .btn-img:nth-child(1) {
+  animation-delay: 110ms;
+}
+.home-actions-grid .btn-img:nth-child(2) {
+  animation-delay: 150ms;
+}
+.home-actions-grid .btn-img:nth-child(3) {
+  animation-delay: 190ms;
+}
+.home-actions-grid .btn-img:nth-child(4) {
+  animation-delay: 230ms;
+}
+.home-actions-grid .btn-img:nth-child(5) {
+  animation-delay: 270ms;
+}
+.home-actions-grid .btn-img:nth-child(6) {
+  animation-delay: 310ms;
+}
+.home-actions-grid .btn-img:nth-child(7) {
+  animation-delay: 350ms;
+}
+
+@keyframes btn-drop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.86);
+  }
+}
+
+/* 次の試合ボタン：呼吸するように光る。いちばん強い動線だけ */
+.btn-next-game:not(:disabled) {
+  transition: transform 320ms var(--ease-spring);
+}
+
+.btn-next-game:not(:disabled) .next-game-idle {
+  animation: next-glow 2.4s ease-in-out infinite;
+}
+
+.btn-next-game:active:not(:disabled) {
+  transform: scale(0.93) translateY(2px);
+  transition-duration: 70ms;
+}
+
+@keyframes next-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 3px 4px oklch(20% 0.02 265 / 0.28));
+  }
+  50% {
+    filter: drop-shadow(0 0 10px oklch(85% 0.16 85 / 0.95)) drop-shadow(0 3px 4px oklch(20% 0.02 265 / 0.28));
+  }
+}
+
+/* ---------- 画面切り替え ---------- */
+.screen-anim {
+  animation: screen-in 220ms ease-out both;
+}
+
+/* 画面の中の節が、上から順に少しだけ浮き上がる */
+.screen-anim .screen-content > :not(.sheet-bg) {
+  animation: section-rise 420ms var(--ease-snap) both;
+}
+.screen-anim .screen-content > :nth-child(2) {
+  animation-delay: 40ms;
+}
+.screen-anim .screen-content > :nth-child(3) {
+  animation-delay: 80ms;
+}
+.screen-anim .screen-content > :nth-child(4) {
+  animation-delay: 120ms;
+}
+.screen-anim .screen-content > :nth-child(5) {
+  animation-delay: 160ms;
+}
+.screen-anim .screen-content > :nth-child(n + 6) {
+  animation-delay: 200ms;
+}
+
+@keyframes section-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* 背景写真はゆっくり寄っていく（Ken Burns） */
+.screen-bg img {
+  animation: bg-drift 28s ease-in-out infinite alternate;
+  transform-origin: 60% 40%;
+}
+
+@keyframes bg-drift {
+  from {
+    transform: scale(1.02);
+  }
+  to {
+    transform: scale(1.12) translate(-1.5%, 1%);
+  }
+}
+
+/* ---------- 読み込みの帯（LoadingFlourish） ---------- */
+.loading-flourish {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+  overflow: hidden;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.lf-band {
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: -30%;
+  right: -30%;
+  transform: translateX(110%) skewX(-18deg);
+  animation: lf-wipe 640ms var(--ease-in-out) both;
+}
+
+.lf-band-1 {
+  background: var(--ink);
+}
+
+.lf-band-2 {
+  background: var(--accent);
+  animation-delay: 35ms;
+  clip-path: polygon(0 46%, 100% 40%, 100% 47%, 0 53%);
+}
+
+.lf-band-3 {
+  background: var(--brass);
+  animation-delay: 60ms;
+  clip-path: polygon(0 55%, 100% 49%, 100% 51%, 0 57%);
+}
+
+@keyframes lf-wipe {
+  0% {
+    transform: translateX(110%) skewX(-18deg);
+  }
+  36%,
+  62% {
+    transform: translateX(0) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(-110%) skewX(-18deg);
+  }
+}
+
+.lf-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  animation: lf-center 640ms ease both;
+}
+
+.lf-center img {
+  width: min(62vw, 260px);
+  border-radius: 6px;
+  border: 2px solid oklch(98% 0.005 85 / 0.9);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.lf-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.lf-dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--paper);
+  animation: lf-dot 480ms ease-in-out infinite;
+}
+.lf-dots span:nth-child(2) {
+  animation-delay: 80ms;
+}
+.lf-dots span:nth-child(3) {
+  animation-delay: 160ms;
+}
+
+@keyframes lf-dot {
+  50% {
+    transform: translateY(-6px);
+    background: var(--brass);
+  }
+}
+
+@keyframes lf-center {
+  0%,
+  22% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  40%,
+  62% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  78%,
+  100% {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+}
+
+/* ---------- シート：背景は暗転、本体は弾んで上がる ---------- */
+.sheet-bg {
+  animation: sheet-bg-in 200ms ease-out both;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+@keyframes sheet-bg-in {
+  from {
+    background: oklch(24.5% 0.012 265 / 0);
+    backdrop-filter: blur(0);
+  }
+}
+
+.sheet {
+  animation: sheet-up 380ms var(--ease-spring) both;
+  box-shadow: 0 -12px 40px oklch(20% 0.02 265 / 0.3);
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(60%);
+    opacity: 0.2;
+  }
+}
+
+/* ---------- 通知：下から弾んで出る ---------- */
+.toast {
+  animation: toast-in 420ms var(--ease-spring) both;
+  border-left: 4px solid var(--accent);
+  background: var(--paper);
+  box-shadow:
+    0 10px 28px oklch(20% 0.02 265 / 0.35),
+    0 0 0 1px var(--rule);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 24px) scale(0.9);
+  }
+}
+
+/* ---------- ボトムナビ：赤い罫が滑って移る ---------- */
+.nav button.on::before {
+  display: none;
+}
+
+.nav-indicator {
+  position: absolute;
+  top: -2px;
+  left: 0;
+  width: 20%;
+  height: 3px;
+  pointer-events: none;
+  transition:
+    transform 380ms var(--ease-spring),
+    opacity 200ms ease;
+}
+
+.nav-indicator::before {
+  content: '';
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  top: 0;
+  bottom: 0;
+  background: var(--accent);
+  border-radius: 0 0 3px 3px;
+  box-shadow: 0 2px 8px oklch(43.5% 0.148 26 / 0.5);
+}
+
+.nav button {
+  transition:
+    color 160ms ease,
+    transform 260ms var(--ease-spring);
+}
+
+.nav button:active {
+  transform: scale(0.9);
+  transition-duration: 60ms;
+}
+
+.nav button.on {
+  animation: nav-pop 360ms var(--ease-spring);
+}
+
+@keyframes nav-pop {
+  40% {
+    transform: translateY(-3px) scale(1.08);
+  }
+}
+
+/* ---------- アプリバー：設定ボタン ---------- */
+.appbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  align-self: center;
+}
+
+.appbar-icon {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--ink-2);
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  transition: transform 320ms var(--ease-spring);
+}
+
+.appbar-icon:active {
+  transform: rotate(60deg) scale(0.9);
+}
+
+.appbar-icon-badge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  color: var(--ink-3);
+}
+
+.appbar-icon-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+.appbar-icon-badge.on {
+  color: var(--grass);
+}
+
+/* ---------- 設定のスイッチ ---------- */
+.pref-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+}
+
+.pref-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pref-label {
+  font-weight: 800;
+  font-size: var(--text-md);
+}
+
+.pref-note {
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+}
+
+.pref-switch {
+  flex: 0 0 auto;
+  width: 50px;
+  height: 28px;
+  border-radius: 14px;
+  background: var(--paper-3);
+  border: 1px solid var(--rule-2);
+  position: relative;
+  transition: background-color 200ms ease;
+}
+
+.pref-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: 0 1px 3px oklch(20% 0.02 265 / 0.4);
+  transition: transform 320ms var(--ease-spring);
+}
+
+.pref-toggle.on .pref-switch {
+  background: var(--grass);
+  border-color: var(--grass);
+}
+
+.pref-toggle.on .pref-knob {
+  transform: translateX(22px);
+}
+
+/* ---------- 数字が変わった瞬間に弾む ---------- */
+.score-digit,
+.desk-rank {
+  display: inline-block;
+  animation: digit-bump 460ms var(--ease-spring);
+}
+
+@keyframes digit-bump {
+  0% {
+    transform: scale(1.5);
+    color: var(--accent);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.linescore td.ls-on {
+  animation: ls-cell 280ms var(--ease-spring) both;
+}
+
+.linescore td.ls-run {
+  color: var(--accent);
+  font-weight: 800;
+  animation: ls-run 520ms var(--ease-spring) both;
+}
+
+@keyframes ls-cell {
+  from {
+    transform: translateY(-6px);
+    opacity: 0;
+  }
+}
+
+@keyframes ls-run {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+    background: var(--brass-soft);
+  }
+  60% {
+    transform: scale(1.35);
+    background: var(--brass-soft);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* 試合結果：勝敗の文字はスタンプのように押される */
+.final-result {
+  display: inline-block;
+  animation: stamp-in 520ms var(--ease-spring) 240ms both;
+}
+
+.final-result.win {
+  text-shadow: 0 0 12px oklch(80% 0.12 148 / 0.6);
+}
+
+@keyframes stamp-in {
+  0% {
+    opacity: 0;
+    transform: scale(2.4) rotate(-8deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.92) rotate(-3deg);
+  }
+  100% {
+    transform: scale(1) rotate(-3deg);
+  }
+}
+
+.game-result-banner {
+  animation: banner-in 620ms var(--ease-spring) 380ms both;
+}
+
+@keyframes banner-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7) translateY(12px);
+  }
+}
+
+/* ---------- タイトル画面 ---------- */
+.title-screen {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: oklch(20% 0.03 265);
+  justify-content: space-between;
+  padding: 12vh 22px 7vh;
+}
+
+.title-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+
+.title-bg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: title-zoom 24s ease-in-out infinite alternate;
+}
+
+.title-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 30%, transparent 0%, oklch(15% 0.03 265 / 0.35) 60%, oklch(12% 0.03 265 / 0.85) 100%),
+    linear-gradient(to bottom, oklch(15% 0.03 265 / 0.1) 40%, oklch(12% 0.03 265 / 0.85) 100%);
+}
+
+@keyframes title-zoom {
+  from {
+    transform: scale(1.05);
+  }
+  to {
+    transform: scale(1.2) translate(-2%, 2%);
+  }
+}
+
+.title-rays {
+  position: absolute;
+  left: 50%;
+  top: 8%;
+  width: 180vmax;
+  height: 180vmax;
+  margin: -90vmax 0 0 -90vmax;
+  background: repeating-conic-gradient(
+    from 0deg,
+    oklch(98% 0.05 85 / 0.12) 0deg 6deg,
+    transparent 6deg 18deg
+  );
+  -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 45%);
+  mask-image: radial-gradient(circle, #000 0%, transparent 45%);
+  animation: rays-spin 40s linear infinite;
+  mix-blend-mode: screen;
+}
+
+@keyframes rays-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.title-dust span {
+  position: absolute;
+  bottom: -10px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: oklch(95% 0.08 85);
+  box-shadow: 0 0 6px oklch(90% 0.12 85);
+  opacity: 0;
+  animation: dust-rise linear infinite;
+}
+
+@keyframes dust-rise {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(-100vh) translateX(20px);
+    opacity: 0;
+  }
+}
+
+.title-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.title-ball {
+  width: 72px;
+  height: 72px;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.5));
+  animation:
+    ball-in 900ms var(--ease-spring) both,
+    ball-float 3.2s ease-in-out 900ms infinite;
+}
+
+.title-ball-seams {
+  transform-origin: 32px 32px;
+  animation: seams-spin 900ms var(--ease-out) both;
+}
+
+@keyframes ball-in {
+  from {
+    transform: translate(-60vw, -30vh) rotate(-540deg) scale(0.4);
+    opacity: 0;
+  }
+}
+
+@keyframes seams-spin {
+  from {
+    transform: rotate(-720deg);
+  }
+}
+
+@keyframes ball-float {
+  50% {
+    transform: translateY(-8px) rotate(8deg);
+  }
+}
+
+.title-screen h1 {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0 0.3em;
+  font-size: clamp(34px, 10.5vw, 48px);
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+  color: oklch(98% 0.01 85);
+  text-shadow:
+    0 2px 0 var(--accent),
+    0 4px 0 oklch(30% 0.12 26),
+    0 10px 24px rgba(0, 0, 0, 0.55);
+}
+
+.title-word {
+  display: inline-block;
+  animation: word-drop 620ms var(--ease-spring) both;
+}
+
+.title-word:nth-child(3),
+.title-word:nth-child(4) {
+  color: oklch(88% 0.14 85);
+}
+
+@keyframes word-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-40px) scale(1.6) rotate(-6deg);
+    filter: blur(4px);
+  }
+}
+
+.title-screen .jp {
+  color: oklch(94% 0.02 85);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  font-size: 13px;
+  padding: 5px 14px;
+  border-top: 1px solid oklch(94% 0.02 85 / 0.5);
+  border-bottom: 1px solid oklch(94% 0.02 85 / 0.5);
+  animation: fade-up 500ms ease-out 700ms both;
+  margin: 0;
+}
+
+.title-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.title-menu > .btn {
+  min-height: 52px;
+  font-size: 17px;
+  animation: fade-up 480ms var(--ease-spring) both;
+  animation-delay: 900ms;
+}
+
+.title-menu > .btn:nth-child(2) {
+  animation-delay: 980ms;
+}
+.title-menu > .btn:nth-child(3) {
+  animation-delay: 1060ms;
+}
+
+.title-menu > .btn.primary {
+  background: var(--accent);
+  border-color: oklch(35% 0.14 26);
+  color: var(--accent-ink);
+  box-shadow: 0 4px 0 oklch(30% 0.12 26), 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+
+.title-menu > .btn.primary:active {
+  box-shadow: 0 1px 0 oklch(30% 0.12 26), 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+
+.title-menu > .btn:not(.primary) {
+  background: oklch(98% 0.005 85 / 0.92);
+}
+
+.title-menu .confirm-panel {
+  animation: sheet-up 380ms var(--ease-spring) both;
+}
+
+.title-tagline {
+  text-align: center;
+  color: oklch(92% 0.02 85 / 0.85);
+  font-size: 12px;
+  margin-top: 4px;
+  animation: fade-up 500ms ease-out 1.2s both;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* 球団選択：順に差し込まれ、選ぶと球団色で光る */
+.team-pick {
+  animation: pick-in 380ms var(--ease-snap) both;
+  transition:
+    transform 260ms var(--ease-spring),
+    box-shadow 220ms ease,
+    background-color 200ms ease;
+}
+
+.team-pick:active {
+  transform: scale(0.97);
+}
+
+.team-pick.on {
+  transform: translateX(4px);
+  box-shadow:
+    -4px 0 0 var(--team, var(--accent)),
+    0 6px 18px color-mix(in oklch, var(--team, var(--accent)) 35%, transparent);
+}
+
+.team-pick.on .chip {
+  animation: stamp-in 420ms var(--ease-spring) both;
+}
+
+@keyframes pick-in {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+}
+
+/* =====================================================================
+ * 試合中継（LiveBroadcast）
+ * ===================================================================== */
+.live-bc {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: calc(12px + env(safe-area-inset-top)) 14px calc(16px + env(safe-area-inset-bottom));
+  color: #f4f1ea;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  animation: live-in 320ms ease-out both;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes live-in {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+}
+
+.live-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  background: #081229;
+}
+
+.live-sky {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 115%, #1f6b31 0%, #174f28 24%, transparent 42%),
+    radial-gradient(ellipse at 50% -10%, #23407a 0%, transparent 60%),
+    linear-gradient(#0a1633, #07102a 55%, #0b1a33);
+}
+
+.live-crowd {
+  position: absolute;
+  left: -5%;
+  right: -5%;
+  bottom: 30%;
+  height: 26%;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.55) 0.8px, transparent 1.4px),
+    radial-gradient(circle, rgba(255, 210, 120, 0.4) 0.8px, transparent 1.4px);
+  background-size:
+    7px 6px,
+    11px 9px;
+  background-position:
+    0 0,
+    3px 2px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 80%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 80%, transparent);
+  opacity: 0.5;
+  animation: crowd-flicker 1.6s steps(3) infinite;
+}
+
+@keyframes crowd-flicker {
+  50% {
+    background-position:
+      1px 1px,
+      4px 3px;
+    opacity: 0.6;
+  }
+}
+
+.live-light {
+  position: absolute;
+  top: 6%;
+  width: 80px;
+  height: 36px;
+  border-radius: 8px;
+  background: radial-gradient(ellipse, #fff 0%, #eaf3ff 30%, rgba(170, 210, 255, 0.35) 55%, transparent 72%);
+  filter: blur(1px);
+  animation: light-pulse 3s ease-in-out infinite;
+}
+
+.live-light.l1 {
+  left: 4%;
+}
+.live-light.l2 {
+  right: 4%;
+  animation-delay: 1.5s;
+}
+
+@keyframes light-pulse {
+  50% {
+    opacity: 0.75;
+    transform: scale(1.06);
+  }
+}
+
+.live-beam {
+  position: absolute;
+  top: 8%;
+  width: 60%;
+  height: 120%;
+  background: linear-gradient(to bottom, rgba(210, 230, 255, 0.22), transparent 70%);
+  clip-path: polygon(46% 0, 54% 0, 100% 100%, 0 100%);
+  transform-origin: 50% 0;
+  mix-blend-mode: screen;
+}
+
+.live-beam.b1 {
+  left: -14%;
+  animation: beam-sway 6s ease-in-out infinite alternate;
+}
+.live-beam.b2 {
+  right: -14%;
+  animation: beam-sway 7s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes beam-sway {
+  from {
+    transform: rotate(-24deg);
+  }
+  to {
+    transform: rotate(14deg);
+  }
+}
+
+.live-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.live-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff3b3b;
+  box-shadow: 0 0 10px #ff3b3b;
+  animation: live-blink 1s steps(2) infinite;
+}
+
+.phase-final .live-dot {
+  background: #ffcf3f;
+  box-shadow: 0 0 10px #ffcf3f;
+  animation: none;
+}
+
+@keyframes live-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.live-where {
+  margin-left: auto;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.8;
+}
+
+/* スコアボード（電光掲示板） */
+.live-board {
+  background: linear-gradient(#0d1a12, #06100a);
+  border: 3px solid #2b3a2f;
+  border-radius: 8px;
+  padding: 8px 10px 10px;
+  box-shadow:
+    inset 0 0 22px rgba(0, 0, 0, 0.7),
+    0 10px 26px rgba(0, 0, 0, 0.5);
+  animation: board-drop 560ms var(--ease-spring) both;
+}
+
+@keyframes board-drop {
+  from {
+    transform: translateY(-40px);
+    opacity: 0;
+  }
+}
+
+.live-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
+.live-row-bar {
+  width: 4px;
+  align-self: stretch;
+  border-radius: 2px;
+}
+
+.live-row .team-mark {
+  flex: 0 0 auto;
+}
+
+.live-row-name {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.live-row.mine .live-row-name::after {
+  content: 'YOU';
+  margin-left: 6px;
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #ffcf3f;
+  color: #1b1405;
+  vertical-align: 3px;
+  letter-spacing: 0.08em;
+}
+
+.live-row-bat {
+  color: #ffcf3f;
+  font-size: 10px;
+  animation: live-blink 0.8s steps(2) infinite;
+}
+
+.live-row-score {
+  margin-left: auto;
+  min-width: 1.4em;
+  text-align: right;
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1;
+  color: #ffcf3f;
+  text-shadow:
+    0 0 10px rgba(255, 207, 63, 0.7),
+    0 0 2px #fff6;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  animation: score-flip 600ms var(--ease-spring);
+}
+
+@keyframes score-flip {
+  0% {
+    transform: rotateX(90deg) scale(1.6);
+    color: #fff;
+  }
+  100% {
+    transform: none;
+  }
+}
+
+.live-lines {
+  margin-top: 6px;
+  display: grid;
+  gap: 3px;
+}
+
+.live-lines-row {
+  display: flex;
+  gap: 3px;
+}
+
+.live-cell {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  color: #ffe9a6;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+}
+
+.live-cell.on {
+  background: rgba(255, 255, 255, 0.1);
+  animation: cell-on 260ms ease-out;
+}
+
+.live-cell.scored {
+  background: #ffcf3f;
+  color: #201500;
+  animation: cell-score 540ms var(--ease-spring);
+}
+
+.live-cell.now {
+  outline: 1.5px solid #ffcf3f;
+  animation: cell-now 0.7s ease-in-out infinite;
+}
+
+@keyframes cell-on {
+  from {
+    background: rgba(255, 255, 255, 0.5);
+  }
+}
+
+@keyframes cell-score {
+  0% {
+    transform: scale(0.2);
+  }
+  60% {
+    transform: scale(1.4);
+  }
+}
+
+@keyframes cell-now {
+  50% {
+    background: rgba(255, 207, 63, 0.25);
+  }
+}
+
+/* グラウンド */
+.live-field-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.live-field {
+  width: 100%;
+  max-height: 100%;
+  filter: drop-shadow(0 12px 30px rgba(0, 0, 0, 0.5));
+}
+
+.lb-ball,
+.lb-shadow {
+  transform-box: view-box;
+}
+
+/* 投球：マウンドから本塁へ */
+.live-field .lb-ball {
+  animation: lb-pitch 300ms ease-in both;
+  filter: drop-shadow(0 0 3px #fff);
+}
+.live-field .lb-shadow {
+  animation: lb-pitch 300ms ease-in both;
+}
+
+@keyframes lb-pitch {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(0, 56px);
+  }
+}
+
+/* 打球：本塁から外野へ弧を描く（ホームランはスタンドの外へ） */
+.live-field.kind-score .lb-ball {
+  animation:
+    lb-pitch 300ms ease-in both,
+    lb-liner 620ms var(--ease-out) 320ms both;
+}
+.live-field.kind-score .lb-shadow {
+  animation:
+    lb-pitch 300ms ease-in both,
+    lb-liner-shadow 620ms var(--ease-out) 320ms both;
+}
+
+.live-field.kind-homer .lb-ball,
+.live-field.kind-walkoff .lb-ball {
+  animation:
+    lb-pitch 300ms ease-in both,
+    lb-homer 1000ms cubic-bezier(0.25, 0.6, 0.4, 1) 320ms both;
+}
+.live-field.kind-homer .lb-shadow,
+.live-field.kind-walkoff .lb-shadow {
+  animation:
+    lb-pitch 300ms ease-in both,
+    lb-homer-shadow 1000ms linear 320ms both;
+}
+
+@keyframes lb-liner {
+  0% {
+    transform: translate(0, 56px) scale(1);
+  }
+  50% {
+    transform: translate(46px, -10px) scale(1.9);
+  }
+  100% {
+    transform: translate(82px, -52px) scale(1);
+  }
+}
+
+@keyframes lb-liner-shadow {
+  0% {
+    transform: translate(0, 56px);
+  }
+  100% {
+    transform: translate(82px, -52px);
+  }
+}
+
+@keyframes lb-homer {
+  0% {
+    transform: translate(0, 56px) scale(1);
+  }
+  45% {
+    transform: translate(-40px, -70px) scale(3.2);
+  }
+  100% {
+    transform: translate(-82px, -150px) scale(0.6);
+    opacity: 0;
+  }
+}
+
+@keyframes lb-homer-shadow {
+  0% {
+    transform: translate(0, 56px);
+    opacity: 0.35;
+  }
+  100% {
+    transform: translate(-90px, -96px);
+    opacity: 0;
+  }
+}
+
+.lb-impact {
+  fill: none;
+  stroke: #ffe066;
+  stroke-width: 3;
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: lb-impact 420ms ease-out 310ms both;
+}
+
+@keyframes lb-impact {
+  0% {
+    opacity: 1;
+    transform: scale(0.3);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(4);
+  }
+}
+
+.lb-batter {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.live-field:not(.kind-quiet):not(.kind-idle) .lb-batter {
+  animation: lb-batter-run 900ms ease-in-out 420ms both;
+}
+
+@keyframes lb-batter-run {
+  to {
+    transform: translate(46px, -52px);
+  }
+}
+
+/* 走者：三塁 → 本塁（得点） */
+.lb-runner {
+  fill: #ffcf3f;
+  stroke: #1b1405;
+  stroke-width: 1.5;
+  transform-box: view-box;
+  opacity: 0;
+  animation: lb-runner 900ms ease-in-out 420ms both;
+}
+
+.lb-runner.r1 {
+  animation-delay: 560ms;
+}
+.lb-runner.r2 {
+  animation-delay: 700ms;
+}
+
+@keyframes lb-runner {
+  0% {
+    opacity: 1;
+    transform: translate(-64px, -60px);
+  }
+  85% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(0, 0) scale(2);
+  }
+}
+
+.live-inning {
+  position: absolute;
+  top: 2px;
+  left: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  animation: inning-in 300ms var(--ease-spring) both;
+}
+
+.live-inning strong {
+  font-size: 20px;
+  color: #ffcf3f;
+}
+
+.live-inning-team {
+  margin-left: 6px;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+@keyframes inning-in {
+  from {
+    transform: translateX(-30px);
+    opacity: 0;
+  }
+}
+
+/* 得点の吹き出し */
+.live-callout {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 18%;
+  pointer-events: none;
+  animation: callout 1300ms var(--ease-snap) 640ms both;
+}
+
+.live-callout-main {
+  font-size: clamp(34px, 11vw, 52px);
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -0.01em;
+  color: #fff;
+  -webkit-text-stroke: 2px #b3261e;
+  paint-order: stroke fill;
+  text-shadow:
+    0 4px 0 #7a150f,
+    0 0 24px rgba(255, 90, 60, 0.8);
+  transform: rotate(-6deg);
+}
+
+.live-callout.kind-homer .live-callout-main,
+.live-callout.kind-walkoff .live-callout-main {
+  color: #ffe066;
+  -webkit-text-stroke: 2px #6b3d00;
+  text-shadow:
+    0 4px 0 #6b3d00,
+    0 0 30px rgba(255, 210, 60, 0.95);
+}
+
+.live-callout-sub {
+  margin-top: 4px;
+  font-size: 24px;
+  font-weight: 900;
+  color: #ffcf3f;
+  text-shadow: 0 2px 0 #000;
+}
+
+@keyframes callout {
+  0% {
+    opacity: 0;
+    transform: scale(3);
+  }
+  14% {
+    opacity: 1;
+    transform: scale(0.9);
+  }
+  22% {
+    transform: scale(1.05);
+  }
+  30%,
+  78% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.1) translateY(-20px);
+  }
+}
+
+.live-bc:has(.live-callout.kind-homer) .live-board,
+.live-bc:has(.live-callout.kind-walkoff) .live-board {
+  animation: shake 420ms ease-in-out 660ms;
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: none;
+  }
+  20% {
+    transform: translate(-5px, 2px) rotate(-0.6deg);
+  }
+  40% {
+    transform: translate(5px, -2px) rotate(0.6deg);
+  }
+  60% {
+    transform: translate(-3px, 1px);
+  }
+  80% {
+    transform: translate(3px, -1px);
+  }
+}
+
+/* 試合開始の入場 */
+.live-intro {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  background: radial-gradient(ellipse, rgba(6, 12, 30, 0.75), rgba(6, 12, 30, 0.2) 70%);
+}
+
+.live-intro-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 20px;
+  font-weight: 900;
+  text-shadow: 0 2px 8px #000;
+}
+
+.live-intro-team .team-mark {
+  filter: drop-shadow(0 0 14px rgba(255, 255, 255, 0.45));
+}
+
+.live-intro-team.left {
+  animation: intro-left 600ms var(--ease-spring) 100ms both;
+}
+.live-intro-team.right {
+  animation: intro-right 600ms var(--ease-spring) 100ms both;
+}
+
+@keyframes intro-left {
+  from {
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+}
+@keyframes intro-right {
+  from {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+}
+
+.live-intro-vs {
+  font-size: 34px;
+  font-weight: 900;
+  font-style: italic;
+  color: #ffcf3f;
+  text-shadow: 0 0 16px rgba(255, 207, 63, 0.8);
+  animation: vs-in 500ms var(--ease-spring) 520ms both;
+}
+
+@keyframes vs-in {
+  from {
+    transform: scale(4) rotate(-20deg);
+    opacity: 0;
+  }
+}
+
+.live-playball {
+  grid-column: 1 / -1;
+  justify-self: center;
+  font-size: clamp(30px, 10vw, 44px);
+  font-weight: 900;
+  font-style: italic;
+  color: #fff;
+  -webkit-text-stroke: 2px #b3261e;
+  paint-order: stroke fill;
+  text-shadow: 0 4px 0 #7a150f;
+  animation: callout 1200ms var(--ease-snap) 850ms both;
+}
+
+.live-gameset {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: clamp(38px, 12vw, 56px);
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.04em;
+  color: #fff;
+  text-shadow:
+    0 0 24px rgba(255, 255, 255, 0.8),
+    0 4px 0 #333;
+  animation: callout 1100ms var(--ease-snap) both;
+}
+
+/* 実況テロップ */
+.live-ticker {
+  min-height: 74px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.35));
+  border-left: 4px solid #e63946;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.live-ticker-line {
+  animation: ticker-in 320ms var(--ease-snap) both;
+}
+
+@keyframes ticker-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+.live-skip {
+  align-self: center;
+  padding: 10px 26px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  transition: transform 260ms var(--ease-spring);
+}
+
+.live-skip:active {
+  transform: scale(0.92);
+}
+
+/* 結果発表 */
+.live-final {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.live-flash {
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  pointer-events: none;
+  animation: flash 520ms ease-out both;
+}
+
+@keyframes flash {
+  from {
+    opacity: 0.9;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.live-stamp {
+  font-size: clamp(76px, 26vw, 120px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  padding: 6px 22px 10px;
+  border: 6px solid currentColor;
+  border-radius: 14px;
+  animation: big-stamp 620ms var(--ease-spring) 60ms both;
+}
+
+.outcome-win .live-stamp {
+  color: #ffcf3f;
+  text-shadow: 0 0 30px rgba(255, 207, 63, 0.8);
+  box-shadow:
+    0 0 40px rgba(255, 207, 63, 0.45),
+    inset 0 0 30px rgba(255, 207, 63, 0.3);
+}
+
+.outcome-loss .live-stamp {
+  color: #b9c3d6;
+  border-style: double;
+}
+
+.outcome-draw .live-stamp {
+  color: #e8e2d4;
+}
+
+@keyframes big-stamp {
+  0% {
+    opacity: 0;
+    transform: scale(3.2) rotate(-14deg);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(0.88) rotate(-5deg);
+  }
+  75% {
+    transform: scale(1.06) rotate(-5deg);
+  }
+  100% {
+    transform: scale(1) rotate(-5deg);
+  }
+}
+
+.outcome-win.phase-final .live-board {
+  animation: shake 440ms ease-in-out 180ms;
+}
+
+.outcome-loss.phase-final .live-bg {
+  filter: saturate(0.4) brightness(0.8);
+  transition: filter 800ms ease;
+}
+
+.live-final-score {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 18px;
+  font-weight: 800;
+  animation: fade-up 400ms ease-out 480ms both;
+}
+
+.live-final-score strong {
+  font-size: 44px;
+  font-weight: 900;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  color: #fff;
+}
+
+.live-final-score em {
+  font-style: normal;
+  margin: 0 10px;
+  opacity: 0.6;
+}
+
+.live-final-banner {
+  width: 100%;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  animation: banner-in 620ms var(--ease-spring) 620ms both;
+}
+
+.live-final-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 14px;
+  font-size: 13px;
+  opacity: 0.9;
+  animation: fade-up 400ms ease-out 820ms both;
+}
+
+.live-final-record {
+  color: #ffcf3f;
+  font-weight: 800;
+}
+
+.live-close {
+  margin-top: 6px;
+  padding: 14px 34px;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #1b1405;
+  background: linear-gradient(#ffe27a, #ffbf1f);
+  box-shadow:
+    0 4px 0 #a86e00,
+    0 10px 24px rgba(0, 0, 0, 0.5);
+  animation:
+    fade-up 420ms var(--ease-spring) 1s both,
+    close-pulse 1.8s ease-in-out 1.6s infinite;
+  transition: transform 200ms var(--ease-spring);
+}
+
+.live-close:active {
+  transform: translateY(3px) scale(0.96);
+  box-shadow: 0 1px 0 #a86e00;
+}
+
+@keyframes close-pulse {
+  50% {
+    box-shadow:
+      0 4px 0 #a86e00,
+      0 0 0 8px rgba(255, 207, 63, 0.18),
+      0 10px 24px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* 紙吹雪 */
+.confetti {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 2;
+}
+
+.confetti span {
+  position: absolute;
+  top: -20px;
+  border-radius: 1px;
+  animation-name: confetti-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-fill-mode: both;
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translate(0, 0) rotate(var(--rot)) rotateY(0);
+  }
+  100% {
+    transform: translate(var(--drift), 110vh) rotate(calc(var(--rot) + 540deg)) rotateY(720deg);
+  }
+}
+
+/* ---------- 表と一覧：画面を開いたときに上から順に差し込まれる ---------- */
+.screen-anim table.data tbody tr,
+.screen-anim .player-card {
+  animation: row-in 360ms var(--ease-snap) both;
+  animation-delay: 520ms;
+}
+.screen-anim table.data tbody tr:nth-child(1),
+.screen-anim .player-card:nth-child(1) {
+  animation-delay: 170ms;
+}
+.screen-anim table.data tbody tr:nth-child(2),
+.screen-anim .player-card:nth-child(2) {
+  animation-delay: 200ms;
+}
+.screen-anim table.data tbody tr:nth-child(3),
+.screen-anim .player-card:nth-child(3) {
+  animation-delay: 230ms;
+}
+.screen-anim table.data tbody tr:nth-child(4),
+.screen-anim .player-card:nth-child(4) {
+  animation-delay: 260ms;
+}
+.screen-anim table.data tbody tr:nth-child(5),
+.screen-anim .player-card:nth-child(5) {
+  animation-delay: 290ms;
+}
+.screen-anim table.data tbody tr:nth-child(6),
+.screen-anim .player-card:nth-child(6) {
+  animation-delay: 320ms;
+}
+.screen-anim table.data tbody tr:nth-child(7),
+.screen-anim .player-card:nth-child(7) {
+  animation-delay: 350ms;
+}
+.screen-anim table.data tbody tr:nth-child(8),
+.screen-anim .player-card:nth-child(8) {
+  animation-delay: 380ms;
+}
+.screen-anim table.data tbody tr:nth-child(9),
+.screen-anim .player-card:nth-child(9) {
+  animation-delay: 410ms;
+}
+.screen-anim table.data tbody tr:nth-child(10),
+.screen-anim .player-card:nth-child(10) {
+  animation-delay: 440ms;
+}
+.screen-anim table.data tbody tr:nth-child(11),
+.screen-anim .player-card:nth-child(11) {
+  animation-delay: 470ms;
+}
+.screen-anim table.data tbody tr:nth-child(12),
+.screen-anim .player-card:nth-child(12) {
+  animation-delay: 500ms;
+}
+
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+
+/* ---------- 視差効果を減らす設定：すべて止める ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .tap-ring,
+  .tap-spark,
+  .confetti,
+  .live-flash,
+  .title-rays,
+  .title-dust,
+  .live-beam {
+    display: none !important;
+  }
+
+  .btn,
+  .btn-img,
+  .btn-img img,
+  .btn-img::after,
+  .btn.primary::after,
+  .btn-next-game,
+  .btn-next-game .next-game-idle,
+  .home-actions .btn-img,
+  .screen-anim .screen-content > *,
+  .screen-bg img,
+  .sheet,
+  .sheet-bg,
+  .toast,
+  .nav button,
+  .nav-indicator,
+  .score-digit,
+  .desk-rank,
+  .linescore td,
+  .final-result,
+  .game-result-banner,
+  .title-screen *,
+  .team-pick,
+  .live-bc,
+  .live-bc *,
+  table.data tbody tr,
+  .player-card {
+    animation: none !important;
+    transition: none !important;
+  }
 }
