@@ -567,23 +567,23 @@ const playedAll = state.results.length;
 if (playedAll !== 6) fail(`その日の全6試合が処理されていない (${playedAll})`);
 else ok('12球団すべての試合が処理された');
 
-// スコアブックの左右スワイプ
+// スコアブックの左右スワイプ（左 = 過去、右 = 新しい試合／次の試合）
 {
-  // まだ1試合しかないので、右スワイプ（過去へ）は何も起きない
-  await swipeScorebook(140);
+  // まだ1試合しかないので、左スワイプ（過去へ）は何も起きない
+  await swipeScorebook(-140);
   await page.waitForTimeout(150);
   const hintBefore = await page.locator('.swipe-hint').innerText();
-  if (hintBefore.includes('◀')) fail('試合が1件しかないのに右スワイプ（過去）が有効になっている');
-  else ok('試合が1件のときは右スワイプ（過去）が無効');
+  if (hintBefore.includes('◀')) fail('試合が1件しかないのに左スワイプ（過去）が有効になっている');
+  else ok('試合が1件のときは左スワイプ（過去）が無効');
 
   const scoreBefore = await page.locator('.big-score').innerText();
 
-  // 最新の試合を見ている状態で左スワイプ → 次の試合に進む確認が出る
-  await swipeScorebook(-140);
+  // 最新の試合を見ている状態で右スワイプ → 次の試合に進む確認が出る
+  await swipeScorebook(140);
   await page.locator('.sheet').waitFor();
   const confirmText = await page.locator('.sheet').innerText();
-  if (!confirmText.includes('次の試合に進みます')) fail('左スワイプで次の試合への確認画面が出なかった');
-  else ok('最新の試合から左スワイプすると、次の試合への確認画面が出る');
+  if (!confirmText.includes('次の試合に進みます')) fail('右スワイプで次の試合への確認画面が出なかった');
+  else ok('最新の試合から右スワイプすると、次の試合への確認画面が出る');
   await shot('11b-swipe-confirm');
 
   await page.getByRole('button', { name: 'はい' }).click();
@@ -595,25 +595,27 @@ else ok('12球団すべての試合が処理された');
   if (state.records.phoenix.games !== 2) fail(`確認後に試合数が増えていない (${state.records.phoenix.games})`);
   else ok('確認後の試合が2試合目として記録された');
 
-  // 右スワイプで1試合前（1試合目）の結果に戻れる
-  await swipeScorebook(140);
+  // 左スワイプで1試合前（1試合目）の結果に戻れる
+  await swipeScorebook(-140);
   await page.waitForTimeout(150);
   await waitGameFinal();
   const noteOlder = await page.locator('.swipe-card .sec-note').innerText();
-  if (!noteOlder.includes('過去')) fail('右スワイプで過去の試合に切り替わらなかった');
-  else ok('右スワイプで1試合前の結果に切り替わった');
+  if (!noteOlder.includes('過去')) fail('左スワイプで過去の試合に切り替わらなかった');
+  else ok('左スワイプで1試合前の結果に切り替わった');
   const scoreOlder = await page.locator('.big-score').innerText();
   if (scoreOlder !== scoreBefore) fail('過去の試合のスコアが1試合目のものと一致しない');
   else ok('過去の試合のスコアは1試合目のものと一致する');
 
-  // 左スワイプで最新（2試合目）の結果に戻れる
-  await swipeScorebook(-140);
+  // 右スワイプで最新（2試合目）の結果に戻れる
+  await swipeScorebook(140);
   await page.waitForTimeout(150);
   await waitGameFinal();
   const noteBack = await page.locator('.swipe-card .sec-note').innerText();
-  if (noteBack.includes('過去')) fail('左スワイプで最新の試合に戻らなかった');
-  else ok('左スワイプで最新の試合に戻った');
+  if (noteBack.includes('過去')) fail('右スワイプで最新の試合に戻らなかった');
+  else ok('右スワイプで最新の試合に戻った');
   await shot('11c-swipe-back');
+  if ((await page.locator('.scorebook-nav .next-game-cta').count()) !== 1) fail('試合結果の下に「次の試合へ」ボタンが無い');
+  else ok('試合結果の下に「次の試合へ」ボタンがある');
 }
 
 // 順位表
@@ -2106,7 +2108,8 @@ const moraleBefore = (await readState()).teamMorale.phoenix;
 for (let i = 0; i < 40; i++) {
   const st = await readState();
   if (st.seasonFinished) break;
-  const next = page.getByRole('button', { name: /次の日へ|試合へ|オフシーズンへ/ }).first();
+  // 試合結果の下の「次の試合へ ▶」は拾わない（ホームの入口だけを押す。前と同じ進め方）
+  const next = page.getByRole('button', { name: /^(次の日へ|.*試合へ|オフシーズンへ)$/ }).first();
   if (!(await next.count())) break;
   await next.click();
   await page.waitForTimeout(120);

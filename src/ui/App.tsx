@@ -19,6 +19,7 @@ import { DiscoveryScreen } from './screens/DiscoveryScreen';
 import { PlayerCheckScreen } from './screens/PlayerCheckScreen';
 import { PlayerDetailHost } from './components/PlayerDetailHost';
 import { formatDateJa } from '../domain/dates';
+import { nextGameForTeam } from '../domain/schedule';
 import { PictureButton } from './components/PictureButton';
 import { LoadingFlourish } from './components/LoadingFlourish';
 import saveQuitArt from '../assets/ui/app-save-quit.webp';
@@ -50,7 +51,8 @@ export function App() {
 }
 
 function Root() {
-  const { state, screen, setScreen, toast, quitToTitle, faHidden, lastResult } = useStore();
+  const { state, screen, setScreen, toast, quitToTitle, faHidden, lastResult, playNextGame } =
+    useStore();
 
   /*
    * 試合中継。新しい試合結果が出たら（次の試合・1日進める・スワイプで次へ）
@@ -193,6 +195,16 @@ function Root() {
               document.querySelector('.swipe-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
             );
           }}
+          onNext={
+            !state.seasonFinished &&
+            nextGameForTeam(state.schedule, state.playerTeamId, state.date)
+              ? () => {
+                  setLiveId(null);
+                  setScreen('game');
+                  playNextGame();
+                }
+              : undefined
+          }
         />
       )}
       {/* PHASE 4.9-A: どの画面からでも選手名をタップしたら、ここが選手詳細を出す */}
