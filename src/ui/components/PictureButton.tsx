@@ -22,6 +22,8 @@ export function PictureButton({
       className={`btn-img${className ? ` ${className}` : ''}`}
       onClick={onClick}
       disabled={disabled}
+      // 絵の形に沿って光の筋を走らせるため、同じ絵をマスクとして CSS に渡す
+      style={{ ['--btn-mask' as string]: `url("${src}")` }}
     >
       <img src={src} alt={alt} />
     </button>

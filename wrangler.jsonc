@@ -1,0 +1,18 @@
+/*
+ * Cloudflare（Workers の静的アセット）への配信設定。
+ * ビルド結果の dist/ をそのまま配信するだけで、サーバー側の処理は無い。
+ * このファイルがあると wrangler の自動設定（Vite 6 以上が必要）を使わずに済む。
+ *
+ * Cloudflare 側の設定:
+ *   ビルドコマンド: npm run build
+ *   デプロイコマンド: npx wrangler deploy
+ * name は Cloudflare の管理画面で作った Worker の名前と同じにすること。
+ */
+{
+  "name": "my-ideal-pennant-race",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}

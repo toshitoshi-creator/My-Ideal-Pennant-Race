@@ -29,6 +29,7 @@ import { TeamMark, StadiumScene } from '../components/visuals/TeamVisuals';
 import { PlayerVisual } from '../components/PlayerVisual';
 import { PlayerLink } from '../components/PlayerLink';
 import { PictureButton } from '../components/PictureButton';
+import { CountUp } from '../components/Reveal';
 import { ScreenBackground } from '../components/ScreenBackground';
 import homeBg from '../../assets/backgrounds/bg-home.webp';
 // 次の試合ボタンの絵。Vite が同梱するので、実行時に外へ取りに行くことはない
@@ -123,14 +124,27 @@ export function HomeScreen() {
         <div className="desk-line">
           {record.games > 0 && (
             <div className="desk-standing">
-              <span className="figure">{rank}</span>
+              <span className="figure desk-rank" key={rank}>
+                {rank}
+              </span>
               <span className="desk-standing-unit">位</span>
             </div>
           )}
           <div className="desk-record">
             <span className="label">GAME STATUS</span>
             <div className="desk-wl">
-              <b>{record.wins}</b>勝 <b>{record.losses}</b>敗 <b>{record.draws}</b>分
+              <b>
+                <CountUp value={record.wins} durationMs={700} />
+              </b>
+              勝{' '}
+              <b>
+                <CountUp value={record.losses} durationMs={700} />
+              </b>
+              敗{' '}
+              <b>
+                <CountUp value={record.draws} durationMs={700} />
+              </b>
+              分
             </div>
             <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>
               {record.games > 0

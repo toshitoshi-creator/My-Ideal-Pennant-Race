@@ -21,3 +21,6 @@ character-gallery.html
 r48_*.jsonl
 character-workshop.html
 spot48b.jsonl
+
+# Cloudflare wrangler のローカル作業フォルダ
+.wrangler/

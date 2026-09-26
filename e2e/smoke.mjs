@@ -26,6 +26,14 @@ const page = await browser.newPage({
  * ここでは呼び出しを記録しつつ、sandbox と同じく false を返す。
  */
 await page.addInitScript(() => {
+  /*
+   * 試合中継の演出は既定で ON。多くの試合を続けて進めるこの検査では、
+   * 明示的に試す場面以外は OFF にしておく（設定が無いときだけ入れる）。
+   */
+  try {
+    if (!localStorage.getItem('mipr:pref:broadcast')) localStorage.setItem('mipr:pref:broadcast', 'off');
+    localStorage.setItem('mipr:pref:sound', 'off');
+  } catch {}
   const calls = [];
   window.__modalCalls = calls;
   for (const name of ['confirm', 'alert', 'prompt']) {
@@ -501,9 +509,27 @@ if (rotBefore[0] === rotAfter[0]) fail('先発投手を変更できなかった'
 else ok('先発ローテーションを変更できた');
 await shot('10-rotation');
 
-// 試合
+// 試合（最初の1試合は中継演出を ON にして、中継 → スキップ → 資料へ が通ることを確かめる）
+await page.evaluate(() => localStorage.setItem('mipr:pref:broadcast', 'on'));
 await page.locator('.nav').getByText('試合').click();
 await page.getByRole('button', { name: '試合開始' }).click();
+{
+  const live = page.locator('.live-bc');
+  await live.waitFor({ timeout: 3000 });
+  ok('試合開始で中継の演出が開いた');
+  await page.waitForTimeout(400);
+  await shot('11a-live');
+  await page.getByRole('button', { name: 'SKIP ▶▶' }).click();
+  await page.getByRole('button', { name: '試合の資料を見る' }).waitFor({ timeout: 3000 });
+  const finalText = await live.innerText();
+  if (!/勝利|敗戦|引分/.test(finalText)) fail('中継の最後に勝敗が表示されない');
+  else ok('中継をスキップすると勝敗の発表に進む');
+  await shot('11b-live-final');
+  await page.getByRole('button', { name: '試合の資料を見る' }).click();
+  await live.waitFor({ state: 'detached', timeout: 3000 });
+  ok('中継を閉じると試合の資料に戻る');
+}
+await page.evaluate(() => localStorage.setItem('mipr:pref:broadcast', 'off'));
 await page.locator('.linescore').waitFor();
 
 // PHASE 4.1: 試合結果は回ごとに再生される（演出だけで、結果は計算済み）
