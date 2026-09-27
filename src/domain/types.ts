@@ -410,6 +410,61 @@ export interface GameState {
    * ここに何が入っていてもゲームの進行・乱数・能力には影響しない。
    */
   decisions: DecisionRecord[];
+  /**
+   * ゼロから始める球団づくり（最初の選手契約）。契約を終えてシーズンが始まれば null。
+   * 無い・null なら通常のゲーム。
+   */
+  expansion?: ExpansionState | null;
+  /** 自球団のファンの人数（このフィールドより前のセーブには無い） */
+  fans?: number;
+  /** 前日（最後に試合を行う前）のファンの人数。増減の表示に使う */
+  fansBefore?: number;
+  /** 自球団のファンが増減した出来事（古い順、最大40件） */
+  fanLog?: FanLogEntry[];
+  /** 直近の決算（自球団） */
+  lastSettlement?: SettlementReport | null;
+}
+
+/* ---------------- ゼロからの球団づくり・ファン・決算 ---------------- */
+
+export interface ExpansionCandidate {
+  id: string;
+  player: Player;
+  /** 契約金（契約した時に球団資金から払う） */
+  bonus: number;
+  /** 年俸（決算で払う） */
+  salary: number;
+  years: number;
+}
+
+export interface ExpansionState {
+  /** 契約できる選手 */
+  pool: ExpansionCandidate[];
+  /** 契約した候補ID */
+  signed: string[];
+  /** 契約を始める前の球団資金 */
+  startCash: number;
+}
+
+export interface FanLogEntry {
+  date: string;
+  /** 増減した人数 */
+  delta: number;
+  reason: string;
+}
+
+export interface SettlementReport {
+  year: number;
+  /** 決算時のファンの人数 */
+  fans: number;
+  /** 球団の基本収入（放映権など） */
+  baseRevenue: number;
+  /** ファンから得た収入（入場料・グッズなど） */
+  fanRevenue: number;
+  revenue: number;
+  payroll: number;
+  result: number;
+  cashAfter: number;
 }
 
 /* ---------------- GMの判断記録：PHASE 4.4 ---------------- */
@@ -963,6 +1018,41 @@ export interface DraftState {
   /** 球団ごとの必要人数 */
   needs: Record<string, number>;
   completed: boolean;
+  /**
+   * 1巡目の入札・抽選（NPB 方式）。無いときは従来どおり1巡目も順番に指名する
+   * （このフィールドより前のセーブ・テストのための互換）。
+   */
+  firstRound?: DraftFirstRound;
+}
+
+/** 重複指名のくじ引き */
+export interface DraftLottery {
+  prospectId: string;
+  /** くじを引く順（球団ID） */
+  teams: string[];
+  /** 当たりの紙の番号（0始まり）。引き終わるまで画面には出さない */
+  winningPaper: number;
+  /** 球団ごとに引いた紙の番号 */
+  drawn: Record<string, number>;
+  /** 交渉権を得た球団（引き終わるまで null） */
+  winner: string | null;
+}
+
+/** 1巡目の入札1回ぶん（1 = 1位、2 = 外れ1位、3 = 外れ外れ1位…） */
+export interface DraftFirstRoundAttempt {
+  attempt: number;
+  /** 球団ID → 入札した候補ID */
+  nominations: Record<string, string>;
+  lotteries: DraftLottery[];
+}
+
+export interface DraftFirstRound {
+  done: boolean;
+  /** まだ1巡目の選手が決まっていない球団（指名順） */
+  pending: string[];
+  attempts: DraftFirstRoundAttempt[];
+  /** プレイヤー球団が加わっていて、まだ引いていないくじ（最新の入札の lotteries の番号） */
+  awaitingLottery: number | null;
 }
 
 export interface GrowthReportEntry {

@@ -9,7 +9,7 @@ import { rankOfTeam, formatWinPct, winPct } from '../../domain/standings';
 import { RankBadge } from '../components/common';
 import { GrowthReportSheet } from '../components/GrowthReport';
 import { FinanceRows } from './ContractScreen';
-import { isExpiring, teamPayroll } from '../../domain/contract';
+import { formatSalary, isExpiring, teamPayroll } from '../../domain/contract';
 import { championshipCount } from '../../domain/history';
 import { recentNews, unreadCount } from '../../domain/news';
 import {
@@ -30,6 +30,7 @@ import { PlayerVisual } from '../components/PlayerVisual';
 import { PlayerLink } from '../components/PlayerLink';
 import { PictureButton } from '../components/PictureButton';
 import { CountUp } from '../components/Reveal';
+import { BASE_REVENUE, fanRevenue, totalRevenue } from '../../domain/fans';
 import { ScreenBackground } from '../components/ScreenBackground';
 import homeBg from '../../assets/backgrounds/bg-home.webp';
 // 次の試合ボタンの絵。Vite が同梱するので、実行時に外へ取りに行くことはない
@@ -153,6 +154,7 @@ export function HomeScreen() {
             </div>
           </div>
         </div>
+        <FanLine />
         <div className="desk-date">
           <span className="label">TODAY</span>
           {formatDateFull(state.date)}
@@ -199,6 +201,8 @@ export function HomeScreen() {
           <PictureButton src={gmJournalArt} alt="GM日誌" onClick={() => setScreen('news')} />
         </div>
       </section>
+
+      <FanReport />
 
       {/* ── 2. 試合前資料 ── いちばん面積を取る（§14） ── */}
       <section className="next-game">
@@ -536,5 +540,79 @@ function ClubSummary() {
         </div>
       )}
     </div>
+  );
+}
+
+/** ヘッダーのファンの人数。前日からの増減を添える */
+function FanLine() {
+  const { state } = useGame();
+  if (typeof state.fans !== 'number') return null;
+  const delta = state.fans - (state.fansBefore ?? state.fans);
+  return (
+    <div className="desk-fans">
+      <span className="label">FANS</span>
+      <span className="desk-fans-num">
+        <CountUp value={state.fans} durationMs={700} format={(v) => v.toLocaleString('ja-JP')} />
+        <small>人</small>
+      </span>
+      {delta !== 0 && (
+        <span className={`desk-fans-delta ${delta > 0 ? 'up' : 'down'}`} key={state.date}>
+          {delta > 0 ? '▲' : '▼'}
+          {Math.abs(delta).toLocaleString('ja-JP')}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** ファンの動きと決算（ファンが多いほど年に1回の決算で入るお金が増える） */
+function FanReport() {
+  const { state } = useGame();
+  if (typeof state.fans !== 'number') return null;
+  const log = (state.fanLog ?? []).slice(-4).reverse();
+  const settlement = state.lastSettlement;
+  const expected = totalRevenue(state.fans);
+  return (
+    <section className="fan-report">
+      <Sec en="FANS & SETTLEMENT" ja="ファンと決算" size="sub" />
+      <div className="fan-report-grid">
+        <div>
+          <span className="label">今季の収入見込み</span>
+          <strong>{formatSalary(expected)}</strong>
+          <small>
+            基本 {formatSalary(BASE_REVENUE)}＋ファン {formatSalary(fanRevenue(state.fans))}
+          </small>
+        </div>
+        {settlement && (
+          <div>
+            <span className="label">{settlement.year}年の決算</span>
+            <strong className={settlement.result >= 0 ? 'plus' : 'minus'}>
+              {settlement.result >= 0 ? '+' : '−'}
+              {formatSalary(Math.abs(settlement.result))}
+            </strong>
+            <small>
+              収入 {formatSalary(settlement.revenue)}／年俸 {formatSalary(settlement.payroll)}
+            </small>
+          </div>
+        )}
+      </div>
+      {log.length > 0 && (
+        <ul className="fan-log">
+          {log.map((entry, i) => (
+            <li key={`${entry.date}-${i}`}>
+              <span className={entry.delta > 0 ? 'up' : 'down'}>
+                {entry.delta > 0 ? '▲' : '▼'}
+                {Math.abs(entry.delta).toLocaleString('ja-JP')}
+              </span>
+              {entry.reason}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
+        勝利・順位の上昇・優勝・タイトルでファンが増え、敗戦・順位の低下・ケガ・引退で減ります。
+        収入はシーズン終了時の決算でまとめて球団資金に入り、来季に使えます。
+      </p>
+    </section>
   );
 }

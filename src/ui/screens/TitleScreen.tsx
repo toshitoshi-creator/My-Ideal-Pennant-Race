@@ -33,6 +33,11 @@ export function TitleScreen() {
   const [teamId, setTeamId] = useState<string | null>(null);
   const [seasonLength, setSeasonLength] = useState<SeasonLength>(143);
   const [confirming, setConfirming] = useState<Confirming>(null);
+  // 球団名は選んだあとで自由に付け替えられる（空欄なら元の名前のまま）
+  const [teamName, setTeamName] = useState('');
+  const [shortName, setShortName] = useState('');
+  // ゼロから（選手0人・最初の契約から）か、通常（65人の選手がいる状態）か
+  const [mode, setMode] = useState<'expansion' | 'normal'>('expansion');
 
   if (phase === 'title') {
     return (
@@ -183,7 +188,18 @@ export function TitleScreen() {
           <button className="btn secondary" onClick={() => setPhase('title')}>
             戻る
           </button>
-          <button className="btn primary" disabled={!teamId} onClick={() => setPhase('season')}>
+          <button
+            className="btn primary"
+            disabled={!teamId}
+            onClick={() => {
+              const picked = TEAM_SEEDS.find((t) => t.id === teamId);
+              if (picked) {
+                setTeamName(picked.name);
+                setShortName(picked.shortName);
+              }
+              setPhase('season');
+            }}
+          >
             次へ
           </button>
         </div>
@@ -197,10 +213,65 @@ export function TitleScreen() {
       <h1 style={{ fontSize: 20 }}>シーズン設定</h1>
       <div className="card">
         <h2>選択した球団</h2>
-        <div style={{ fontSize: 18, fontWeight: 800 }}>{team.name}</div>
-        <div className="muted">
+        <div className="muted" style={{ marginBottom: 8 }}>
           {LEAGUES.find((l) => l.id === team.leagueId)!.name} / 本拠地 {team.homeTown}
         </div>
+        <label className="name-field">
+          <span className="name-field-label">球団名</span>
+          <input
+            type="text"
+            value={teamName}
+            maxLength={16}
+            placeholder={team.name}
+            onChange={(e) => setTeamName(e.target.value)}
+            aria-label="球団名"
+          />
+        </label>
+        <label className="name-field">
+          <span className="name-field-label">略称（5文字まで）</span>
+          <input
+            type="text"
+            value={shortName}
+            maxLength={5}
+            placeholder={team.shortName}
+            onChange={(e) => setShortName(e.target.value)}
+            aria-label="略称"
+          />
+        </label>
+        <div className="muted" style={{ fontSize: 12 }}>
+          空欄のときは元の名前（{team.name}／{team.shortName}）になります。
+        </div>
+      </div>
+      <div className="card">
+        <h2>始め方</h2>
+        {(
+          [
+            {
+              id: 'expansion',
+              label: 'ゼロから球団をつくる',
+              note: '選手0人から。限られた資金で安い選手と契約して始めます。1年目は苦しい戦いになりますが、ファンを増やして強くしていきます',
+            },
+            {
+              id: 'normal',
+              label: '選手がそろった状態から',
+              note: '65人の選手がいる状態から始めます',
+            },
+          ] as const
+        ).map((option) => (
+          <button
+            key={option.id}
+            className={`team-pick ${mode === option.id ? 'on' : ''}`}
+            onClick={() => setMode(option.id)}
+          >
+            <span className="grow">
+              <span style={{ fontWeight: 800, fontSize: 16 }}>{option.label}</span>
+              <span className="meta muted" style={{ display: 'block' }}>
+                {option.note}
+              </span>
+            </span>
+            {mode === option.id && <span className="chip">選択中</span>}
+          </button>
+        ))}
       </div>
       <div className="card">
         <h2>シーズンの試合数</h2>
@@ -224,7 +295,10 @@ export function TitleScreen() {
         <button className="btn secondary" onClick={() => setPhase('team')}>
           戻る
         </button>
-        <button className="btn primary" onClick={() => startNewGame(team.id, seasonLength)}>
+        <button
+          className="btn primary"
+          onClick={() => startNewGame(team.id, seasonLength, { mode, teamName, shortName })}
+        >
           この設定で開始
         </button>
       </div>

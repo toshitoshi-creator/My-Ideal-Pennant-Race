@@ -68,6 +68,7 @@ await f.getByRole('button', { name: '新規ゲーム' }).click();
 await f.getByText('東都フェニックス').first().click();
 await f.getByRole('button', { name: '次へ' }).click();
 await f.getByText('10試合').click();
+await f.getByText('選手がそろった状態から').click();
 await f.getByRole('button', { name: 'この設定で開始' }).click();
 await f.locator('.appbar h1').waitFor();
 ok('iframe の中でも新規ゲームを開始できる');

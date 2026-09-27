@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import type { DraftProspect, ScoutReport } from '../../domain/types';
 import { availableProspects, currentPick } from '../../domain/draft';
+import { attemptLabel, canNominate, inFirstRound } from '../../domain/draftLottery';
+import { DraftBoard, LotteryOverlay, NominationReveal } from '../components/DraftLive';
 import { PlayerVisual, PlayerVisualHero } from '../components/PlayerVisual';
 import { RevealRows } from '../components/Reveal';
 import { POSITION_LABELS } from '../../domain/positions';
@@ -32,15 +34,39 @@ type Filter = 'all' | 'pitcher' | 'fielder' | 'scouted';
  * 選手の真の能力値・潜在能力・性格・特殊能力は一切表示しない。
  */
 export function DraftScreen() {
-  const { state, draftPick, startContracts, startDraftPicks } = useGame();
+  const { state, draftPick, drawLottery, startContracts, startDraftPicks } = useGame();
   const draft = state.draft!;
   const [filter, setFilter] = useState<Filter>('all');
   const [detail, setDetail] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<DraftProspect | null>(null);
 
-  const slot = currentPick(draft);
   const scoutingPhase = draft.phase === 'scouting';
-  const myTurn = !scoutingPhase && slot?.teamId === state.playerTeamId;
+  const firstRound = !scoutingPhase && inFirstRound(draft);
+  const slot = firstRound ? null : currentPick(draft);
+  // 1巡目は入札（全球団が同時に1人ずつ）、2巡目からは順番の指名
+  const myTurn = firstRound ? canNominate(state) : !scoutingPhase && slot?.teamId === state.playerTeamId;
+  const fr = draft.firstRound;
+
+  /*
+   * 入札の読み上げ → くじ引き の順に見せる。
+   * すでに見た入札は繰り返さない（画面を開き直したときは最新の状態から）。
+   */
+  const [seenAttempts, setSeenAttempts] = useState(() => fr?.attempts.length ?? 0);
+  const [revealIdx, setRevealIdx] = useState<number | null>(null);
+  const [lotteryAt, setLotteryAt] = useState<{ a: number; l: number } | null>(null);
+  useEffect(() => {
+    if (!fr || revealIdx !== null || lotteryAt !== null) return;
+    if (fr.attempts.length > seenAttempts) {
+      setRevealIdx(seenAttempts);
+      return;
+    }
+    // 開き直したとき、まだ引いていないくじがあればそのまま抽選へ
+    if (fr.awaitingLottery !== null) {
+      setLotteryAt({ a: fr.attempts.length - 1, l: fr.awaitingLottery });
+    }
+  }, [fr, seenAttempts, revealIdx, lotteryAt]);
+  const revealAttempt = revealIdx !== null ? fr?.attempts[revealIdx] : undefined;
+  const lotteryView = lotteryAt ? fr?.attempts[lotteryAt.a]?.lotteries[lotteryAt.l] : undefined;
   const team = state.teams.find((t) => t.id === state.playerTeamId)!;
   const scouting = state.scouting.teams[state.playerTeamId];
   const myPicks = draft.picks.filter((p) => p.teamId === state.playerTeamId);
@@ -108,6 +134,22 @@ export function DraftScreen() {
             </div>
             <PictureButton src={draftStartArt} alt="ドラフト会議を始める" className="label-btn" onClick={() => startDraftPicks()} />
           </div>
+        ) : firstRound ? (
+          <div className="card draft-status">
+            <div className="muted">
+              1巡目 入札（第{(fr?.attempts.length ?? 0) + (myTurn ? 1 : 0)}回・
+              {attemptLabel((fr?.attempts.length ?? 0) + (myTurn ? 1 : 0))}）
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2 }}>
+              {myTurn
+                ? `${attemptLabel((fr?.attempts.length ?? 0) + 1)}で入札する選手を選んでください`
+                : '抽選の結果を待っています'}
+            </div>
+            <div className="muted" style={{ marginTop: 6 }}>
+              全球団が同時に1人ずつ入札します。重なった選手はくじ引きで交渉権を決め、
+              外れた球団は残りの選手から再び入札します。
+            </div>
+          </div>
         ) : (
           <div className="card" style={{ borderColor: myTurn ? 'var(--accent)' : undefined }}>
             {slot ? (
@@ -135,6 +177,13 @@ export function DraftScreen() {
                 <PictureButton src={draftToContractArt} alt="契約更改へ" className="label-btn" onClick={() => startContracts()} />
               </>
             )}
+          </div>
+        )}
+
+        {!scoutingPhase && (
+          <div className="card">
+            <Sec en="DRAFT BOARD" ja="指名ボード" size="lead" note="球団をタップで全指名" />
+            <DraftBoard state={state} draft={draft} />
           </div>
         )}
 
@@ -206,7 +255,7 @@ export function DraftScreen() {
           </div>
         )}
 
-        {(scoutingPhase || slot) && (
+        {(scoutingPhase || slot || firstRound) && (
           <>
             <div className="tabs" style={{ padding: '0 0 10px' }}>
               {(
@@ -256,8 +305,37 @@ export function DraftScreen() {
         />
       )}
 
+      {revealAttempt && (
+        <NominationReveal
+          key={revealIdx}
+          state={state}
+          draft={draft}
+          attempt={revealAttempt}
+          onDone={() => {
+            const idx = revealIdx!;
+            setSeenAttempts(idx + 1);
+            setRevealIdx(null);
+            const l = revealAttempt.lotteries.findIndex(
+              (lot) => lot.teams.includes(state.playerTeamId),
+            );
+            if (l >= 0) setLotteryAt({ a: idx, l });
+          }}
+        />
+      )}
+
+      {lotteryView && (
+        <LotteryOverlay
+          key={`${lotteryAt!.a}-${lotteryAt!.l}`}
+          state={state}
+          draft={draft}
+          lottery={lotteryView}
+          onDraw={(paper) => drawLottery(paper)}
+          onClose={() => setLotteryAt(null)}
+        />
+      )}
+
       {confirming && (
-        <Sheet title="指名の確認" onClose={() => setConfirming(null)}>
+        <Sheet title={firstRound ? '入札の確認' : '指名の確認'} onClose={() => setConfirming(null)}>
           <div className="card">
             <div className="draft-confirm">
               {/* §42 指名の見せ場。ここだけ Portrait Reveal を使う */}
@@ -274,7 +352,9 @@ export function DraftScreen() {
               推定能力 {abilityRangeText(reports.get(confirming.id)!)}
             </div>
             <div style={{ marginTop: 10, fontSize: 15 }}>
-              {confirming.player.name}選手を指名しますか？
+              {firstRound
+                ? `${confirming.player.name}選手を${attemptLabel((fr?.attempts.length ?? 0) + 1)}で入札しますか？他球団と重なった場合はくじ引きになります。`
+                : `${confirming.player.name}選手を指名しますか？`}
             </div>
           </div>
           <div className="btn-row">

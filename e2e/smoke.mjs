@@ -70,6 +70,8 @@ await page.getByRole('button', { name: '新規ゲーム' }).click();
 await page.getByText('東都フェニックス').first().click();
 await page.getByRole('button', { name: '次へ' }).click();
 await page.getByText('10試合').click();
+// 既存の検査は「選手がそろった状態から」で行う（ゼロからの球団づくりは最後に別に検査する）
+await page.getByText('選手がそろった状態から').click();
 await shot('02-newgame');
 await page.getByRole('button', { name: 'この設定で開始' }).click();
 await page.locator('.appbar h1').waitFor();
@@ -1239,6 +1241,24 @@ if ((await page.getByRole('button', { name: 'この選手を指名' }).count()) 
   ok('スカウト結果を見ながら指名できる');
 }
 
+// 1巡目は入札方式。入札の発表・くじ引きの画面が出たら、紙を1枚引いて先へ進める
+const settleDraftOverlays = async () => {
+  for (let k = 0; k < 16; k++) {
+    if (!(await page.locator('.draft-overlay').count())) return;
+    if (await page.locator('.lottery.stage-choose').count()) {
+      await page.locator('.lot-paper:not(.taken)').first().click({ force: true });
+      await page.locator('.lottery.stage-result').waitFor({ timeout: 5000 });
+      sawLottery = true;
+    }
+    const btn = page.locator('.draft-overlay .nr-actions .btn');
+    if (await btn.count()) await btn.first().click();
+    await page.waitForTimeout(250);
+  }
+};
+let sawLottery = false;
+if ((await page.locator('.db-cell').count()) !== 12) fail('指名ボードに12球団が並んでいない');
+else ok('指名ボードに12球団（縦4×横3）が並んでいる');
+
 let myPicks = 0;
 for (let i = 0; i < 8; i++) {
   const state2 = await readState();
@@ -1251,6 +1271,7 @@ for (let i = 0; i < 8; i++) {
   await page.locator('.sheet').waitFor();
   await page.locator('.sheet').getByRole('button', { name: '指名する' }).click();
   await page.waitForTimeout(300);
+  await settleDraftOverlays();
   myPicks += 1;
   const s2 = await readState();
   if (!s2.draft) break;
@@ -1263,6 +1284,22 @@ if (myPicks === 0) ok('今年は自球団の補充が不要で、指名権がな
 else ok(`プレイヤー球団が${playerPicks}人を指名した`);
 if (cpuPicks === 0) fail('CPU球団が指名していない');
 else ok(`CPU球団が${cpuPicks}人を指名した`);
+{
+  const fr = afterPicks.draft?.firstRound;
+  if (fr) {
+    const firstRound = allPicks.filter((p) => p.round === 1);
+    if (!fr.done) fail('1巡目の入札が終わっていない');
+    else if (new Set(firstRound.map((p) => p.teamId)).size !== afterPicks.draft.order.length)
+      fail('1巡目の選手が決まっていない球団がある');
+    else
+      ok(`1巡目は入札方式で全球団が決まった（入札${fr.attempts.length}回・抽選${fr.attempts.reduce((n, a) => n + a.lotteries.length, 0)}件${sawLottery ? '・自球団もくじを引いた' : ''}）`);
+    const lotteryOk = fr.attempts.every((a) =>
+      a.lotteries.every((l) => l.winner && l.teams.includes(l.winner) && l.drawn[l.winner] === l.winningPaper),
+    );
+    if (!lotteryOk) fail('抽選の当たりと交渉権の球団が一致しない');
+    else ok('抽選は「当たりの紙を引いた球団」が交渉権を得ている');
+  }
+}
 const pickedIds = allPicks.map((p) => p.prospectId);
 if (new Set(pickedIds).size !== pickedIds.length) fail('同じ候補が重複して指名されている');
 else ok('重複指名は発生していない');
@@ -2864,6 +2901,72 @@ await page.getByRole('button', { name: '続きから' }).waitFor();
   } else {
     ok('confirm / alert / prompt を一度も使っていない（iframe 配布でも動く）');
   }
+}
+
+// ---- ゼロからの球団づくり（球団名の変更・最初の選手契約・ファン） ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const p2 = await ctx.newPage();
+  p2.on('pageerror', (e) => fail('ゼロからの球団づくりでページ内エラー: ' + e.message));
+  await p2.addInitScript(() => {
+    try {
+      localStorage.setItem('mipr:pref:broadcast', 'off');
+      localStorage.setItem('mipr:pref:sound', 'off');
+    } catch {}
+  });
+  const read2 = () => p2.evaluate(() => JSON.parse(localStorage.getItem('mipr:save:v1')));
+  await p2.goto(BASE);
+  await p2.getByRole('button', { name: '新規ゲーム' }).click();
+  await p2.getByText('東都フェニックス').first().click();
+  await p2.getByRole('button', { name: '次へ' }).click();
+  await p2.getByLabel('球団名').fill('湘南シーホークス');
+  await p2.getByLabel('略称').fill('湘南');
+  await p2.getByText('10試合').click();
+  await p2.getByText('ゼロから球団をつくる').click();
+  await p2.getByRole('button', { name: 'この設定で開始' }).click();
+  await p2.locator('.exp-row').first().waitFor();
+  let s2 = await read2();
+  const mineCount = (st) => st.players.filter((pl) => pl.teamId === st.playerTeamId).length;
+  if (mineCount(s2) !== 0) fail('ゼロからの球団づくりで、最初から選手がいる');
+  else ok('ゼロから：選手0人の状態から始まる');
+  if (s2.teams.find((t) => t.id === s2.playerTeamId).name !== '湘南シーホークス') fail('球団名を変更できていない');
+  else ok('球団を選んだあとに球団名を変更できる');
+  const cash0 = s2.finances[s2.playerTeamId].cash;
+  if ((await p2.getByRole('button', { name: 'この選手たちで開幕する' }).isEnabled())) fail('選手がいないのに開幕できる');
+  else ok('野手・投手がそろうまで開幕できない');
+  await p2.locator('.exp-row .btn.primary:not([disabled])').first().click();
+  await p2.waitForTimeout(200);
+  s2 = await read2();
+  const cand = s2.expansion.pool.find((c) => c.id === s2.expansion.signed[0]);
+  if (s2.finances[s2.playerTeamId].cash !== cash0 - cand.bonus) fail('契約金が球団資金から引かれていない');
+  else ok(`契約金（${cand.bonus}）が球団資金から引かれた`);
+  await p2.getByRole('button', { name: 'おまかせで契約' }).click();
+  await p2.waitForTimeout(300);
+  s2 = await read2();
+  const pool = s2.expansion.pool.filter((c) => s2.expansion.signed.includes(c.id));
+  const fielders = pool.filter((c) => !c.player.isPitcher).length;
+  const pitchers = pool.filter((c) => c.player.isPitcher).length;
+  if (fielders < 9 || pitchers < 5) fail(`おまかせで開幕に必要な人数がそろわない（野手${fielders}・投手${pitchers}）`);
+  else ok(`おまかせで野手${fielders}人・投手${pitchers}人と契約できた（資金 ${s2.finances[s2.playerTeamId].cash}）`);
+  if (s2.finances[s2.playerTeamId].cash < 0) fail('球団資金がマイナスになった');
+  await p2.getByRole('button', { name: 'この選手たちで開幕する' }).click();
+  await p2.locator('.appbar h1').waitFor();
+  s2 = await read2();
+  if (s2.expansion) fail('開幕後も契約の画面のまま');
+  else if (mineCount(s2) !== fielders + pitchers) fail('契約した選手が球団に加わっていない');
+  else ok(`契約した${mineCount(s2)}人で開幕した`);
+  if ((await p2.locator('.appbar h1').innerText()) !== '湘南シーホークス') fail('変更した球団名が画面に出ていない');
+  else ok('変更した球団名が画面に出ている');
+  if (!(await p2.locator('.desk-fans').count())) fail('ホームにファンの人数が出ていない');
+  else ok(`ホームにファンの人数が出ている（${s2.fans}人）`);
+  await p2.getByRole('button', { name: '次の試合へ' }).click();
+  await p2.waitForTimeout(400);
+  s2 = await read2();
+  if (s2.records[s2.playerTeamId].games !== 1) fail('ゼロから始めた球団で試合ができない');
+  else ok('ゼロから始めた球団で試合ができる');
+  if (s2.fans === undefined || !Number.isFinite(s2.fans)) fail('ファンの人数が壊れている');
+  else ok(`試合のあとのファン ${s2.fans}人（前日 ${s2.fansBefore}人）`);
+  await ctx.close();
 }
 
 await browser.close();

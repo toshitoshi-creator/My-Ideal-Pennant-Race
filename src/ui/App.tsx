@@ -16,6 +16,7 @@ import { PostseasonScreen } from './screens/PostseasonScreen';
 import { NewsScreen } from './screens/NewsScreen';
 import { ClubScreen } from './screens/ClubScreen';
 import { DiscoveryScreen } from './screens/DiscoveryScreen';
+import { ExpansionScreen } from './screens/ExpansionScreen';
 import { PlayerCheckScreen } from './screens/PlayerCheckScreen';
 import { PlayerDetailHost } from './components/PlayerDetailHost';
 import { formatDateJa } from '../domain/dates';
@@ -75,7 +76,9 @@ function Root() {
    */
   const transitionKey = !state
     ? 'title'
-    : state.draft
+    : state.expansion
+      ? 'expansion'
+      : state.draft
       ? 'draft'
       : state.contractPhase
         ? 'contract'
@@ -89,6 +92,21 @@ function Root() {
         <TitleScreen />
         <LoadingFlourish key={transitionKey} />
         {toast && <div className="toast">{toast}</div>}
+      </>
+    );
+  }
+
+  // ゼロからの球団づくり：最初の選手契約が終わるまでは専用画面
+  if (state.expansion) {
+    return (
+      <>
+        <ExpansionScreen />
+        <LoadingFlourish key={transitionKey} />
+        {toast && (
+          <div className="toast" key={toast}>
+            {toast}
+          </div>
+        )}
       </>
     );
   }

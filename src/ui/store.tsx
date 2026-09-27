@@ -32,7 +32,21 @@ import {
   rejectTradeOffer,
   respondToOffer,
 } from '../domain/trade';
-import { makePick, recordPlayerPick, runCpuPicks, currentPick, beginDraftPicks } from '../domain/draft';
+import { makePick, recordPlayerPick, runCpuPicks, currentPick } from '../domain/draft';
+import {
+  autoSignExpansion,
+  createExpansionGame,
+  finishExpansion,
+  releaseExpansionPlayer,
+  renameTeam,
+  signExpansionPlayer,
+} from '../domain/expansion';
+import {
+  beginLotteryDraft,
+  drawLotteryPaper,
+  inFirstRound,
+  nominateFirstRound,
+} from '../domain/draftLottery';
 import { investigate } from '../domain/scouting';
 import type { ScoutCategory } from '../domain/types';
 import { Rng } from '../domain/rng';
@@ -55,6 +69,12 @@ export type ScreenId =
   | 'playerCheck'
   | 'discovery';
 
+export interface NewGameOptions {
+  mode: 'expansion' | 'normal';
+  teamName: string;
+  shortName: string;
+}
+
 interface StoreValue {
   state: GameState | null;
   screen: ScreenId;
@@ -63,7 +83,12 @@ interface StoreValue {
   saveExists: boolean;
   setScreen(screen: ScreenId): void;
   showToast(message: string): void;
-  startNewGame(teamId: string, seasonLength: SeasonLength): void;
+  startNewGame(teamId: string, seasonLength: SeasonLength, options?: NewGameOptions): void;
+  /** ゼロからの球団づくり：候補と契約する／取り消す／おまかせ／シーズン開始 */
+  expansionSign(candidateId: string): void;
+  expansionRelease(candidateId: string): void;
+  expansionAuto(): void;
+  expansionFinish(): void;
   continueGame(): boolean;
   quitToTitle(): void;
   deleteSave(): void;
@@ -77,8 +102,10 @@ interface StoreValue {
   scout(prospectId: string, category: ScoutCategory): void;
   /** スカウト期間を終えて指名を開始する */
   startDraftPicks(): void;
-  /** ドラフトでプレイヤー球団が指名する */
+  /** ドラフトでプレイヤー球団が指名する（1巡目は入札） */
   draftPick(prospectId: string): void;
+  /** 1巡目の抽選で、くじの紙を1枚選ぶ */
+  drawLottery(paper: number): void;
   /** ドラフトを終えて契約更改に進む */
   startContracts(): void;
   /** 契約満了選手に条件を提示する */
@@ -172,8 +199,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const startNewGame = useCallback(
-    (teamId: string, seasonLength: SeasonLength) => {
-      const next = createNewGame(teamId, seasonLength);
+    (teamId: string, seasonLength: SeasonLength, options?: NewGameOptions) => {
+      const next =
+        options?.mode === 'expansion'
+          ? createExpansionGame(teamId, seasonLength, options)
+          : createNewGame(teamId, seasonLength);
+      if (options && options.mode !== 'expansion') {
+        renameTeam(next, teamId, options.teamName, options.shortName);
+      }
       const errors = validateState(next);
       if (errors.length > 0) console.error('データ整合性エラー', errors);
       persist(next);
@@ -301,10 +334,75 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!current?.draft || current.draft.phase === 'picking') return;
     const next = cloneState(current);
     const rng = new Rng(next.rngState);
-    beginDraftPicks(next, rng);
+    // 1巡目は NPB 方式の入札・抽選から始める
+    beginLotteryDraft(next, rng);
     next.rngState = rng.getState();
     commit(next);
   }, [commit]);
+
+  /** ゼロからの球団づくり：候補と契約する */
+  const expansionSign = useCallback(
+    (candidateId: string) => {
+      const current = stateRef.current;
+      if (!current?.expansion) return;
+      const next = cloneState(current);
+      const result = signExpansionPlayer(next, candidateId);
+      if (!result.ok) {
+        showToast(result.reason ?? '契約できません');
+        return;
+      }
+      commit(next);
+    },
+    [commit, showToast],
+  );
+
+  const expansionRelease = useCallback(
+    (candidateId: string) => {
+      const current = stateRef.current;
+      if (!current?.expansion) return;
+      const next = cloneState(current);
+      if (!releaseExpansionPlayer(next, candidateId).ok) return;
+      commit(next);
+    },
+    [commit],
+  );
+
+  const expansionAuto = useCallback(() => {
+    const current = stateRef.current;
+    if (!current?.expansion) return;
+    const next = cloneState(current);
+    autoSignExpansion(next);
+    commit(next);
+    showToast('おまかせで契約しました');
+  }, [commit, showToast]);
+
+  const expansionFinish = useCallback(() => {
+    const current = stateRef.current;
+    if (!current?.expansion) return;
+    const next = cloneState(current);
+    const result = finishExpansion(next);
+    if (!result.ok) {
+      showToast(result.reason ?? 'まだ始められません');
+      return;
+    }
+    commit(next);
+    setScreen('home');
+    showToast('シーズン開幕！');
+  }, [commit, showToast]);
+
+  /** 1巡目の抽選で、プレイヤー球団がくじの紙を1枚選ぶ */
+  const drawLottery = useCallback(
+    (paper: number) => {
+      const current = stateRef.current;
+      if (!current?.draft) return;
+      const next = cloneState(current);
+      const rng = new Rng(next.rngState);
+      if (!drawLotteryPaper(next, paper, rng)) return;
+      next.rngState = rng.getState();
+      commit(next);
+    },
+    [commit],
+  );
 
   const draftPick = useCallback(
     (prospectId: string) => {
@@ -312,6 +410,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!current?.draft) return;
       const next = cloneState(current);
       const draft = next.draft!;
+      // 1巡目は入札。重なればくじ引き（結果は画面で紙を選んでから決まる）
+      if (inFirstRound(draft)) {
+        const prospect = draft.prospects.find((p) => p.id === prospectId);
+        const rng = new Rng(next.rngState);
+        if (!prospect || !nominateFirstRound(next, prospectId, rng)) return;
+        next.rngState = rng.getState();
+        commit(next);
+        showToast(`${prospect.player.name} を入札しました`);
+        return;
+      }
       const slot = currentPick(draft);
       if (!slot || slot.teamId !== next.playerTeamId) return;
       const prospect = draft.prospects.find((p) => p.id === prospectId);
@@ -610,6 +718,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       scout,
       startDraftPicks,
       draftPick,
+      drawLottery,
+      expansionSign,
+      expansionRelease,
+      expansionAuto,
+      expansionFinish,
       startContracts,
       offerContract,
       autoContracts,
@@ -654,6 +767,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       scout,
       startDraftPicks,
       draftPick,
+      drawLottery,
+      expansionSign,
+      expansionRelease,
+      expansionAuto,
+      expansionFinish,
       startContracts,
       offerContract,
       autoContracts,
