@@ -19,8 +19,16 @@ import {
   type RosterSwapCandidate,
 } from '../../domain/roster';
 import { MARKET_GRADE_LABELS, marketGrade } from '../../domain/freeAgency';
-import { average, formatAverage, formatEra, formatInnings } from '../../domain/stats';
-import { StatTile, avgTone, eraTone } from './StatTone';
+import {
+  average,
+  formatAverage,
+  formatEra,
+  formatInnings,
+  formatOps,
+  ops,
+  opsAgainst,
+} from '../../domain/stats';
+import { StatTile, avgTone, eraTone, opsTone, opsAgainstTone } from './StatTone';
 import { formatDateJa } from '../../domain/dates';
 import { personalityDef } from '../../domain/personality';
 import { potentialLabel, growthTypeDef } from '../../domain/growth';
@@ -163,9 +171,13 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
           {player.isPitcher ? (
             <>
               <StatTile label="防御率" value={formatEra(stats.pitching)} tone={eraTone(stats.pitching)} />
+              <StatTile
+                label="被OPS"
+                value={formatOps(opsAgainst(stats.pitching))}
+                tone={opsAgainstTone(stats.pitching)}
+              />
               <StatTile label="勝-敗" value={`${stats.pitching.wins}-${stats.pitching.losses}`} />
               <StatTile label="投球回" value={formatInnings(stats.pitching.outs)} />
-              <StatTile label="奪三振" value={stats.pitching.strikeouts} />
             </>
           ) : (
             <>
@@ -174,16 +186,28 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
                 value={formatAverage(average(stats.batting))}
                 tone={avgTone(stats.batting)}
               />
+              <StatTile
+                label="OPS"
+                value={
+                  stats.batting.atBats + stats.batting.walks > 0
+                    ? formatOps(ops(stats.batting))
+                    : '-.---'
+                }
+                tone={opsTone(stats.batting)}
+              />
               <StatTile label="本塁打" value={stats.batting.homeRuns} />
               <StatTile label="打点" value={stats.batting.rbi} />
-              <StatTile label="盗塁" value={stats.batting.steals} />
             </>
           )}
         </div>
         {player.isPitcher ? (
           <>
             <KeyValue label="登板 / 先発" value={`${stats.pitching.games} / ${stats.pitching.starts}`} />
-            <KeyValue label="セーブ" value={stats.pitching.saves} />
+            <KeyValue label="セーブ / ホールド" value={`${stats.pitching.saves} / ${stats.pitching.holds}`} />
+            <KeyValue
+              label="被安打 / 被本塁打"
+              value={`${stats.pitching.hitsAllowed} / ${stats.pitching.homeRunsAllowed}`}
+            />
             <KeyValue label="奪三振 / 与四球" value={`${stats.pitching.strikeouts} / ${stats.pitching.walks}`} />
             <KeyValue
               label="失点 / 自責点"

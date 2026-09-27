@@ -32,6 +32,9 @@ export function emptyPitching(): PitchingStats {
     homeRunsAllowed: 0,
     runsAllowed: 0,
     earnedRuns: 0,
+    atBatsAgainst: 0,
+    doublesAllowed: 0,
+    triplesAllowed: 0,
   };
 }
 
@@ -47,7 +50,8 @@ export function addBatting(target: BattingStats, add: BattingStats): void {
 
 export function addPitching(target: PitchingStats, add: PitchingStats): void {
   (Object.keys(add) as Array<keyof PitchingStats>).forEach((key) => {
-    target[key] += add[key];
+    // 後から足した記録（被OPS用）は古いセーブに無いことがある
+    target[key] = (target[key] ?? 0) + (add[key] ?? 0);
   });
 }
 
@@ -60,6 +64,45 @@ export function average(stats: BattingStats): number {
 export function era(stats: PitchingStats): number {
   if (stats.outs === 0) return 0;
   return (stats.earnedRuns * 27) / stats.outs;
+}
+
+/** 出塁率（犠飛・死球は扱っていないので (安打+四球)/(打数+四球)） */
+export function obp(b: BattingStats): number {
+  const denom = b.atBats + b.walks;
+  return denom === 0 ? 0 : (b.hits + b.walks) / denom;
+}
+
+/** 長打率 */
+export function slg(b: BattingStats): number {
+  if (b.atBats === 0) return 0;
+  return (b.hits + b.doubles + b.triples * 2 + b.homeRuns * 3) / b.atBats;
+}
+
+/** OPS（出塁率＋長打率） */
+export function ops(b: BattingStats): number {
+  return obp(b) + slg(b);
+}
+
+/**
+ * 被OPS（投手が打たれた打者の OPS）。打者の OPS と同じ式で数える。
+ * 対戦打数を記録する前のセーブ（その年の途中まで）は数えられないので null。
+ */
+export function opsAgainst(p: PitchingStats): number | null {
+  const ab = p.atBatsAgainst ?? 0;
+  if (ab === 0) return null;
+  const obpA = (p.hitsAllowed + p.walks) / (ab + p.walks);
+  const tb =
+    p.hitsAllowed +
+    (p.doublesAllowed ?? 0) +
+    (p.triplesAllowed ?? 0) * 2 +
+    p.homeRunsAllowed * 3;
+  return obpA + tb / ab;
+}
+
+/** OPS の表示（1 未満は .812、1 以上は 1.034） */
+export function formatOps(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return '-.---';
+  return formatAverage(value);
 }
 
 export function formatAverage(value: number): string {
@@ -116,6 +159,9 @@ export const PITCHING_FIELDS = [
   'homeRunsAllowed',
   'runsAllowed',
   'earnedRuns',
+  'atBatsAgainst',
+  'doublesAllowed',
+  'triplesAllowed',
 ] as const;
 
 export function packBatting(stats: BattingStats): number[] {
@@ -123,7 +169,7 @@ export function packBatting(stats: BattingStats): number[] {
 }
 
 export function packPitching(stats: PitchingStats): number[] {
-  return PITCHING_FIELDS.map((key) => stats[key]);
+  return PITCHING_FIELDS.map((key) => stats[key] ?? 0);
 }
 
 export function unpackBatting(line: number[] | undefined): BattingStats {

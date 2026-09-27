@@ -225,6 +225,16 @@ export interface PitchingStats {
   homeRunsAllowed: number;
   runsAllowed: number;
   earnedRuns: number;
+  /*
+   * 被OPS のための記録（後から追加）。古いセーブには無いので省略可能にしてあり、
+   * 読むときは必ず `?? 0` で扱う。
+   */
+  /** 対戦打数 */
+  atBatsAgainst?: number;
+  /** 被二塁打 */
+  doublesAllowed?: number;
+  /** 被三塁打 */
+  triplesAllowed?: number;
 }
 
 export interface PlayerSeasonStats {

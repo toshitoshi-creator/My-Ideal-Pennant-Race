@@ -614,6 +614,7 @@ function playHalfInning(
       }
       case 'strikeout': {
         bat.atBats += 1;
+        pit.atBatsAgainst = (pit.atBatsAgainst ?? 0) + 1;
         bat.strikeouts += 1;
         pit.strikeouts += 1;
         outs += 1;
@@ -625,6 +626,7 @@ function playHalfInning(
       }
       case 'homerun': {
         bat.atBats += 1;
+        pit.atBatsAgainst = (pit.atBatsAgainst ?? 0) + 1;
         bat.hits += 1;
         bat.homeRuns += 1;
         offense.hits += 1;
@@ -647,6 +649,7 @@ function playHalfInning(
       case 'double':
       case 'triple': {
         bat.atBats += 1;
+        pit.atBatsAgainst = (pit.atBatsAgainst ?? 0) + 1;
         bat.hits += 1;
         offense.hits += 1;
         pit.hitsAllowed += 1;
@@ -689,6 +692,7 @@ function playHalfInning(
           bases[0] = runnerOf();
         } else if (outcome.kind === 'double') {
           bat.doubles += 1;
+          pit.doublesAllowed = (pit.doublesAllowed ?? 0) + 1;
           for (const idx of [2, 1]) {
             if (bases[idx]) {
               score(bases[idx]!, batter.id);
@@ -708,6 +712,7 @@ function playHalfInning(
           bases[1] = runnerOf();
         } else {
           bat.triples += 1;
+          pit.triplesAllowed = (pit.triplesAllowed ?? 0) + 1;
           for (const idx of [2, 1, 0]) {
             if (bases[idx]) {
               score(bases[idx]!, batter.id);
@@ -728,6 +733,7 @@ function playHalfInning(
       }
       case 'error': {
         bat.atBats += 1;
+        pit.atBatsAgainst = (pit.atBatsAgainst ?? 0) + 1;
         defenseCtx.errors += 1;
         if (bases[2]) {
           score({ ...bases[2], earned: false }, null);
@@ -751,6 +757,7 @@ function playHalfInning(
       }
       case 'groundout': {
         bat.atBats += 1;
+        pit.atBatsAgainst = (pit.atBatsAgainst ?? 0) + 1;
         const dp =
           bases[0] &&
           outs < 2 &&
@@ -795,6 +802,7 @@ function playHalfInning(
           commentary.push(`　${batter.name}の犠牲フライで1点！`);
         } else {
           bat.atBats += 1;
+          pit.atBatsAgainst = (pit.atBatsAgainst ?? 0) + 1;
           outs += 1;
           addOuts(defenseCtx, 1);
         }

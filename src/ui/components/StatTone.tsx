@@ -8,7 +8,7 @@
 import type { ReactNode } from 'react';
 import type { AbilityRank, BattingStats, PitchingStats } from '../../domain/types';
 import { RANK_COLORS, rankOf } from '../../domain/rank';
-import { average, era } from '../../domain/stats';
+import { average, era, ops, opsAgainst } from '../../domain/stats';
 
 /** 打率の段階。打数が少ないうちは色を付けない */
 export function avgTone(stats: BattingStats): AbilityRank | null {
@@ -33,6 +33,33 @@ export function eraTone(stats: PitchingStats): AbilityRank | null {
   if (v <= 3.8) return 'D';
   if (v <= 4.5) return 'E';
   if (v <= 5.5) return 'F';
+  return 'G';
+}
+
+/** OPS の段階 */
+export function opsTone(stats: BattingStats): AbilityRank | null {
+  if (stats.atBats < 10) return null;
+  const v = ops(stats);
+  if (v >= 0.95) return 'A';
+  if (v >= 0.85) return 'B';
+  if (v >= 0.78) return 'C';
+  if (v >= 0.72) return 'D';
+  if (v >= 0.66) return 'E';
+  if (v >= 0.6) return 'F';
+  return 'G';
+}
+
+/** 被OPS の段階（低いほど良い） */
+export function opsAgainstTone(stats: PitchingStats): AbilityRank | null {
+  if ((stats.atBatsAgainst ?? 0) < 15) return null;
+  const v = opsAgainst(stats);
+  if (v === null) return null;
+  if (v <= 0.56) return 'A';
+  if (v <= 0.62) return 'B';
+  if (v <= 0.68) return 'C';
+  if (v <= 0.73) return 'D';
+  if (v <= 0.79) return 'E';
+  if (v <= 0.86) return 'F';
   return 'G';
 }
 
