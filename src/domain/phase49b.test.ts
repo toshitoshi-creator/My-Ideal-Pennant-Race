@@ -10,6 +10,7 @@
  *      ・調査力が高い＝推定の幅が狭い（真の能力そのものは変わらない）
  *   5. 契約しても能力が変わらないこと・既存セーブが移行できること
  */
+import { pitcherAptitude } from './pitcherAptitude';
 import { describe, it, expect } from 'vitest';
 import { createNewGame, SAVE_VERSION } from './newGame';
 import { advanceDay, cloneState, validateState } from './engine';
@@ -1029,14 +1030,10 @@ describe('PHASE4.9-B H. 条件', () => {
     }
   });
 
-  it('投手の役割はスタミナで決まる', () => {
+  it('投手の役割は画面に出す投手適性（先発・中継ぎ・抑え）と同じ基準で決まる', () => {
     const state = newGame();
     for (const player of myPlayers(state).filter((p) => p.isPitcher).slice(0, 20)) {
-      const role = pitcherRoleOf(player);
-      const stamina = player.pitching!.stamina;
-      if (stamina >= 55) expect(role).toBe('starter');
-      else if (stamina >= 38) expect(role).toBe('relief');
-      else expect(role).toBe('closer');
+      expect(pitcherRoleOf(player)).toBe(pitcherAptitude(player)!.best);
     }
   });
 

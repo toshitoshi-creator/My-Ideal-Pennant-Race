@@ -3,6 +3,8 @@ import { rankOf, RANK_COLORS } from '../../domain/rank';
 import { positionBadgeColors, POSITION_SHORT } from '../../domain/positions';
 import type { Player } from '../../domain/types';
 import { PictureButton } from './PictureButton';
+import { ROLE_BADGE, ROLE_LABEL, pitcherAptitude } from '../../domain/pitcherAptitude';
+import { ROLE_COLOR } from './PitcherRole';
 import closeArt from '../../assets/ui/common-close.webp';
 
 export function RankBadge({ value }: { value: number }) {
@@ -16,6 +18,20 @@ export function RankBadge({ value }: { value: number }) {
 
 /** 守備位置の色つきバッジ。複数守れる選手は、本職の色を先頭に色を分けて出す */
 export function PositionBadge({ player }: { player: Player }) {
+  // 投手は「先」「中」「抑」（いちばん向いている役割）を役割の色で出す
+  const apt = pitcherAptitude(player);
+  if (apt) {
+    return (
+      <span
+        className="pos pos-role"
+        title={`投手（${ROLE_LABEL[apt.best]}向き）`}
+        aria-label={`投手（${ROLE_LABEL[apt.best]}向き）`}
+        style={{ background: ROLE_COLOR[apt.best], color: 'var(--ink)', border: 'none' }}
+      >
+        {ROLE_BADGE[apt.best]}
+      </span>
+    );
+  }
   const colors = positionBadgeColors(player);
   const step = 100 / colors.length;
   const background =

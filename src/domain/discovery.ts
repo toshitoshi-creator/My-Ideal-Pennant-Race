@@ -46,6 +46,7 @@ import { canAddPlayer } from './roster';
 import { emptyBatting, emptyPitching } from './stats';
 import { pushNews } from './news';
 import { foreignName, needsForeignName } from './foreignNames';
+import { pitcherAptitude } from './pitcherAptitude';
 
 /* ================= 入れ物 ================= */
 
@@ -234,12 +235,33 @@ export function typeOf(player: Player): DiscoveryType {
   return scores[0][0];
 }
 
-/** 投手の役割（スタミナで先発かどうかを見る。既存のローテ判断と同じ考え方） */
+/**
+ * 投手の役割。画面に出す「投手適性（先発・中継ぎ・抑え）」と同じ基準で判定する
+ * （発掘の条件と、候補に表示される役割が食い違わないように）。
+ */
 export function pitcherRoleOf(player: Player): DiscoveryPitcherRole {
-  const stamina = player.pitching?.stamina ?? 0;
-  if (stamina >= 55) return 'starter';
-  if (stamina >= 38) return 'relief';
-  return 'closer';
+  return pitcherAptitude(player)?.best ?? 'relief';
+}
+
+/**
+ * 条件どおりに見つかった投手を、指定の役割らしい能力に寄せる（乱数は使わない）。
+ * 先発はスタミナ、抑えは球速・球威、中継ぎは制球を少し持ち上げる。
+ */
+export function biasToRole(player: Player, role: DiscoveryPitcherRole): void {
+  const p = player.pitching;
+  if (!p) return;
+  const up = (v: number, d: number) => Math.max(1, Math.min(100, Math.round(v + d)));
+  if (role === 'starter') {
+    p.stamina = up(Math.max(p.stamina, 50), 6);
+  } else if (role === 'closer') {
+    p.velocity = Math.min(165, p.velocity + 5);
+    p.power = up(p.power, 10);
+    p.stamina = Math.min(p.stamina, 38);
+  } else {
+    p.control = up(p.control, 6);
+    p.movement = up(p.movement, 4);
+    p.stamina = Math.min(p.stamina, 45);
+  }
 }
 
 /** 条件に完全一致しているか */
@@ -498,6 +520,7 @@ function createForeignCandidate(
 
   // 条件に寄せる：完全一致のときだけ、指定タイプが出やすいよう能力を少し振る
   if (exact && condition.type) biasToType(player, condition.type, rng);
+  if (exact && pitcher && condition.role) biasToRole(player, condition.role);
 
   const candidate: ForeignCandidate = {
     id: `fc${state.year}-${state.date}-${index}`,
@@ -864,6 +887,7 @@ function createAmateurCandidate(
   );
 
   if (exact && condition.type) biasToType(player, condition.type, rng);
+  if (exact && pitcher && condition.role) biasToRole(player, condition.role);
 
   const prospect: DraftProspect = {
     id: `am${state.year}-${state.date}-${index}`,

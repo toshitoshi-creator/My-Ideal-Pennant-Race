@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
+import { RoleGrades, positionText } from '../components/PitcherRole';
 import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import { CountUp, RevealRows } from '../components/Reveal';
 import type { Player } from '../../domain/types';
-import { POSITION_LABELS } from '../../domain/positions';
 import { overallRating } from '../../domain/rating';
 import {
   expectedSalary,
@@ -234,7 +234,7 @@ function NegotiationSheet({ player, onClose }: { player: Player; onClose: () => 
             <div>
               <div style={{ fontSize: 18, fontWeight: 800 }}>{player.name}</div>
               <div className="muted">
-                {player.age}歳 / {POSITION_LABELS[player.mainPosition]}
+                {player.age}歳 / {positionText(player)} <RoleGrades player={player} />
               </div>
             </div>
           </div>

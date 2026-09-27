@@ -7422,3 +7422,139 @@ h3.sec {
 .exp-row .exp-row-main .pc-chips {
   margin-top: 0;
 }
+
+/* =====================================================================
+ * 投手適性（先発・中継ぎ・抑え）
+ * ===================================================================== */
+.pos.pos-role {
+  font-weight: 900;
+}
+
+.role-grades {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px;
+  border-radius: 4px;
+  background: var(--paper-2);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.rg {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ink-2);
+  line-height: 17px;
+}
+
+.rg b {
+  font-size: 11.5px;
+  font-weight: 900;
+}
+
+.rg.best {
+  color: var(--ink);
+}
+
+.rg.g-a b {
+  color: var(--accent);
+}
+
+.rg.g-b b {
+  color: var(--brass);
+}
+
+.rg.g-d b {
+  color: var(--ink-3);
+}
+
+.role-panel {
+  margin-bottom: 10px;
+  padding: 8px 10px 10px;
+  border-radius: var(--radius);
+  background: var(--paper-2);
+}
+
+.role-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.role-panel-head strong {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--text-sm);
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.role-panel-cells {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.role-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 6px 2px;
+  border-radius: var(--radius);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+}
+
+.role-cell.best {
+  border: 2px solid var(--ink);
+}
+
+.role-cell-name {
+  font-size: var(--text-xs);
+  font-weight: 800;
+  color: var(--ink-2);
+}
+
+.role-cell-grade {
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.role-cell-grade.g-a {
+  color: var(--accent);
+}
+
+.role-cell-grade.g-b {
+  color: var(--brass);
+}
+
+.role-cell-grade.g-c {
+  color: var(--ink-2);
+}
+
+.role-cell-grade.g-d {
+  color: var(--ink-3);
+}
+
+.role-cell-note {
+  font-size: 10px;
+  color: var(--ink-3);
+}
+
+/* 投手の役割は2文字（先発・中継・抑え）。欄の幅に収める */
+.pos.pos-role {
+  font-size: 10.5px;
+  letter-spacing: -0.04em;
+}

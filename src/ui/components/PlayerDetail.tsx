@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { RoleAptitudePanel, positionText } from './PitcherRole';
 import type { Player } from '../../domain/types';
 import { useGame } from '../store';
 import { AbilityBar, KeyValue, RankBadge, Sheet, Tabs } from './common';
@@ -124,7 +125,7 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
               {player.name}
             </div>
             <div className="profile-meta">
-              {POSITION_LABELS[player.mainPosition]}・{player.age}歳・
+              {positionText(player)}・{player.age}歳・
               {player.throws === 'R' ? '右' : '左'}投
               {player.bats === 'R' ? '右' : '左'}打
             </div>
@@ -230,6 +231,7 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
         <Sec en="ABILITY" ja="能力" />
         {player.isPitcher && player.pitching ? (
           <>
+            <RoleAptitudePanel player={player} />
             <AbilityBar
               label="球速"
               value={velocityToScale(player.pitching.velocity)}
@@ -369,7 +371,7 @@ function SwapCandidateList({
           <span className="grow">
             <strong>{candidate.name}</strong>
             <span className="muted" style={{ display: 'block', fontSize: 12 }}>
-              {POSITION_LABELS[candidate.mainPosition]} / 総合{overallRating(candidate)}
+              {positionText(candidate)} / 総合{overallRating(candidate)}
               {candidate.ext.injury ? ' / 負傷中' : ''}
               {!allowed && reason ? ` / ${reason}` : ''}
             </span>

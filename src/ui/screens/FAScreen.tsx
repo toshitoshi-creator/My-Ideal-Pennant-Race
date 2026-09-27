@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
+import { RoleGrades, positionText } from '../components/PitcherRole';
 import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import { CountUp, RevealRows } from '../components/Reveal';
 import type { FAMarketPlayer, Player } from '../../domain/types';
-import { POSITION_LABELS } from '../../domain/positions';
 import { PlayerVisual } from '../components/PlayerVisual';
 import { average, formatAverage, formatEra, formatInnings } from '../../domain/stats';
 import {
@@ -362,7 +362,7 @@ function OfferSheet({
           <div>
             <div style={{ fontSize: 18, fontWeight: 800 }}>{player.name}</div>
             <div className="muted">
-              {player.age}歳 / {POSITION_LABELS[player.mainPosition]}
+              {player.age}歳 / {positionText(player)} <RoleGrades player={player} />
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>

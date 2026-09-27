@@ -22,6 +22,7 @@ import { buildAutoSetup } from './setup';
 import { emptySeasonStats } from './stats';
 import { refreshTeamPlans } from './teamAi';
 import { EXPANSION_START_FANS, totalRevenue } from './fans';
+import { pitcherAptitude } from './pitcherAptitude';
 
 /** 最初の球団資金（契約金に使う）。野手15人・投手6人ほどが目安 */
 export const EXPANSION_START_CASH = 800;
@@ -253,6 +254,14 @@ export function autoSignExpansion(state: GameState): void {
       if (finance.cash >= c.bonus) signExpansionPlayer(state, c.id);
     }
   };
+  // 先発ローテーションの5人は、先発に向いている投手から安い順に
+  const starters = unsigned()
+    .filter((c) => pitcherAptitude(c.player)?.best === 'starter')
+    .sort((a, b) => a.bonus - b.bonus);
+  for (const c of starters) {
+    if (signedPlayers(state).filter((p) => pitcherAptitude(p)?.best === 'starter').length >= MIN_FIRST_TEAM_PITCHERS) break;
+    if (finance.cash >= c.bonus) signExpansionPlayer(state, c.id);
+  }
   fill(true, MIN_FIRST_TEAM_PITCHERS);
   fill(false, TARGET_FIELDERS);
   fill(true, TARGET_PITCHERS);
