@@ -4,7 +4,7 @@ import { useGame, usePlayerMap } from '../store';
 import type { LineupSlot, Player, PositionId } from '../../domain/types';
 import { FIRST_TEAM_LIMIT, ROSTER_LIMIT } from '../../domain/types';
 import { Sheet, Tabs } from '../components/common';
-import { PlayerCard } from '../components/PlayerCard';
+import { AbilitySummary, PlayerCard, StatsSummary } from '../components/PlayerCard';
 import { PlayerDetail } from '../components/PlayerDetail';
 import {
   FIELD_POSITIONS,
@@ -41,9 +41,54 @@ export function RosterScreen() {
 
 /* ---------------- 1軍 / 2軍 ---------------- */
 
+/** 能力 / 打率・防御率 の切り替え（選手一覧と同じ見た目） */
+function ViewToggle({
+  view,
+  onChange,
+}: {
+  view: 'ability' | 'stats';
+  onChange: (view: 'ability' | 'stats') => void;
+}) {
+  return (
+    <div className="seg" role="group" aria-label="一覧の表示">
+      <button
+        type="button"
+        className={view === 'ability' ? 'on' : ''}
+        aria-pressed={view === 'ability'}
+        onClick={() => onChange('ability')}
+      >
+        能力
+      </button>
+      <button
+        type="button"
+        className={view === 'stats' ? 'on' : ''}
+        aria-pressed={view === 'stats'}
+        onClick={() => onChange('stats')}
+      >
+        打率・防御率
+      </button>
+    </div>
+  );
+}
+
+/** 能力と今季成績を2段で並べる（オーダー・先発用） */
+function PlayerChips({ player }: { player: Player }) {
+  return (
+    <span className="chip-rows">
+      <span className="pc-chips">
+        <AbilitySummary player={player} />
+      </span>
+      <span className="pc-chips">
+        <StatsSummary player={player} />
+      </span>
+    </span>
+  );
+}
+
 function RosterTab() {
   const { state, mutate, showToast } = useGame();
   const [selected, setSelected] = useState<Player | null>(null);
+  const [view, setView] = useState<'ability' | 'stats'>('ability');
   const roster = state.players
     .filter((p) => p.teamId === state.playerTeamId)
     .sort((a, b) => overallRating(b) - overallRating(a));
@@ -72,6 +117,7 @@ function RosterTab() {
             player={player}
             today={state.date}
             showRoster={false}
+            view={view}
             onClick={() => setSelected(player)}
             right={
               <span
@@ -112,9 +158,12 @@ function RosterTab() {
         </div>
       </div>
 
-      <h2 className="muted" style={{ fontSize: 14, margin: '4px 0 8px' }}>
-        1軍（{first.length}人）
-      </h2>
+      <div className="list-toolbar">
+        <h2 className="muted" style={{ fontSize: 14, margin: '4px 0' }}>
+          1軍（{first.length}人）
+        </h2>
+        <ViewToggle view={view} onChange={setView} />
+      </div>
       {renderList(first, false)}
 
       <h2 className="muted" style={{ fontSize: 14, margin: '14px 0 8px' }}>
@@ -238,6 +287,7 @@ function OrderTab() {
   };
 
   const issues = validateLineup({ ...setup, lineup: items }, firstTeam, league.useDH);
+  const nextStarter = byId.get(nextStarterId(setup) ?? '');
 
   return (
     <>
@@ -317,7 +367,7 @@ function OrderTab() {
                 </div>
                 <div className="muted" style={{ fontSize: 12 }}>
                   {isPitcherSlot
-                    ? '試合ごとにローテーションの投手が入ります'
+                    ? `次回：${nextStarter?.name ?? '未定'}（ローテーションの投手が入ります）`
                     : player
                       ? `打撃${battingRating(player)} / ${
                           slot.position === 'DH'
@@ -329,6 +379,9 @@ function OrderTab() {
                         }`
                       : ''}
                 </div>
+                {isPitcherSlot
+                  ? nextStarter && <PlayerChips player={nextStarter} />
+                  : player && <PlayerChips player={player} />}
               </button>
               <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <button className="chip" onClick={() => move(index, -1)} disabled={index === 0}>
@@ -394,6 +447,7 @@ function OrderTab() {
                       {POSITION_LABELS[player.mainPosition]} / 打撃{battingRating(player)} /{' '}
                       {inLineup ? 'スタメン（入れ替え）' : '控え'}
                     </span>
+                    <PlayerChips player={player} />
                   </span>
                   {items[swapIndex].playerId === player.id && <span className="chip">現在</span>}
                 </button>
@@ -453,11 +507,7 @@ function RotationTab() {
             </span>
             <span className="grow">
               <span className="name">{player?.name ?? '未設定'}</span>
-              <span className="meta" style={{ display: 'block' }}>
-                {player?.pitching
-                  ? `球速${player.pitching.velocity}km/h 制球${player.pitching.control} スタミナ${player.pitching.stamina}`
-                  : ''}
-              </span>
+              {player && <PlayerChips player={player} />}
             </span>
             {id === nextId && <span className="chip">次回先発</span>}
           </button>
@@ -471,10 +521,10 @@ function RotationTab() {
               <span className="grow">
                 <strong>{player.name}</strong>
                 <span className="muted" style={{ display: 'block', fontSize: 12 }}>
-                  球速{player.pitching!.velocity}km/h / 制球{player.pitching!.control} / スタミナ
-                  {player.pitching!.stamina} / 総合{pitchingRating(player)}
+                  総合{pitchingRating(player)}
                   {setup.rotation.includes(player.id) ? ' / ローテ入り（入れ替え）' : ''}
                 </span>
+                <PlayerChips player={player} />
               </span>
               {setup.rotation[editing] === player.id && <span className="chip">現在</span>}
             </button>
