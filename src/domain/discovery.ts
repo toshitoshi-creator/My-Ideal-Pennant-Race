@@ -45,6 +45,7 @@ import { createContract, marketValue } from './contract';
 import { canAddPlayer } from './roster';
 import { emptyBatting, emptyPitching } from './stats';
 import { pushNews } from './news';
+import { foreignName, needsForeignName } from './foreignNames';
 
 /* ================= 入れ物 ================= */
 
@@ -507,7 +508,16 @@ function createForeignCandidate(
     from: rng.pick(FOREIGN_FROM),
     rejected: false,
   };
+  // 名前は出身地に合わせて付け直す（ハッシュで決めるので乱数の流れは変わらない）
+  applyForeignName(candidate);
   return candidate;
+}
+
+/** 助っ人候補の名前を出身地らしいものにする。読みも同じ表記にそろえる */
+function applyForeignName(candidate: ForeignCandidate): void {
+  const name = foreignName(candidate.from, candidate.id);
+  candidate.player.name = name;
+  candidate.player.kana = name;
 }
 
 /**
@@ -969,6 +979,10 @@ export function ensureDiscovery(state: GameState): DiscoveryState {
     ('investigateDays' in discovery.amateur.search || 'foundIds' in discovery.amateur.search)
   ) {
     discovery.amateur.search = null;
+  }
+  // 以前は助っ人候補にも日本人の名前が付いていた。まだ契約していない候補だけ付け直す
+  for (const candidate of discovery.foreign.candidates) {
+    if (needsForeignName(candidate.player.name, candidate.from)) applyForeignName(candidate);
   }
   // 候補ごとの個別調査（investigation）は新しく増えたフィールド。無ければ補う
   for (const candidate of discovery.amateur.candidates) {

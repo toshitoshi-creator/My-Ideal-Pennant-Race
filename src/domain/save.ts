@@ -1,3 +1,4 @@
+import { ensureDiscovery } from './discovery';
 import type { GameState } from './types';
 import { SAVE_VERSION } from './newGame';
 import { repairAllSetups } from './engine';
@@ -125,5 +126,7 @@ export function migrate(state: GameState): GameState | null {
   if (state.version === 15) migrateV15ToV16(state);
 
   if (state.version !== SAVE_VERSION) return null;
+  // 形を変えない補修（助っ人候補の名前など）。発掘の入れ物があるときだけ整える
+  if (state.discovery) ensureDiscovery(state);
   return state;
 }
