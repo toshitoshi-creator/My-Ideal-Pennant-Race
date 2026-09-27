@@ -1,8 +1,16 @@
 import type { Player } from '../../domain/types';
 import { overallRating, defenseRating } from '../../domain/rating';
 import { velocityToScale } from '../../domain/rank';
-import { average, formatAverage, formatEra, formatInnings } from '../../domain/stats';
-import { AbilityChip, StatChip, avgTone, eraTone } from './StatTone';
+import {
+  average,
+  formatAverage,
+  formatEra,
+  formatInnings,
+  formatOps,
+  ops,
+  opsAgainst,
+} from '../../domain/stats';
+import { AbilityChip, StatChip, avgTone, eraTone, opsTone, opsAgainstTone } from './StatTone';
 import { RankBadge, PositionBadge } from './common';
 import { daysUntilChangeable } from '../../domain/roster';
 import { CONDITION_ICONS, CONDITION_LABELS } from '../../domain/condition';
@@ -135,6 +143,7 @@ function StatsSummary({ player }: { player: Player }) {
     return (
       <>
         <StatChip label="防御率" value={formatEra(q)} tone={eraTone(q)} />
+        <StatChip label="被OPS" value={formatOps(opsAgainst(q))} tone={opsAgainstTone(q)} />
         <StatChip label="勝敗" value={`${q.wins}-${q.losses}`} />
         <StatChip label="回" value={formatInnings(q.outs)} />
         {q.saves > 0 && <StatChip label="S" value={q.saves} />}
@@ -145,6 +154,7 @@ function StatsSummary({ player }: { player: Player }) {
   return (
     <>
       <StatChip label="打率" value={formatAverage(average(b))} tone={avgTone(b)} />
+      <StatChip label="OPS" value={b.atBats + b.walks > 0 ? formatOps(ops(b)) : '-.---'} tone={opsTone(b)} />
       <StatChip label="本" value={b.homeRuns} />
       <StatChip label="点" value={b.rbi} />
       <StatChip label="打数" value={b.atBats} />

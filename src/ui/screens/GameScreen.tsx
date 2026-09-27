@@ -85,8 +85,8 @@ export function GameScreen() {
     const dy = e.clientY - start.y;
     // 横の動きが十分大きく、縦スクロールより明らかに横向きのときだけスワイプとみなす
     if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    // 左へスワイプ → 過去の試合、右へスワイプ → 新しい試合（最新なら次の試合の確認）
-    if (dx < 0) viewOlder();
+    // 右へスワイプ → 過去の試合、左へスワイプ → 新しい試合（最新なら次の試合の確認）
+    if (dx > 0) viewOlder();
     else viewNewerOrNext();
   };
   const onScorebookPointerCancel = () => {
@@ -167,9 +167,9 @@ export function GameScreen() {
               note={`${formatDateJa(viewedResult.date)}${clampedIndex === 0 ? '' : '（過去）'}`}
             />
             <div className="muted swipe-hint">
-              <span>{canViewOlder ? '◀ 左スワイプで前の試合' : ''}</span>
+              <span>{canViewOlder ? '◀ 右スワイプで前の試合' : ''}</span>
               <span>
-                {canViewNewer ? '右スワイプで新しい試合 ▶' : next ? '右スワイプで次の試合へ ▶' : ''}
+                {canViewNewer ? '左スワイプで新しい試合 ▶' : next ? '左スワイプで次の試合へ ▶' : ''}
               </span>
             </div>
             <GameResultView key={viewedResult.id} state={state} result={viewedResult} />

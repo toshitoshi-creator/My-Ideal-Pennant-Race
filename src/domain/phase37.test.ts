@@ -233,7 +233,7 @@ describe('PHASE3.7 球団別の今季成績', () => {
       const total = emptyCareer();
       for (const stats of Object.values(byTeam)) {
         for (const key of BATTING_FIELDS) total.batting[key] += stats.batting[key];
-        for (const key of PITCHING_FIELDS) total.pitching[key] += stats.pitching[key];
+        for (const key of PITCHING_FIELDS) total.pitching[key] = (total.pitching[key] ?? 0) + (stats.pitching[key] ?? 0);
       }
       const season = s.stats[playerId];
       if (!season) continue;
@@ -429,7 +429,7 @@ describe('PHASE3.7 年度別・通算成績', () => {
       for (const entry of history.seasons) {
         const stats = statsOfEntry(entry);
         for (const key of BATTING_FIELDS) total.batting[key] += stats.batting[key];
-        for (const key of PITCHING_FIELDS) total.pitching[key] += stats.pitching[key];
+        for (const key of PITCHING_FIELDS) total.pitching[key] = (total.pitching[key] ?? 0) + (stats.pitching[key] ?? 0);
       }
       expect(history.career.batting).toEqual(total.batting);
       expect(history.career.pitching).toEqual(total.pitching);
@@ -490,7 +490,7 @@ describe('PHASE3.7 年度別・通算成績', () => {
         for (const row of rows) {
           const stats = statsOfEntry(row);
           for (const key of BATTING_FIELDS) manual.batting[key] += stats.batting[key];
-          for (const key of PITCHING_FIELDS) manual.pitching[key] += stats.pitching[key];
+          for (const key of PITCHING_FIELDS) manual.pitching[key] = (manual.pitching[key] ?? 0) + (stats.pitching[key] ?? 0);
         }
         expect(seasonTotalOf(history, year)).toEqual(manual);
       }
@@ -1176,7 +1176,7 @@ describe('PHASE3.7 長期の整合性', () => {
       for (const entry of history.seasons) {
         const stats = statsOfEntry(entry);
         for (const key of BATTING_FIELDS) total.batting[key] += stats.batting[key];
-        for (const key of PITCHING_FIELDS) total.pitching[key] += stats.pitching[key];
+        for (const key of PITCHING_FIELDS) total.pitching[key] = (total.pitching[key] ?? 0) + (stats.pitching[key] ?? 0);
       }
       expect(history.career.batting.hits).toBe(total.batting.hits);
     }
