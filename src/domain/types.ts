@@ -410,6 +410,61 @@ export interface GameState {
    * ここに何が入っていてもゲームの進行・乱数・能力には影響しない。
    */
   decisions: DecisionRecord[];
+  /**
+   * ゼロから始める球団づくり（最初の選手契約）。契約を終えてシーズンが始まれば null。
+   * 無い・null なら通常のゲーム。
+   */
+  expansion?: ExpansionState | null;
+  /** 自球団のファンの人数（このフィールドより前のセーブには無い） */
+  fans?: number;
+  /** 前日（最後に試合を行う前）のファンの人数。増減の表示に使う */
+  fansBefore?: number;
+  /** 自球団のファンが増減した出来事（古い順、最大40件） */
+  fanLog?: FanLogEntry[];
+  /** 直近の決算（自球団） */
+  lastSettlement?: SettlementReport | null;
+}
+
+/* ---------------- ゼロからの球団づくり・ファン・決算 ---------------- */
+
+export interface ExpansionCandidate {
+  id: string;
+  player: Player;
+  /** 契約金（契約した時に球団資金から払う） */
+  bonus: number;
+  /** 年俸（決算で払う） */
+  salary: number;
+  years: number;
+}
+
+export interface ExpansionState {
+  /** 契約できる選手 */
+  pool: ExpansionCandidate[];
+  /** 契約した候補ID */
+  signed: string[];
+  /** 契約を始める前の球団資金 */
+  startCash: number;
+}
+
+export interface FanLogEntry {
+  date: string;
+  /** 増減した人数 */
+  delta: number;
+  reason: string;
+}
+
+export interface SettlementReport {
+  year: number;
+  /** 決算時のファンの人数 */
+  fans: number;
+  /** 球団の基本収入（放映権など） */
+  baseRevenue: number;
+  /** ファンから得た収入（入場料・グッズなど） */
+  fanRevenue: number;
+  revenue: number;
+  payroll: number;
+  result: number;
+  cashAfter: number;
 }
 
 /* ---------------- GMの判断記録：PHASE 4.4 ---------------- */

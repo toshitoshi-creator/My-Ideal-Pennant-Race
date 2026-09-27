@@ -1,4 +1,5 @@
 import { ensureDiscovery } from './discovery';
+import { ensureFans } from './fans';
 import type { GameState } from './types';
 import { SAVE_VERSION } from './newGame';
 import { repairAllSetups } from './engine';
@@ -128,5 +129,7 @@ export function migrate(state: GameState): GameState | null {
   if (state.version !== SAVE_VERSION) return null;
   // 形を変えない補修（助っ人候補の名前など）。発掘の入れ物があるときだけ整える
   if (state.discovery) ensureDiscovery(state);
+  // ファン・決算はこの仕組みより前のセーブには無い。いまの収入に見合う人数から始める
+  ensureFans(state);
   return state;
 }

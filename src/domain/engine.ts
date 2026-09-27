@@ -1,3 +1,4 @@
+import { updateFansForDay } from './fans';
 import type { GameResult, GameState, Player, ScheduledGame } from './types';
 import { Rng } from './rng';
 import { addDays } from './dates';
@@ -209,6 +210,8 @@ export function advanceDay(state: GameState): AdvanceResult {
 
   // PHASE 2: 疲労・コンディション・モチベーション・怪我を1日分進める
   applyDailyUpdates(next, rng, results);
+  // 自球団のファン：勝敗・順位の上下・ケガ（乱数は使わない）
+  updateFansForDay(state, next, results);
   // PHASE 3.5: CPU球団のトレード（期限内のみ。専用の乱数列を使う）
   runCpuTrades(next);
   /*

@@ -14,6 +14,7 @@ import { refreshTeamPlans } from './teamAi';
 import { createHistoryState } from './history';
 import { createNewsState } from './news';
 import { ensureClubs, syncCpuDirections } from './club';
+import { ensureFans } from './fans';
 
 /**
  * 2: 弾道を 1〜4 から 1〜100 に変更
@@ -168,6 +169,9 @@ export function createNewGame(
   // ---- PHASE 4.0: 球団の方針・施設・色を用意する ----
   ensureClubs(state);
   syncCpuDirections(state);
+
+  // 自球団のファン（いまの年間収入に見合う人数から始める）
+  ensureFans(state);
 
   return state;
 }

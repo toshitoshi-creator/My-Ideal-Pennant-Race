@@ -34,6 +34,14 @@ import {
 } from '../domain/trade';
 import { makePick, recordPlayerPick, runCpuPicks, currentPick } from '../domain/draft';
 import {
+  autoSignExpansion,
+  createExpansionGame,
+  finishExpansion,
+  releaseExpansionPlayer,
+  renameTeam,
+  signExpansionPlayer,
+} from '../domain/expansion';
+import {
   beginLotteryDraft,
   drawLotteryPaper,
   inFirstRound,
@@ -61,6 +69,12 @@ export type ScreenId =
   | 'playerCheck'
   | 'discovery';
 
+export interface NewGameOptions {
+  mode: 'expansion' | 'normal';
+  teamName: string;
+  shortName: string;
+}
+
 interface StoreValue {
   state: GameState | null;
   screen: ScreenId;
@@ -69,7 +83,12 @@ interface StoreValue {
   saveExists: boolean;
   setScreen(screen: ScreenId): void;
   showToast(message: string): void;
-  startNewGame(teamId: string, seasonLength: SeasonLength): void;
+  startNewGame(teamId: string, seasonLength: SeasonLength, options?: NewGameOptions): void;
+  /** ゼロからの球団づくり：候補と契約する／取り消す／おまかせ／シーズン開始 */
+  expansionSign(candidateId: string): void;
+  expansionRelease(candidateId: string): void;
+  expansionAuto(): void;
+  expansionFinish(): void;
   continueGame(): boolean;
   quitToTitle(): void;
   deleteSave(): void;
@@ -180,8 +199,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const startNewGame = useCallback(
-    (teamId: string, seasonLength: SeasonLength) => {
-      const next = createNewGame(teamId, seasonLength);
+    (teamId: string, seasonLength: SeasonLength, options?: NewGameOptions) => {
+      const next =
+        options?.mode === 'expansion'
+          ? createExpansionGame(teamId, seasonLength, options)
+          : createNewGame(teamId, seasonLength);
+      if (options && options.mode !== 'expansion') {
+        renameTeam(next, teamId, options.teamName, options.shortName);
+      }
       const errors = validateState(next);
       if (errors.length > 0) console.error('データ整合性エラー', errors);
       persist(next);
@@ -314,6 +339,56 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     next.rngState = rng.getState();
     commit(next);
   }, [commit]);
+
+  /** ゼロからの球団づくり：候補と契約する */
+  const expansionSign = useCallback(
+    (candidateId: string) => {
+      const current = stateRef.current;
+      if (!current?.expansion) return;
+      const next = cloneState(current);
+      const result = signExpansionPlayer(next, candidateId);
+      if (!result.ok) {
+        showToast(result.reason ?? '契約できません');
+        return;
+      }
+      commit(next);
+    },
+    [commit, showToast],
+  );
+
+  const expansionRelease = useCallback(
+    (candidateId: string) => {
+      const current = stateRef.current;
+      if (!current?.expansion) return;
+      const next = cloneState(current);
+      if (!releaseExpansionPlayer(next, candidateId).ok) return;
+      commit(next);
+    },
+    [commit],
+  );
+
+  const expansionAuto = useCallback(() => {
+    const current = stateRef.current;
+    if (!current?.expansion) return;
+    const next = cloneState(current);
+    autoSignExpansion(next);
+    commit(next);
+    showToast('おまかせで契約しました');
+  }, [commit, showToast]);
+
+  const expansionFinish = useCallback(() => {
+    const current = stateRef.current;
+    if (!current?.expansion) return;
+    const next = cloneState(current);
+    const result = finishExpansion(next);
+    if (!result.ok) {
+      showToast(result.reason ?? 'まだ始められません');
+      return;
+    }
+    commit(next);
+    setScreen('home');
+    showToast('シーズン開幕！');
+  }, [commit, showToast]);
 
   /** 1巡目の抽選で、プレイヤー球団がくじの紙を1枚選ぶ */
   const drawLottery = useCallback(
@@ -644,6 +719,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       startDraftPicks,
       draftPick,
       drawLottery,
+      expansionSign,
+      expansionRelease,
+      expansionAuto,
+      expansionFinish,
       startContracts,
       offerContract,
       autoContracts,
@@ -689,6 +768,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       startDraftPicks,
       draftPick,
       drawLottery,
+      expansionSign,
+      expansionRelease,
+      expansionAuto,
+      expansionFinish,
       startContracts,
       offerContract,
       autoContracts,

@@ -6,6 +6,7 @@
  * 契約は選手の能力を一切変化させない（高年俸だから成長する、といった処理はしない）。
  * 年俸は「長期的な能力・年齢・実績」から決まり、その日の調子・疲労は使わない。
  */
+import { BASE_REVENUE, fanRevenue, totalRevenue } from './fans';
 import type {
   Contract,
   GameState,
@@ -333,6 +334,12 @@ export function applySeasonFinance(state: GameState): void {
   refreshPayrolls(state);
   // PHASE 3.6: 年間予算をリーグの水準に合わせる
   adjustBudgets(state);
+  // 自球団の収入はファンの人数で決まる（基本収入＋ファンからの収入）
+  const mine = state.finances[state.playerTeamId];
+  if (mine && typeof state.fans === 'number') {
+    mine.annualRevenue = totalRevenue(state.fans);
+    mine.budget = mine.annualRevenue;
+  }
   for (const team of state.teams) {
     const finance = state.finances[team.id];
     if (!finance) continue;
@@ -340,6 +347,24 @@ export function applySeasonFinance(state: GameState): void {
     const result = finance.annualRevenue - payroll;
     finance.cash = Math.round(finance.cash + result);
     finance.lastResult = Math.round(result);
+  }
+  if (mine && typeof state.fans === 'number') {
+    state.lastSettlement = {
+      year: state.year,
+      fans: state.fans,
+      baseRevenue: BASE_REVENUE,
+      fanRevenue: fanRevenue(state.fans),
+      revenue: mine.annualRevenue,
+      payroll: mine.payroll,
+      result: mine.lastResult,
+      cashAfter: mine.cash,
+    };
+    const sign = mine.lastResult >= 0 ? '+' : '−';
+    state.notices.push({
+      date: state.date,
+      kind: 'season',
+      message: `${state.year}年の決算：収入${formatSalary(mine.annualRevenue)}・年俸${formatSalary(mine.payroll)}・収支${sign}${formatSalary(Math.abs(mine.lastResult))}（ファン${state.fans.toLocaleString('ja-JP')}人）`,
+    });
   }
   state.lastPayrollYear = state.year;
 }

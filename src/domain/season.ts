@@ -24,6 +24,7 @@ import { playingTimeOf, rollRetirement } from './retirement';
 import { overallRating } from './rating';
 import { createDraft, finishDraft, autoPick, currentPick, beginDraftPicks } from './draft';
 import { autoFinishFirstRound } from './draftLottery';
+import { applyRetirementFans, applySeasonFans } from './fans';
 import { resetScoutingForDraft, runCpuScouting } from './scouting';
 import {
   applySeasonFinance,
@@ -149,7 +150,9 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
   // ---- PHASE 3.7: 今季を歴史に確定する ----
   // 成長・引退でデータが変わる前に、いま残っている成績をそのまま記録する。
   // 同じ年に二度呼ばれても二重には記録されない。
-  finalizeSeason(state);
+  const season = finalizeSeason(state);
+  // 順位の上下・優勝・タイトルでファンが増減する（決算の前に反映する）
+  applySeasonFans(state, season);
 
   // ---- PHASE 3.3: 今季分の人件費を精算する（1シーズンに1回だけ） ----
   applySeasonFinance(state);
@@ -260,6 +263,8 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
     generateRetirementNews(state, record, career);
   }
 
+  // 自球団の選手が引退するとファンが減る
+  applyRetirementFans(state, retirements);
   for (const record of retirements) {
     if (record.teamId !== state.playerTeamId) continue;
     state.notices.push({
