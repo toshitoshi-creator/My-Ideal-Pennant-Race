@@ -23,6 +23,7 @@ import { defaultExtensions } from './playerGen';
 import { playingTimeOf, rollRetirement } from './retirement';
 import { overallRating } from './rating';
 import { createDraft, finishDraft, autoPick, currentPick, beginDraftPicks } from './draft';
+import { autoFinishFirstRound } from './draftLottery';
 import { resetScoutingForDraft, runCpuScouting } from './scouting';
 import {
   applySeasonFinance,
@@ -334,6 +335,8 @@ export function autoCompleteDraft(state: GameState): void {
   if (!draft || draft.completed) return;
   const rng = new Rng(state.rngState);
   beginDraftPicks(state, rng);
+  // 1巡目の入札・抽選の途中なら、残りを自動で決める
+  autoFinishFirstRound(state, rng);
   let guard = 0;
   while (!draft.completed && currentPick(draft) && guard++ < 500) {
     autoPick(state, draft, rng);

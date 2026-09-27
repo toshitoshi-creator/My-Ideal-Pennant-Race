@@ -1239,6 +1239,24 @@ if ((await page.getByRole('button', { name: 'この選手を指名' }).count()) 
   ok('スカウト結果を見ながら指名できる');
 }
 
+// 1巡目は入札方式。入札の発表・くじ引きの画面が出たら、紙を1枚引いて先へ進める
+const settleDraftOverlays = async () => {
+  for (let k = 0; k < 16; k++) {
+    if (!(await page.locator('.draft-overlay').count())) return;
+    if (await page.locator('.lottery.stage-choose').count()) {
+      await page.locator('.lot-paper:not(.taken)').first().click({ force: true });
+      await page.locator('.lottery.stage-result').waitFor({ timeout: 5000 });
+      sawLottery = true;
+    }
+    const btn = page.locator('.draft-overlay .nr-actions .btn');
+    if (await btn.count()) await btn.first().click();
+    await page.waitForTimeout(250);
+  }
+};
+let sawLottery = false;
+if ((await page.locator('.db-cell').count()) !== 12) fail('指名ボードに12球団が並んでいない');
+else ok('指名ボードに12球団（縦4×横3）が並んでいる');
+
 let myPicks = 0;
 for (let i = 0; i < 8; i++) {
   const state2 = await readState();
@@ -1251,6 +1269,7 @@ for (let i = 0; i < 8; i++) {
   await page.locator('.sheet').waitFor();
   await page.locator('.sheet').getByRole('button', { name: '指名する' }).click();
   await page.waitForTimeout(300);
+  await settleDraftOverlays();
   myPicks += 1;
   const s2 = await readState();
   if (!s2.draft) break;
@@ -1263,6 +1282,22 @@ if (myPicks === 0) ok('今年は自球団の補充が不要で、指名権がな
 else ok(`プレイヤー球団が${playerPicks}人を指名した`);
 if (cpuPicks === 0) fail('CPU球団が指名していない');
 else ok(`CPU球団が${cpuPicks}人を指名した`);
+{
+  const fr = afterPicks.draft?.firstRound;
+  if (fr) {
+    const firstRound = allPicks.filter((p) => p.round === 1);
+    if (!fr.done) fail('1巡目の入札が終わっていない');
+    else if (new Set(firstRound.map((p) => p.teamId)).size !== afterPicks.draft.order.length)
+      fail('1巡目の選手が決まっていない球団がある');
+    else
+      ok(`1巡目は入札方式で全球団が決まった（入札${fr.attempts.length}回・抽選${fr.attempts.reduce((n, a) => n + a.lotteries.length, 0)}件${sawLottery ? '・自球団もくじを引いた' : ''}）`);
+    const lotteryOk = fr.attempts.every((a) =>
+      a.lotteries.every((l) => l.winner && l.teams.includes(l.winner) && l.drawn[l.winner] === l.winningPaper),
+    );
+    if (!lotteryOk) fail('抽選の当たりと交渉権の球団が一致しない');
+    else ok('抽選は「当たりの紙を引いた球団」が交渉権を得ている');
+  }
+}
 const pickedIds = allPicks.map((p) => p.prospectId);
 if (new Set(pickedIds).size !== pickedIds.length) fail('同じ候補が重複して指名されている');
 else ok('重複指名は発生していない');

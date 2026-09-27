@@ -6566,3 +6566,540 @@ h3.sec {
 .order-row .grow {
   min-width: 0;
 }
+
+/* =====================================================================
+ * ドラフト会議（NPB 方式）：指名ボード・入札の発表・くじ引き
+ * ===================================================================== */
+
+/* 指名ボード：縦4×横3。会場の大型ボードのように、紺の地に白い名札を並べる */
+.draft-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  padding: 6px;
+  border-radius: 6px;
+  background: linear-gradient(#0f1f3d, #0a152b);
+  box-shadow: inset 0 0 0 2px #26406b, 0 6px 16px oklch(20% 0.03 265 / 0.3);
+}
+
+.db-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  min-width: 0;
+  min-height: 108px;
+  padding: 0 0 5px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #f7f4ec;
+  text-align: left;
+  transition: transform 220ms var(--ease-spring);
+}
+
+.db-cell:active {
+  transform: scale(0.96);
+}
+
+.db-cell.mine {
+  box-shadow: 0 0 0 2px #ffcf3f, 0 0 12px rgba(255, 207, 63, 0.6);
+}
+
+.db-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 5px;
+  background: var(--team);
+  color: #fff;
+}
+
+.db-head .team-mark {
+  flex: 0 0 auto;
+}
+
+.db-team {
+  font-size: 11.5px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
+}
+
+.db-first {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 5px 3px;
+  border-bottom: 1px solid #d8d2c4;
+  animation: plate-in 460ms var(--ease-spring) both;
+}
+
+@keyframes plate-in {
+  from {
+    opacity: 0;
+    transform: rotateX(90deg);
+  }
+}
+
+.db-rank {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9.5px;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.db-rank em {
+  font-style: normal;
+  font-size: 9px;
+  padding: 0 3px;
+  border-radius: 2px;
+  background: var(--brass);
+  color: #fff;
+}
+
+.db-rank em.hot {
+  background: var(--accent);
+  animation: live-blink 0.9s steps(2) infinite;
+}
+
+.db-name {
+  font-size: 13px;
+  font-weight: 900;
+  color: #1b2233;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.db-first.pending .db-name {
+  color: #6b7280;
+}
+
+.db-first.empty .db-name {
+  color: #b8b2a4;
+}
+
+.db-rest {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 5px;
+}
+
+.db-line {
+  display: flex;
+  gap: 4px;
+  font-size: 10.5px;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.db-line b {
+  flex: 0 0 auto;
+  min-width: 10px;
+  color: var(--ink-3);
+  font-weight: 800;
+}
+
+.db-more {
+  font-size: 10px;
+  color: var(--ink-3);
+}
+
+/* 入札の発表・くじ引きの全画面 */
+.draft-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  max-width: 480px;
+  margin: 0 auto;
+  overflow-y: auto;
+  padding: calc(14px + env(safe-area-inset-top)) 14px calc(20px + env(safe-area-inset-bottom));
+  color: #f4f1ea;
+  background:
+    radial-gradient(ellipse at 50% -10%, #2b4a86 0%, transparent 60%),
+    linear-gradient(#0c1a36, #070f22);
+  animation: live-in 280ms ease-out both;
+}
+
+.nr-panel,
+.lot-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nr-kicker {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #ffcf3f;
+}
+
+.nr-title,
+.lot-title {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.nr-title span,
+.lot-title span {
+  font-size: 13px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e63946;
+  color: #fff;
+}
+
+.nr-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nr-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.07);
+  border-left: 5px solid var(--team);
+  animation: nr-in 380ms var(--ease-snap) both;
+}
+
+@keyframes nr-in {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+}
+
+.nr-row.mine {
+  background: rgba(255, 207, 63, 0.16);
+}
+
+.nr-row.clash .nr-name {
+  color: #ffd166;
+}
+
+.nr-team {
+  flex: 0 0 52px;
+  font-size: 12px;
+  font-weight: 800;
+  opacity: 0.85;
+}
+
+.nr-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.nr-name small {
+  margin-left: 6px;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.nr-clash {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #e63946;
+  color: #fff;
+  animation: stamp-in 420ms var(--ease-spring) both;
+}
+
+.nr-lotteries {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 6px;
+  background: rgba(230, 57, 70, 0.15);
+  border: 1px solid rgba(230, 57, 70, 0.5);
+  animation: fade-up 360ms ease-out both;
+}
+
+.nr-lot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.nr-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.nr-actions .btn {
+  min-width: 200px;
+}
+
+/* くじ引き */
+.lot-teams {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lot-team {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 900;
+  background: rgba(255, 255, 255, 0.08);
+  border-bottom: 3px solid var(--team);
+  transition: transform 300ms var(--ease-spring);
+}
+
+.lot-team small {
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.lot-team.mine {
+  background: rgba(255, 207, 63, 0.18);
+}
+
+.lot-team.winner {
+  background: #ffcf3f;
+  color: #1b1405;
+  transform: scale(1.12);
+}
+
+.lot-guide {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+/* 抽選箱。上から見た箱の中に、折りたたんだ紙が並ぶ */
+.lot-box {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  padding: 26px 14px 22px;
+  border-radius: 10px;
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(0, 0, 0, 0.35), transparent 70%),
+    linear-gradient(#7a1c1c, #4b0f10);
+  border: 4px solid #2e0808;
+  box-shadow:
+    inset 0 10px 24px rgba(0, 0, 0, 0.6),
+    0 10px 24px rgba(0, 0, 0, 0.5);
+  perspective: 700px;
+}
+
+.lot-paper {
+  width: 76px;
+  height: 96px;
+  padding: 0;
+  background: none;
+  border: none;
+  transform: rotate(calc((var(--i) - 1.5) * 4deg));
+  animation: paper-bob 2.4s ease-in-out infinite;
+  animation-delay: calc(var(--i) * 0.2s);
+  transition: transform 300ms var(--ease-spring), opacity 200ms ease;
+}
+
+@keyframes paper-bob {
+  50% {
+    translate: 0 -4px;
+  }
+}
+
+.lot-paper:not(:disabled):active {
+  transform: scale(0.94);
+}
+
+.lot-paper.taken {
+  opacity: 0.45;
+  animation: none;
+}
+
+.stage-opening .lot-paper:not(.chosen),
+.stage-choose .lot-paper.taken {
+  filter: saturate(0.3);
+}
+
+.lot-paper.chosen {
+  z-index: 2;
+  transform: translateY(-14px) scale(1.25);
+  animation: paper-shake 0.25s ease-in-out infinite;
+}
+
+.stage-result .lot-paper.chosen {
+  animation: none;
+  transform: translateY(-10px) scale(1.25);
+}
+
+@keyframes paper-shake {
+  25% {
+    rotate: -3deg;
+  }
+  75% {
+    rotate: 3deg;
+  }
+}
+
+.lot-fold {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 700ms var(--ease-spring);
+}
+
+.lot-front,
+.lot-inside {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 3px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* 折りたたんだ紙の表：中央に折り目 */
+.lot-front {
+  background:
+    linear-gradient(90deg, transparent 48%, rgba(0, 0, 0, 0.12) 50%, transparent 52%),
+    linear-gradient(#fbf8f1, #e9e3d4);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
+  color: #7a6f5a;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.lot-paper.taken .lot-front {
+  font-size: 12px;
+}
+
+/* 開いた紙の中身 */
+.lot-inside {
+  transform: rotateY(180deg);
+  background: #fffdf7;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  color: #1b2233;
+  font-size: 11px;
+}
+
+.lot-inside b {
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-align: center;
+  letter-spacing: 0.06em;
+  color: #c1121f;
+}
+
+.lot-seal {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #c1121f;
+  border-radius: 50%;
+  color: #c1121f;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+  transform: rotate(-12deg);
+}
+
+.draft-overlay .btn.primary {
+  background: linear-gradient(#ffe27a, #ffbf1f);
+  border-color: #a86e00;
+  color: #1b1405;
+  box-shadow: 0 3px 0 #a86e00, 0 8px 18px rgba(0, 0, 0, 0.4);
+}
+
+.draft-overlay .btn.secondary {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+}
+
+.lot-paper.open .lot-fold {
+  transform: rotateY(180deg);
+}
+
+.lot-paper.open:not(.chosen) .lot-fold {
+  transition-delay: 500ms;
+}
+
+.lot-paper.hit .lot-inside {
+  box-shadow:
+    0 0 0 3px #ffcf3f,
+    0 0 22px rgba(255, 207, 63, 0.9);
+}
+
+.lot-verdict {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 40px;
+  font-weight: 900;
+  color: #b9c3d6;
+  animation: big-stamp 600ms var(--ease-spring) 200ms both;
+}
+
+.lot-verdict.won {
+  color: #ffcf3f;
+  text-shadow: 0 0 24px rgba(255, 207, 63, 0.8);
+}
+
+.lot-verdict small {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f4f1ea;
+  opacity: 0.8;
+}
+
+.lottery.lost .lot-box {
+  filter: saturate(0.5) brightness(0.85);
+  transition: filter 600ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .draft-overlay,
+  .draft-overlay *,
+  .db-first,
+  .db-cell {
+    animation: none !important;
+    transition: none !important;
+  }
+}

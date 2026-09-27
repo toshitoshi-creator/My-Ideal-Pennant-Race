@@ -486,6 +486,8 @@ export function autoPick(state: GameState, draft: DraftState, rng: Rng): DraftPr
 export function runCpuPicks(state: GameState, rng: Rng): void {
   const draft = state.draft;
   if (!draft || draft.phase !== 'picking') return;
+  // 1巡目の入札・抽選が終わるまでは、順番の指名に進まない
+  if (draft.firstRound && !draft.firstRound.done) return;
   let guard = 0;
   while (guard++ < 500) {
     const slot = currentPick(draft);
@@ -504,7 +506,7 @@ export function runCpuPicks(state: GameState, rng: Rng): void {
   }
 }
 
-function pushDraftNotice(state: GameState, message: string): void {
+export function pushDraftNotice(state: GameState, message: string): void {
   state.notices.push({ date: state.date, kind: 'draft', message });
   if (state.notices.length > 60) state.notices.splice(0, state.notices.length - 60);
 }

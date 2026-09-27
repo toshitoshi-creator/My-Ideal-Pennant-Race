@@ -963,6 +963,41 @@ export interface DraftState {
   /** 球団ごとの必要人数 */
   needs: Record<string, number>;
   completed: boolean;
+  /**
+   * 1巡目の入札・抽選（NPB 方式）。無いときは従来どおり1巡目も順番に指名する
+   * （このフィールドより前のセーブ・テストのための互換）。
+   */
+  firstRound?: DraftFirstRound;
+}
+
+/** 重複指名のくじ引き */
+export interface DraftLottery {
+  prospectId: string;
+  /** くじを引く順（球団ID） */
+  teams: string[];
+  /** 当たりの紙の番号（0始まり）。引き終わるまで画面には出さない */
+  winningPaper: number;
+  /** 球団ごとに引いた紙の番号 */
+  drawn: Record<string, number>;
+  /** 交渉権を得た球団（引き終わるまで null） */
+  winner: string | null;
+}
+
+/** 1巡目の入札1回ぶん（1 = 1位、2 = 外れ1位、3 = 外れ外れ1位…） */
+export interface DraftFirstRoundAttempt {
+  attempt: number;
+  /** 球団ID → 入札した候補ID */
+  nominations: Record<string, string>;
+  lotteries: DraftLottery[];
+}
+
+export interface DraftFirstRound {
+  done: boolean;
+  /** まだ1巡目の選手が決まっていない球団（指名順） */
+  pending: string[];
+  attempts: DraftFirstRoundAttempt[];
+  /** プレイヤー球団が加わっていて、まだ引いていないくじ（最新の入札の lotteries の番号） */
+  awaitingLottery: number | null;
 }
 
 export interface GrowthReportEntry {
