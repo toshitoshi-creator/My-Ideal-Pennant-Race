@@ -6550,3 +6550,19 @@ h3.sec {
   color: var(--ink);
   background: var(--paper-2);
 }
+
+/* 編成（オーダー・先発）：能力と今季成績を2段で並べる */
+.chip-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.chip-rows .pc-chips {
+  margin-top: 0;
+}
+
+.order-row .grow {
+  min-width: 0;
+}

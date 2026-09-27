@@ -110,7 +110,7 @@ function RowPortrait({ player }: { player: Player }) {
 }
 
 /** 能力の要約。ランクの文字を色付きの札で出す */
-function AbilitySummary({ player }: { player: Player }) {
+export function AbilitySummary({ player }: { player: Player }) {
   if (player.isPitcher && player.pitching) {
     const p = player.pitching;
     return (
@@ -134,7 +134,7 @@ function AbilitySummary({ player }: { player: Player }) {
 }
 
 /** 今季成績の要約。野手は打率、投手は防御率を先頭に */
-function StatsSummary({ player }: { player: Player }) {
+export function StatsSummary({ player }: { player: Player }) {
   const { state } = useGame();
   const stats = state.stats[player.id];
   if (!stats) return <span className="muted">成績なし</span>;
