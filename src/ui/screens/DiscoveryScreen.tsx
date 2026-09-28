@@ -9,6 +9,7 @@
  *  - 発掘力（見つける力）と調査力（推定の当たり具合）は別物として並べる。
  */
 import { useEffect, useState } from 'react';
+import { positionText } from '../components/PitcherRole';
 import type {
   AmateurCandidate,
   DiscoveryAgeBand,
@@ -389,7 +390,7 @@ function CandidateRow({
           <div style={{ fontWeight: 700 }}>{player.name}</div>
           <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>
             {candidate.from}／{player.age}歳／
-            {player.isPitcher ? '投手' : POSITION_LABELS[player.mainPosition]}
+            {positionText(player)}
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
@@ -680,7 +681,7 @@ function AmateurCandidateRow({ candidate }: { candidate: AmateurCandidate }) {
           <div style={{ fontWeight: 700 }}>{player.name}</div>
           <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>
             {ORIGIN_LABELS[candidate.origin]}／{player.age}歳／
-            {player.isPitcher ? '投手' : POSITION_LABELS[player.mainPosition]}
+            {positionText(player)}
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>

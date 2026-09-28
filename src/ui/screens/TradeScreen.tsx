@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
+import { RoleGrades, positionText } from '../components/PitcherRole';
 import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import { teamVisual } from '../../domain/visuals';
 import { TeamMark } from '../components/visuals/TeamVisuals';
 import type { Player, Team, TradeOffer } from '../../domain/types';
-import { POSITION_LABELS, positionGroup } from '../../domain/positions';
+import { positionGroup } from '../../domain/positions';
 import { overallRating, teamPower } from '../../domain/rating';
 import { rankOfTeam } from '../../domain/standings';
 import { average, formatAverage, formatEra, formatInnings } from '../../domain/stats';
@@ -539,7 +540,7 @@ function PlayerLine({ player }: { player: Player }) {
       <span>
         <span style={{ fontWeight: 700 }}>{player.name}</span>
         <span className="meta" style={{ display: 'block' }}>
-          {player.age}歳 / {POSITION_LABELS[player.mainPosition]}
+          {player.age}歳 / {positionText(player)} <RoleGrades player={player} />
           {contract ? ` / ${formatSalary(contract.salary)}` : ''}
         </span>
       </span>
@@ -559,7 +560,7 @@ function PlayerSheet({ player, onClose }: { player: Player; onClose: () => void 
           <div>
             <div style={{ fontSize: 18, fontWeight: 800 }}>{player.name}</div>
             <div className="muted">
-              {player.age}歳 / {POSITION_LABELS[player.mainPosition]}
+              {player.age}歳 / {positionText(player)} <RoleGrades player={player} />
             </div>
           </div>
           <RankBadge value={overallRating(player)} />

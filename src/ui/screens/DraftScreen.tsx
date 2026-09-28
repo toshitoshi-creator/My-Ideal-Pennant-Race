@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { positionText } from '../components/PitcherRole';
 import { Sec } from '../components/Sec';
 import { useGame } from '../store';
 import type { DraftProspect, ScoutReport } from '../../domain/types';
@@ -7,7 +8,6 @@ import { attemptLabel, canNominate, inFirstRound } from '../../domain/draftLotte
 import { DraftBoard, LotteryOverlay, NominationReveal } from '../components/DraftLive';
 import { PlayerVisual, PlayerVisualHero } from '../components/PlayerVisual';
 import { RevealRows } from '../components/Reveal';
-import { POSITION_LABELS } from '../../domain/positions';
 import {
   abilityRangeText,
   confidenceLabel,
@@ -200,7 +200,7 @@ export function DraftScreen() {
                 { label: '選手', value: latestProspect.player.name },
                 {
                   label: 'ポジション',
-                  value: `${POSITION_LABELS[latestProspect.player.mainPosition]} / ${latestProspect.player.age}歳`,
+                  value: `${positionText(latestProspect.player)} / ${latestProspect.player.age}歳`,
                 },
                 {
                   label: 'スカウト評価',
@@ -236,7 +236,7 @@ export function DraftScreen() {
                     {prospect.player.name}
                   </span>
                   <span className="muted">
-                    {POSITION_LABELS[prospect.player.mainPosition]} / {prospect.player.age}歳
+                    {positionText(prospect.player)} / {prospect.player.age}歳
                   </span>
                 </div>
               );
@@ -348,7 +348,7 @@ export function DraftScreen() {
               <div style={{ fontSize: 17, fontWeight: 800 }}>{confirming.player.name}</div>
             </div>
             <div className="muted">
-              {POSITION_LABELS[confirming.player.mainPosition]} / {confirming.player.age}歳 /{' '}
+              {positionText(confirming.player)} / {confirming.player.age}歳 /{' '}
               推定能力 {abilityRangeText(reports.get(confirming.id)!)}
             </div>
             <div style={{ marginTop: 10, fontSize: 15 }}>
@@ -431,7 +431,7 @@ function ProspectCard({
             </span>
           </span>
           <span className="meta">
-            {POSITION_LABELS[player.mainPosition]} / 推定能力 {abilityRangeText(report)}
+            {positionText(player)} / 推定能力 {abilityRangeText(report)}
           </span>
         </span>
         <span style={{ textAlign: 'right' }}>
@@ -498,7 +498,7 @@ function ProspectDetail({
           <div>
             <div style={{ fontSize: 19, fontWeight: 800 }}>{player.name}</div>
             <div className="muted">
-              {player.age}歳 / {POSITION_LABELS[player.mainPosition]} /{' '}
+              {player.age}歳 / {positionText(player)} /{' '}
               {player.throws === 'R' ? '右' : '左'}投{player.bats === 'R' ? '右' : '左'}打
             </div>
           </div>

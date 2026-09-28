@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { RoleAptitudePanel, positionText } from './PitcherRole';
 import type { Player } from '../../domain/types';
 import { useGame } from '../store';
 import { AbilityBar, KeyValue, RankBadge, Sheet, Tabs } from './common';
@@ -7,6 +8,7 @@ import { Sec } from './Sec';
 import { PlayerHistoryView } from './PlayerHistoryView';
 import { POSITION_LABELS, aptitudeLabel, FIELD_POSITIONS } from '../../domain/positions';
 import { overallRating } from '../../domain/rating';
+import { AWARD_LABELS } from '../../domain/history';
 import { velocityToScale } from '../../domain/rank';
 import {
   applyRosterChange,
@@ -124,7 +126,7 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
               {player.name}
             </div>
             <div className="profile-meta">
-              {POSITION_LABELS[player.mainPosition]}・{player.age}歳・
+              {positionText(player)}・{player.age}歳・
               {player.throws === 'R' ? '右' : '左'}投
               {player.bats === 'R' ? '右' : '左'}打
             </div>
@@ -139,6 +141,18 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
                 </span>
               )}
             </div>
+            {/* タイトル・表彰を取った選手の称号（肖像の金の枠と対になる） */}
+            {history && history.awards.length > 0 && (
+              <div className="profile-honor">
+                <span className="profile-honor-tag">称号</span>
+                {history.awards
+                  .slice(-3)
+                  .reverse()
+                  .map((a) => `${a.year} ${AWARD_LABELS[a.kind]}`)
+                  .join('・')}
+                {history.awards.length > 3 && ` ほか${history.awards.length - 3}`}
+              </div>
+            )}
           </div>
           <div className="profile-rank">
             <span className="label">総合</span>
@@ -230,6 +244,7 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
         <Sec en="ABILITY" ja="能力" />
         {player.isPitcher && player.pitching ? (
           <>
+            <RoleAptitudePanel player={player} />
             <AbilityBar
               label="球速"
               value={velocityToScale(player.pitching.velocity)}
@@ -369,7 +384,7 @@ function SwapCandidateList({
           <span className="grow">
             <strong>{candidate.name}</strong>
             <span className="muted" style={{ display: 'block', fontSize: 12 }}>
-              {POSITION_LABELS[candidate.mainPosition]} / 総合{overallRating(candidate)}
+              {positionText(candidate)} / 総合{overallRating(candidate)}
               {candidate.ext.injury ? ' / 負傷中' : ''}
               {!allowed && reason ? ` / ${reason}` : ''}
             </span>

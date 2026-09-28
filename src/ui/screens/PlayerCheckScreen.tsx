@@ -9,6 +9,7 @@
  * 選手名をタップすれば PlayerDetail が開き、そこから1軍/2軍を入れ替えられる。
  */
 import { useMemo, useState } from 'react';
+import { positionText } from '../components/PitcherRole';
 import { Sec } from '../components/Sec';
 import { Tabs } from '../components/common';
 import { PlayerLink } from '../components/PlayerLink';
@@ -17,7 +18,6 @@ import { useGame } from '../store';
 import type { Player } from '../../domain/types';
 import { checkTeamPlayers, type PlayerCheckStatus } from '../../domain/playerEvaluation';
 import { CONDITION_LABELS, fatigueLabel } from '../../domain/condition';
-import { POSITION_LABELS } from '../../domain/positions';
 import { formatAverage, formatInnings } from '../../domain/stats';
 import playerCheckBg from '../../assets/backgrounds/bg-player-check.webp';
 
@@ -105,7 +105,7 @@ function PlayerCheckRow({ player, status }: { player: Player; status: PlayerChec
           <PlayerLink playerId={player.id}>{player.name}</PlayerLink>
         </span>
         <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>
-          {player.roster === 'first' ? '1軍' : '2軍'} / {POSITION_LABELS[player.mainPosition]}
+          {player.roster === 'first' ? '1軍' : '2軍'} / {positionText(player)}
         </span>
       </div>
       <div className="muted" style={{ fontSize: 'var(--text-sm)', marginTop: 2 }}>

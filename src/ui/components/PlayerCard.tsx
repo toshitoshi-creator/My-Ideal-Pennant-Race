@@ -10,6 +10,7 @@ import {
   ops,
   opsAgainst,
 } from '../../domain/stats';
+import { RoleGrades } from './PitcherRole';
 import { AbilityChip, StatChip, avgTone, eraTone, opsTone, opsAgainstTone } from './StatTone';
 import { RankBadge, PositionBadge } from './common';
 import { daysUntilChangeable } from '../../domain/roster';
@@ -115,6 +116,7 @@ export function AbilitySummary({ player }: { player: Player }) {
     const p = player.pitching;
     return (
       <>
+        <RoleGrades player={player} />
         <AbilityChip label="球速" value={velocityToScale(p.velocity)} display={`${p.velocity}`} />
         <AbilityChip label="制球" value={p.control} />
         <AbilityChip label="スタミナ" value={p.stamina} />

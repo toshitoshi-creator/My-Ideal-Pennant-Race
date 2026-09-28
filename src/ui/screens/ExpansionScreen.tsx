@@ -5,6 +5,7 @@
  * 野手9人・投手5人以上そろえば開幕できる（目安は野手15人・投手6人）。
  */
 import { useMemo, useState } from 'react';
+import { positionText } from '../components/PitcherRole';
 import type { ExpansionCandidate } from '../../domain/types';
 import { useGame } from '../store';
 import { Sec } from '../components/Sec';
@@ -21,7 +22,6 @@ import {
 } from '../../domain/expansion';
 import { formatSalary } from '../../domain/contract';
 import { overallRating } from '../../domain/rating';
-import { POSITION_LABELS } from '../../domain/positions';
 import { potentialLabel } from '../../domain/growth';
 
 type Tab = 'fielder' | 'pitcher' | 'signed';
@@ -195,7 +195,7 @@ function CandidateRow({
         <div className="exp-row-name">
           <strong>{p.name}</strong>
           <span className="meta">
-            {p.age}歳・{POSITION_LABELS[p.mainPosition]}
+            {p.age}歳・{positionText(p)}
           </span>
           <span className="exp-pot">将来性 {potentialLabel(p.ext.potential)}</span>
         </div>

@@ -505,6 +505,17 @@ export interface GrowthReport {
   players: GrowthReportEntry[];
   /** 今季かぎりで引退した選手（プレイヤー球団）。PHASE 3.1 */
   retirements: RetiredPlayerRecord[];
+  /** 総合評価が B 以上に上がった選手（無い古いレポートもある） */
+  rankUps?: RankUpEntry[];
+}
+
+export interface RankUpEntry {
+  playerId: string;
+  name: string;
+  overallBefore: number;
+  overallAfter: number;
+  rankBefore: AbilityRank;
+  rankAfter: AbilityRank;
 }
 
 /**

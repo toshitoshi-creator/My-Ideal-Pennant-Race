@@ -9,10 +9,10 @@
  * くじの当たりは入札の時点で決まっていて、プレイヤーが選んだ紙がそのまま結果になる。
  */
 import { useEffect, useMemo, useState } from 'react';
+import { positionShort } from './PitcherRole';
 import type { CSSProperties } from 'react';
 import type { DraftFirstRoundAttempt, DraftLottery, DraftState, GameState, Team } from '../../domain/types';
 import { attemptLabel, remainingPapers } from '../../domain/draftLottery';
-import { POSITION_SHORT } from '../../domain/positions';
 import { teamVisual } from '../../domain/visuals';
 import { TeamMark } from './visuals/TeamVisuals';
 import { usePlayback, useReducedMotion } from '../anim';
@@ -52,7 +52,7 @@ export function DraftBoard({ state, draft }: { state: GameState; draft: DraftSta
       const entry: BoardEntry = {
         round: pick.round,
         name: prospect.player.name,
-        pos: POSITION_SHORT[prospect.player.mainPosition],
+        pos: positionShort(prospect.player),
       };
       if (pick.round === 1 && fr) {
         const info = attemptOf.get(pick.teamId);
@@ -221,7 +221,7 @@ export function NominationReveal({
                 <span className="nr-team">{team.shortName}</span>
                 <span className="nr-name">
                   {prospect?.player.name ?? '―'}
-                  <small>{prospect ? POSITION_SHORT[prospect.player.mainPosition] : ''}</small>
+                  <small>{prospect ? positionShort(prospect.player) : ''}</small>
                 </span>
                 {n > 1 && play.done && <span className="nr-clash">{n}球団競合</span>}
               </li>

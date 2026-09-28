@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { positionText } from '../components/PitcherRole';
 import { Sec } from '../components/Sec';
 import { useGame, usePlayerMap } from '../store';
 import type { LineupSlot, Player, PositionId } from '../../domain/types';
@@ -16,6 +17,7 @@ import {
 import { applyRosterChange, checkRosterChange, daysUntilChangeable } from '../../domain/roster';
 import { buildAutoSetup, nextStarterId, validateLineup } from '../../domain/setup';
 import { battingRating, overallRating, pitchingRating } from '../../domain/rating';
+import { pitcherAptitude } from '../../domain/pitcherAptitude';
 
 type Tab = 'roster' | 'order' | 'rotation';
 
@@ -444,7 +446,7 @@ function OrderTab() {
                   <span className="grow">
                     <strong>{player.name}</strong>
                     <span className="muted" style={{ display: 'block', fontSize: 12 }}>
-                      {POSITION_LABELS[player.mainPosition]} / 打撃{battingRating(player)} /{' '}
+                      {positionText(player)} / 打撃{battingRating(player)} /{' '}
                       {inLineup ? 'スタメン（入れ替え）' : '控え'}
                     </span>
                     <PlayerChips player={player} />
@@ -469,7 +471,12 @@ function RotationTab() {
   const [editing, setEditing] = useState<number | null>(null);
   const pitchers = state.players
     .filter((p) => p.teamId === teamId && p.roster === 'first' && p.isPitcher)
-    .sort((a, b) => pitchingRating(b) - pitchingRating(a));
+    // 先発に向いている順（適性が同じなら総合力の高い順）
+    .sort(
+      (a, b) =>
+        (pitcherAptitude(b)?.scores.starter ?? 0) - (pitcherAptitude(a)?.scores.starter ?? 0) ||
+        pitchingRating(b) - pitchingRating(a),
+    );
   const nextId = nextStarterId(setup);
 
   const setSlot = (index: number, playerId: string) => {
