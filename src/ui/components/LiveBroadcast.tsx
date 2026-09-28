@@ -15,6 +15,7 @@ import type { CSSProperties } from 'react';
 import type { GameResult, GameState, Team } from '../../domain/types';
 import { teamVisual } from '../../domain/visuals';
 import { formatDateJa } from '../../domain/dates';
+import { STAGE_LABELS } from '../../domain/postseason';
 import { TeamMark } from './visuals/TeamVisuals';
 import { useReducedMotion } from '../anim';
 import { sfx, buzz } from '../sfx';
@@ -246,6 +247,16 @@ export function LiveBroadcast({
   const winP = state.players.find((p) => p.id === result.winningPitcherId);
   const loseP = state.players.find((p) => p.id === result.losingPitcherId);
   const record = state.records[mineId];
+  // ポストシーズンの試合なら、シリーズ名と対戦成績を出す（試合IDは「シリーズID:何戦目」）
+  const series = state.postseason?.series.find((sr) => result.id.startsWith(`${sr.id}:`));
+  const seriesLabel = series
+    ? `${STAGE_LABELS[series.stage]} 第${result.id.split(':').pop()}戦`
+    : null;
+  const seriesScore = series
+    ? series.teamAId === mineId
+      ? `${series.teamAWins}勝${series.teamBWins}敗`
+      : `${series.teamBWins}勝${series.teamAWins}敗`
+    : null;
   const hostVisual = teamVisual(home);
 
   return (
@@ -262,7 +273,7 @@ export function LiveBroadcast({
         <span className="live-dot" aria-hidden="true" />
         <span className="live-on">{phase === 'final' ? 'FINAL' : 'LIVE'}</span>
         <span className="live-where">
-          {formatDateJa(result.date)}　{hostVisual.stadiumName}
+          {seriesLabel ?? formatDateJa(result.date)}　{hostVisual.stadiumName}
         </span>
       </div>
 
@@ -378,10 +389,16 @@ export function LiveBroadcast({
             <span>
               勝 {winP?.name ?? '－'}　負 {loseP?.name ?? '－'}
             </span>
-            {record && (
+            {seriesScore ? (
               <span className="live-final-record">
-                今季 {record.wins}勝{record.losses}敗{record.draws}分
+                {STAGE_LABELS[series!.stage]} {seriesScore}
               </span>
+            ) : (
+              record && (
+                <span className="live-final-record">
+                  今季 {record.wins}勝{record.losses}敗{record.draws}分
+                </span>
+              )
             )}
           </div>
           <button

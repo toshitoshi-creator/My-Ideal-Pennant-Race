@@ -17,6 +17,7 @@ import {
   startContractPhase,
   startFAPhase,
   startOffseason,
+  offseasonStarted,
 } from '../domain/season';
 import { offerContract as offerContractToPlayer, rememberSalary } from '../domain/contract';
 import {
@@ -32,6 +33,7 @@ import {
   rejectTradeOffer,
   respondToOffer,
 } from '../domain/trade';
+import { playNextPostseasonGame } from '../domain/postseason';
 import { makePick, recordPlayerPick, runCpuPicks, currentPick } from '../domain/draft';
 import {
   autoSignExpansion,
@@ -50,7 +52,6 @@ import {
 import { investigate } from '../domain/scouting';
 import type { ScoutCategory } from '../domain/types';
 import { Rng } from '../domain/rng';
-import { addDays } from '../domain/dates';
 import { recordDecision } from '../domain/decisions';
 import { formatSalary } from '../domain/contract';
 
@@ -95,6 +96,8 @@ interface StoreValue {
   /** state を書き換えて自動保存する */
   mutate(fn: (draft: GameState) => void): void;
   playNextGame(): GameResult | null;
+  /** ポストシーズンの次の1試合（自球団の試合なら中継つきで見せる） */
+  playPostseasonGame(): GameResult | null;
   skipOneDay(): void;
   /** シーズンを締めてオフシーズン（成長・引退・ドラフト）に入る */
   advanceSeason(): void;
@@ -269,13 +272,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return step.playerResult;
   }, [state, persist, showToast]);
 
+  const playPostseasonGame = useCallback((): GameResult | null => {
+    const current = stateRef.current;
+    if (!current?.postseason) return null;
+    const next = cloneState(current);
+    const before = next.postseason?.playerResults?.length ?? 0;
+    playNextPostseasonGame(next);
+    persist(next);
+    const results = next.postseason?.playerResults ?? [];
+    if (results.length > before) {
+      // 自球団の試合：レギュラーシーズンと同じ試合画面・中継で見せる
+      const result = results[results.length - 1];
+      setLastResult(result);
+      setScreen('game');
+      return result;
+    }
+    return null;
+  }, [persist]);
+
   const skipOneDay = useCallback(() => {
     if (!state) return;
     if (state.seasonFinished) {
-      // シーズン後も日付だけは進められる
-      const next = cloneState(state);
-      next.date = addDays(next.date, 1);
-      persist(next);
+      // シーズンが終わったら日付は進めない（オフシーズンは日付ではなく手続きで進む）
+      showToast('シーズンは終了しました。オフシーズンへ進んでください');
       return;
     }
     const step = advanceDay(state);
@@ -304,6 +323,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const current = stateRef.current;
     if (!current || !current.seasonFinished) return;
     if (current.draft) return; // すでにドラフト中なら何もしない（二重実行の防止）
+    // その年のオフシーズンがもう始まっていれば何もしない（FA市場を閉じて戻ってきたときなど）
+    if (offseasonStarted(current)) {
+      if (current.fa) setFaHidden(false);
+      return;
+    }
     const next = cloneState(current);
     const { retirements } = startOffseason(next);
     commit(next);
@@ -713,6 +737,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteSave,
       mutate,
       playNextGame,
+      playPostseasonGame,
       skipOneDay,
       advanceSeason,
       scout,
@@ -762,6 +787,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteSave,
       mutate,
       playNextGame,
+      playPostseasonGame,
       skipOneDay,
       advanceSeason,
       scout,

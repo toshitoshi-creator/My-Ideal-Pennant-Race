@@ -8,6 +8,7 @@ import { teamPower } from '../../domain/rating';
 import { rankOfTeam, formatWinPct, winPct } from '../../domain/standings';
 import { RankBadge } from '../components/common';
 import { GrowthReportSheet } from '../components/GrowthReport';
+import { offseasonStarted } from '../../domain/season';
 import { RankUpShow } from '../components/RankUpShow';
 
 /** 総合評価アップの演出を見た年（このセッションの間だけ覚える） */
@@ -191,7 +192,13 @@ export function HomeScreen() {
             <img className="next-game-press" src={nextGamePressArt} alt="" />
             <span className="sr-only">次の試合へ</span>
           </button>
-          <PictureButton src={nextDayArt} alt="1日進める" onClick={() => skipOneDay()} />
+          <PictureButton
+            src={nextDayArt}
+            alt="1日進める"
+            // シーズンが終わったら日付は進めない（オフシーズンは手続きで進む）
+            disabled={state.seasonFinished}
+            onClick={() => skipOneDay()}
+          />
         </div>
         <div className="home-actions-grid">
           <PictureButton
@@ -285,7 +292,18 @@ export function HomeScreen() {
             {state.year}年シーズン終了。{record.wins}勝{record.losses}敗{record.draws}分（{rank}位）
           </div>
           <PostseasonNotice />
-          <PictureButton src={toOffseasonArt} alt="オフシーズンへ" className="label-btn" onClick={() => advanceSeason()} />
+          {offseasonStarted(state) ? (
+            // オフシーズンはもう始まっている（FA市場を閉じて戻ってきたとき）。もう一度は走らせない
+            state.fa ? (
+              <button type="button" className="btn primary" onClick={() => showFA()}>
+                FA市場に戻る
+              </button>
+            ) : (
+              <div className="muted">オフシーズンの手続きを進めています。</div>
+            )
+          ) : (
+            <PictureButton src={toOffseasonArt} alt="オフシーズンへ" className="label-btn" onClick={() => advanceSeason()} />
+          )}
         </div>
       )}
 

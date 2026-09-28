@@ -21,6 +21,7 @@ import { PlayerCheckScreen } from './screens/PlayerCheckScreen';
 import { PlayerDetailHost } from './components/PlayerDetailHost';
 import { formatDateJa } from '../domain/dates';
 import { nextGameForTeam } from '../domain/schedule';
+import { nextPostseasonGameIsMine } from '../domain/postseason';
 import { PictureButton } from './components/PictureButton';
 import { LoadingFlourish } from './components/LoadingFlourish';
 import saveQuitArt from '../assets/ui/app-save-quit.webp';
@@ -52,8 +53,17 @@ export function App() {
 }
 
 function Root() {
-  const { state, screen, setScreen, toast, quitToTitle, faHidden, lastResult, playNextGame } =
-    useStore();
+  const {
+    state,
+    screen,
+    setScreen,
+    toast,
+    quitToTitle,
+    faHidden,
+    lastResult,
+    playNextGame,
+    playPostseasonGame,
+  } = useStore();
 
   /*
    * 試合中継。新しい試合結果が出たら（次の試合・1日進める・スワイプで次へ）
@@ -221,7 +231,13 @@ function Root() {
                   setScreen('game');
                   playNextGame();
                 }
-              : undefined
+              : state.seasonFinished && nextPostseasonGameIsMine(state)
+                ? () => {
+                    // ポストシーズンも、次の自球団の試合をそのまま中継する
+                    setLiveId(null);
+                    playPostseasonGame();
+                  }
+                : undefined
           }
         />
       )}

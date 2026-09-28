@@ -4,6 +4,7 @@ import { useGame } from '../store';
 import type { GameResult } from '../../domain/types';
 import { formatDateJa } from '../../domain/dates';
 import { nextGameForTeam } from '../../domain/schedule';
+import { STAGE_LABELS, currentSeries, nextPostseasonGameIsMine } from '../../domain/postseason';
 import { Sheet } from '../components/common';
 import { PlayerLink } from '../components/PlayerLink';
 import { PictureButton } from '../components/PictureButton';
@@ -29,7 +30,7 @@ import { wasBroadcast } from '../components/LiveBroadcast';
 import { useFirstVisit, useReducedMotion } from '../anim';
 
 export function GameScreen() {
-  const { state, lastResult, playNextGame } = useGame();
+  const { state, lastResult, playNextGame, playPostseasonGame, setScreen } = useGame();
   const [detail, setDetail] = useState<GameResult | null>(null);
   const team = state.teams.find((t) => t.id === state.playerTeamId)!;
   const next = nextGameForTeam(state.schedule, team.id, state.date);
@@ -40,10 +41,24 @@ export function GameScreen() {
     : null;
   const brief = useMemo(() => buildPreGameBrief(state), [state]);
 
-  const playerResults = state.results
-    .filter((r) => r.homeTeamId === team.id || r.awayTeamId === team.id)
+  // レギュラーシーズンの試合に、自球団のポストシーズンの試合を続けて並べる（新しい順）
+  const playerResults = [
+    ...state.results.filter((r) => r.homeTeamId === team.id || r.awayTeamId === team.id),
+    ...(state.postseason?.playerResults ?? []),
+  ]
     .slice()
     .reverse();
+
+  /*
+   * ポストシーズン中は、自球団の次の試合をこの画面から中継つきで行う。
+   * 次の1試合を進める関数（レギュラーシーズン・ポストシーズン共通。無ければ null）。
+   */
+  const postseasonMine = state.seasonFinished && nextPostseasonGameIsMine(state);
+  const playNext: (() => void) | null = next
+    ? () => void playNextGame()
+    : postseasonMine
+      ? () => void playPostseasonGame()
+      : null;
 
   /*
    * スコアブックの左右スワイプ。index 0 が最新の試合結果で、
@@ -70,7 +85,7 @@ export function GameScreen() {
   const viewNewerOrNext = () => {
     if (canViewNewer) {
       setViewIndex(clampedIndex - 1);
-    } else if (next) {
+    } else if (playNext) {
       setConfirmNext(true);
     }
   };
@@ -147,6 +162,12 @@ export function GameScreen() {
             )}
             <PictureButton src={gameStartArt} alt="試合開始" onClick={() => playNextGame()} />
           </>
+        ) : state.seasonFinished && state.postseason && currentSeries(state) ? (
+          <PostseasonBrief
+            mine={postseasonMine}
+            onPlay={() => playPostseasonGame()}
+            onOpen={() => setScreen('postseason')}
+          />
         ) : (
           <div className="muted">予定されている試合はありません。</div>
         )}
@@ -169,7 +190,7 @@ export function GameScreen() {
             <div className="muted swipe-hint">
               <span>{canViewOlder ? '◀ 右スワイプで前の試合' : ''}</span>
               <span>
-                {canViewNewer ? '左スワイプで新しい試合 ▶' : next ? '左スワイプで次の試合へ ▶' : ''}
+                {canViewNewer ? '左スワイプで新しい試合 ▶' : playNext ? '左スワイプで次の試合へ ▶' : ''}
               </span>
             </div>
             <GameResultView key={viewedResult.id} state={state} result={viewedResult} />
@@ -187,8 +208,8 @@ export function GameScreen() {
                   最新の結果へ
                 </button>
               ) : null}
-              {next && (
-                <button type="button" className="btn primary next-game-cta" onClick={() => playNextGame()}>
+              {playNext && (
+                <button type="button" className="btn primary next-game-cta" onClick={playNext}>
                   次の試合へ ▶
                 </button>
               )}
@@ -268,7 +289,7 @@ export function GameScreen() {
               className="btn"
               onClick={() => {
                 setConfirmNext(false);
-                playNextGame();
+                playNext?.();
               }}
             >
               はい
@@ -690,5 +711,48 @@ function EventPlate({
         <p className="event-plate-text">{text}</p>
       </div>
     </section>
+  );
+}
+
+/**
+ * ポストシーズンの試合前。自球団の試合なら、ここから中継つきで試合を始める。
+ * 他球団どうしの試合なら、ポストシーズンの画面で進める。
+ */
+function PostseasonBrief({ mine, onPlay, onOpen }: { mine: boolean; onPlay: () => void; onOpen: () => void }) {
+  const { state } = useGame();
+  const series = currentSeries(state)!;
+  const name = (id: string) => state.teams.find((t) => t.id === id)?.name ?? id;
+  const me = state.playerTeamId;
+  const opponentId = series.teamAId === me ? series.teamBId : series.teamAId;
+  const myWins = series.teamAId === me ? series.teamAWins : series.teamBWins;
+  const theirWins = series.teamAId === me ? series.teamBWins : series.teamAWins;
+  return (
+    <div className="post-brief">
+      <div className="post-brief-stage">
+        <span className="label">POSTSEASON</span>
+        <strong>{STAGE_LABELS[series.stage]}</strong>
+        <span>第{series.games.length + 1}戦</span>
+      </div>
+      {mine ? (
+        <>
+          <div className="post-brief-match">
+            vs {name(opponentId)}
+            <span className="post-brief-score">
+              {myWins} - {theirWins}
+            </span>
+          </div>
+          <PictureButton src={gameStartArt} alt="試合開始" onClick={onPlay} />
+        </>
+      ) : (
+        <>
+          <div className="post-brief-match">
+            {name(series.teamAId)} vs {name(series.teamBId)}
+          </div>
+          <button type="button" className="btn secondary" onClick={onOpen}>
+            ポストシーズンの画面で進める
+          </button>
+        </>
+      )}
+    </div>
   );
 }

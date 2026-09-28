@@ -8019,3 +8019,45 @@ h3.sec {
   color: #3b2a00;
   box-shadow: 0 0 6px rgba(232, 185, 35, 0.6);
 }
+
+/* 試合タブのポストシーズンの試合前 */
+.post-brief {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, #0f1f3d, #1d3a7a);
+  color: #fff;
+}
+
+.post-brief-stage {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.post-brief-stage .label {
+  color: #ffcf3f;
+}
+
+.post-brief-stage strong {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.post-brief-match {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.post-brief-score {
+  margin-left: auto;
+  font-size: 24px;
+  font-weight: 900;
+  color: #ffcf3f;
+  font-variant-numeric: tabular-nums;
+}
