@@ -152,7 +152,28 @@ const RETIRED_RECORD_LIMIT = 500;
  * オフシーズンに入る：成長・衰退 → 年齢加算 → 引退 → ドラフト準備。
  * ドラフトはこの時点では未実施で、state.draft に指名待ちの状態が入る。
  */
+/** その年のオフシーズンがもう始まっているか（ドラフトを終えた古いセーブも含めて判定する） */
+export function offseasonStarted(state: GameState): boolean {
+  return (
+    state.lastOffseasonYear === state.year ||
+    state.lastDraftYear === state.year ||
+    (!!state.draft && state.draft.year === state.year)
+  );
+}
+
 export function startOffseason(state: GameState): SeasonRolloverResult {
+  /*
+   * 同じ年に二度走らせない。二度目を通すと成長・加齢・引退判定が重なり、
+   * 押すたびに選手が歳を取って引退していく（FA市場を閉じてホームに戻ったときなど）。
+   */
+  if (offseasonStarted(state)) {
+    return {
+      report: state.lastGrowthReport ?? { year: state.year, teamId: state.playerTeamId, players: [], retirements: [] },
+      all: [],
+      retirements: [],
+    };
+  }
+  state.lastOffseasonYear = state.year;
   const rng = new Rng(state.rngState);
   const results: PlayerGrowthResult[] = [];
 

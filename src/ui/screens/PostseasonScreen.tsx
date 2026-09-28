@@ -7,7 +7,6 @@ import {
   STAGE_LABELS,
   currentSeries,
   isSeriesComplete,
-  playNextPostseasonGame,
   seriesOfStage,
   winsRemaining,
 } from '../../domain/postseason';
@@ -18,7 +17,7 @@ import type { SeriesState } from '../../domain/types';
  * トーナメント表とシリーズの進行を、縦スクロールで見られるようにする。
  */
 export function PostseasonScreen() {
-  const { state, mutate } = useGame();
+  const { state, playPostseasonGame } = useGame();
   const postseason = state.postseason;
 
   if (!postseason) {
@@ -45,8 +44,11 @@ export function PostseasonScreen() {
     .map((league) => postseason.leagueChampions[league.id])
     .filter((id): id is string => !!id);
 
-  // 1試合ずつ進める（段階の切り替えはドメイン側で行う）
-  const playOne = () => mutate((draft) => void playNextPostseasonGame(draft));
+  /*
+   * 1試合ずつ進める（段階の切り替えはドメイン側で行う）。
+   * 自球団の試合は、レギュラーシーズンと同じ中継と試合画面で見せる。
+   */
+  const playOne = () => void playPostseasonGame();
 
   return (
     <div className="screen">

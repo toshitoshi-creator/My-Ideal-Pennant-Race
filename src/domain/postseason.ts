@@ -337,6 +337,10 @@ export function playNextPostseasonGame(state: GameState): PostseasonGame | null 
     winnerTeamId: result.winnerTeamId,
   };
   series.games.push(game);
+  // 自球団の試合は、実況つきの結果を残す（試合画面・中継で見せる）
+  if (homeTeamId === state.playerTeamId || awayTeamId === state.playerTeamId) {
+    postseason.playerResults = [...(postseason.playerResults ?? []), result];
+  }
   if (result.winnerTeamId === series.teamAId) series.teamAWins += 1;
   else if (result.winnerTeamId === series.teamBId) series.teamBWins += 1;
 
@@ -355,6 +359,12 @@ export function playNextPostseasonGame(state: GameState): PostseasonGame | null 
 }
 
 /* ---------------- 段階の進行 ---------------- */
+
+/** 次のポストシーズンの試合が自球団の試合か */
+export function nextPostseasonGameIsMine(state: GameState): boolean {
+  const series = currentSeries(state);
+  return !!series && (series.teamAId === state.playerTeamId || series.teamBId === state.playerTeamId);
+}
 
 /** いまの段階が終わっていれば次の段階へ進む */
 function advancePhase(state: GameState): void {

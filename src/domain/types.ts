@@ -415,6 +415,11 @@ export interface GameState {
    * 無い・null なら通常のゲーム。
    */
   expansion?: ExpansionState | null;
+  /**
+   * オフシーズン（成長・加齢・引退・ドラフト準備）を始めた年。
+   * 同じ年に二度走らせると、加齢と引退判定が重なって選手が一気に引退してしまうので、これで止める。
+   */
+  lastOffseasonYear?: number | null;
   /** 自球団のファンの人数（このフィールドより前のセーブには無い） */
   fans?: number;
   /** 前日（最後に試合を行う前）のファンの人数。増減の表示に使う */
@@ -1420,6 +1425,11 @@ export interface PostseasonState {
   /** クライマックスシリーズMVP。リーグID → 選手ID */
   csMvp: Record<string, string>;
   japanSeriesMvpPlayerId: string | null;
+  /**
+   * 自球団のポストシーズンの試合結果（実況つき）。
+   * レギュラーシーズンと同じ試合画面・中継で見せるために残す。古いセーブには無い。
+   */
+  playerResults?: GameResult[];
 }
 
 /* ---------------- ニュース・シーズンストーリー：PHASE 3.9 ---------------- */
