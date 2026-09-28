@@ -11,9 +11,13 @@ import {
   FA_ROLE_LABELS,
   MARKET_GRADE_LABELS,
   estimatedOverallRange,
+  compensationFormerTeam,
   marketGrade,
   offersByTeam,
 } from '../../domain/freeAgency';
+import { PROTECT_LIMIT, protectedIds, requiresCompensation } from '../../domain/compensation';
+import { overallRating } from '../../domain/rating';
+import { RankBadge } from '../components/common';
 import {
   MAX_SALARY,
   MIN_SALARY,
@@ -56,6 +60,8 @@ export function FAScreen() {
   const finance = state.finances[state.playerTeamId];
   const [filter, setFilter] = useState<Filter>('all');
   const [target, setTarget] = useState<string | null>(null);
+  const [protecting, setProtecting] = useState(false);
+  const protectCount = protectedIds(state, state.playerTeamId).size;
 
   const myOffers = offersByTeam(fa, state.playerTeamId);
   const payroll = teamPayroll(state, state.playerTeamId);
@@ -163,6 +169,28 @@ export function FAScreen() {
               )}
             </div>
 
+            <div className="card protect-card">
+              <div className="spread">
+                <div>
+                  <div style={{ fontWeight: 800 }}>プロテクト（人的補償）</div>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    評価S〜BのFA選手を獲ると、元の球団がプロテクト外から1人を補償として選びます
+                  </div>
+                </div>
+                <strong className="protect-count">
+                  {protectCount}/{PROTECT_LIMIT}
+                </strong>
+              </div>
+              <button type="button" className="btn secondary" onClick={() => setProtecting(true)}>
+                {state.protectList ? 'プロテクトを見直す' : 'プロテクトを設定する'}
+              </button>
+              {!state.protectList && (
+                <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                  未設定の間は、総合力の高い順に{PROTECT_LIMIT}人を守ります。
+                </div>
+              )}
+            </div>
+
             <div className="tabs" role="tablist" aria-label="FA選手の絞り込み">
               {FILTERS.map((f) => (
                 <button
@@ -210,7 +238,111 @@ export function FAScreen() {
           onClose={() => setTarget(null)}
         />
       )}
+      {protecting && <ProtectSheet onClose={() => setProtecting(false)} />}
     </div>
+  );
+}
+
+/** 自球団のプロテクト（28人まで）を選ぶ */
+function ProtectSheet({ onClose }: { onClose: () => void }) {
+  const { state, setProtectList } = useGame();
+  const roster = useMemo(
+    () =>
+      state.players
+        .filter((p) => p.teamId === state.playerTeamId)
+        .sort((a, b) => overallRating(b) - overallRating(a)),
+    [state.players, state.playerTeamId],
+  );
+  const [picked, setPicked] = useState<Set<string>>(() => protectedIds(state, state.playerTeamId));
+  const toggle = (id: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else if (next.size < PROTECT_LIMIT) next.add(id);
+      return next;
+    });
+  const full = picked.size >= PROTECT_LIMIT;
+
+  return (
+    <Sheet title="プロテクト設定" onClose={onClose}>
+      <div className="card">
+        <div className="spread">
+          <span className="muted">
+            補償で渡したくない選手を{PROTECT_LIMIT}人まで選びます。今オフにFAで獲った選手は対象外です。
+          </span>
+          <strong className="protect-count">
+            {picked.size}/{PROTECT_LIMIT}
+          </strong>
+        </div>
+        <div className="row" style={{ gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="chip"
+            onClick={() => setPicked(new Set(roster.slice(0, PROTECT_LIMIT).map((p) => p.id)))}
+          >
+            総合力の上位{PROTECT_LIMIT}人
+          </button>
+          <button
+            type="button"
+            className="chip"
+            onClick={() =>
+              setPicked(
+                new Set(
+                  roster
+                    .slice()
+                    .sort((a, b) => a.age - b.age || overallRating(b) - overallRating(a))
+                    .slice(0, PROTECT_LIMIT)
+                    .map((p) => p.id),
+                ),
+              )
+            }
+          >
+            若手を優先
+          </button>
+          <button type="button" className="chip" onClick={() => setPicked(new Set())}>
+            すべて外す
+          </button>
+        </div>
+      </div>
+      <div className="protect-list">
+        {roster.map((player) => {
+          const on = picked.has(player.id);
+          return (
+            <button
+              key={player.id}
+              type="button"
+              className={`player-card protect-row${on ? ' on' : ''}`}
+              aria-pressed={on}
+              disabled={!on && full}
+              onClick={() => toggle(player.id)}
+            >
+              <span className="protect-check" aria-hidden="true">
+                {on ? '🛡' : ''}
+              </span>
+              <PositionBadge player={player} />
+              <span className="grow">
+                <span className="row" style={{ gap: 6 }}>
+                  <span className="name">{player.name}</span>
+                  <span className="meta">{player.age}歳</span>
+                </span>
+                <span className="meta">{positionText(player)}</span>
+              </span>
+              <RankBadge value={overallRating(player)} />
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        className="btn primary protect-save"
+        onClick={() => {
+          setProtectList([...picked]);
+          onClose();
+        }}
+      >
+        この{picked.size}人をプロテクトする
+      </button>
+    </Sheet>
   );
 }
 
@@ -270,6 +402,8 @@ function ResultsCard({ onFinish }: { onFinish: () => void }) {
         )}
       </div>
 
+      <CompensationCard />
+
       <div className="card">
         <h2>他球団の動き（{others.length}人）</h2>
         {others.length === 0 ? (
@@ -294,6 +428,109 @@ function ResultsCard({ onFinish }: { onFinish: () => void }) {
   );
 }
 
+/** 人的補償の結果と、自球団が選ぶ補償選手 */
+function CompensationCard() {
+  const { state, chooseCompensation } = useGame();
+  const list = state.fa?.compensations ?? [];
+  const [open, setOpen] = useState<string | null>(null);
+  if (list.length === 0) return null;
+  const teamOf = (id: string) => state.teams.find((t) => t.id === id);
+
+  return (
+    <div className="card comp-card">
+      <Sec en="COMPENSATION" ja="人的補償" />
+      {list.map((c) => {
+        const mineToChoose = c.status === 'pending' && c.formerTeamId === state.playerTeamId;
+        const options = (c.options ?? [])
+          .map((id) => state.players.find((p) => p.id === id && p.teamId === c.signingTeamId))
+          .filter((p): p is Player => !!p);
+        return (
+          <div key={c.id} className="comp-entry">
+            <div className="spread">
+              <span>
+                <strong>{c.faName}</strong>
+                <span className="muted" style={{ fontSize: 12 }}>
+                  {' '}
+                  {teamOf(c.formerTeamId)?.shortName} → {teamOf(c.signingTeamId)?.shortName}（評価{c.grade}）
+                </span>
+              </span>
+              <span className={`comp-status ${c.status}`}>
+                {c.status === 'taken'
+                  ? c.formerTeamId === state.playerTeamId
+                    ? '獲得'
+                    : '流出'
+                  : c.status === 'waived'
+                    ? 'なし'
+                    : '選択待ち'}
+              </span>
+            </div>
+            {c.status === 'taken' && (
+              <div className="muted" style={{ fontSize: 13 }}>
+                補償選手：<strong>{c.playerName}</strong>
+                {c.formerTeamId === state.playerTeamId
+                  ? ' が加入しました（2軍から）'
+                  : ` が${teamOf(c.formerTeamId)?.shortName ?? ''}へ移籍しました`}
+              </div>
+            )}
+            {c.status === 'waived' && c.note && (
+              <div className="muted" style={{ fontSize: 13 }}>
+                {c.note}
+              </div>
+            )}
+            {mineToChoose && (
+              <>
+                <div className="muted" style={{ fontSize: 12, margin: '4px 0' }}>
+                  {teamOf(c.signingTeamId)?.name}のプロテクト外から1人を選べます（選ばずに進むと総合力の最も高い選手を獲得）
+                </div>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={() => setOpen(open === c.id ? null : c.id)}
+                >
+                  {open === c.id ? '候補を閉じる' : `補償候補を見る（${options.length}人）`}
+                </button>
+                {open === c.id && (
+                  <div className="comp-options">
+                    {options.map((p) => (
+                      <div key={p.id} className="player-card comp-option">
+                        <PositionBadge player={p} />
+                        <span className="grow">
+                          <span className="row" style={{ gap: 6 }}>
+                            <span className="name">{p.name}</span>
+                            <span className="meta">{p.age}歳</span>
+                          </span>
+                          <span className="meta">
+                            {positionText(p)} / {formatSalary(p.ext.contract?.salary ?? 0)}
+                          </span>
+                        </span>
+                        <RankBadge value={overallRating(p)} />
+                        <button
+                          type="button"
+                          className="chip comp-pick"
+                          onClick={() => chooseCompensation(c.id, p.id)}
+                        >
+                          選ぶ
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      className="btn secondary"
+                      onClick={() => chooseCompensation(c.id, null)}
+                    >
+                      補償を受け取らない
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function FACard({
   listing,
   player,
@@ -305,7 +542,10 @@ function FACard({
   offered: boolean;
   onOpen: () => void;
 }) {
+  const { state } = useGame();
   const grade = marketGrade(listing.marketValue);
+  const former = requiresCompensation(grade) ? compensationFormerTeam(state, player) : null;
+  const formerTeam = former ? state.teams.find((t) => t.id === former) : undefined;
   return (
     <button className="player-card" onClick={onOpen} aria-label={`${player.name} に条件を提示する`}>
       {/* PHASE 4.5: FA市場でも顔が出る。所属が変わっても同じ顔（§7・§22） */}
@@ -327,6 +567,13 @@ function FACard({
         <span className="meta" style={{ display: 'block' }}>
           希望 {formatSalary(listing.askingSalary)} / {listing.preferredYears}年
         </span>
+        {formerTeam && (
+          <span className={`comp-tag${former === state.playerTeamId ? ' mine' : ''}`}>
+            {former === state.playerTeamId
+              ? '自球団から流出：他球団が獲れば人的補償を選べる'
+              : `人的補償あり（${formerTeam.shortName}）`}
+          </span>
+        )}
       </span>
     </button>
   );
@@ -381,6 +628,16 @@ function OfferSheet({
         <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
           推定総合は自球団のスカウトによる見立てです（実際の数値とは差があります）。
         </div>
+        {requiresCompensation(grade) &&
+          (() => {
+            const former = compensationFormerTeam(state, player);
+            const t = former && former !== state.playerTeamId ? state.teams.find((x) => x.id === former) : null;
+            return t ? (
+              <div className="comp-tag" style={{ marginTop: 6 }}>
+                獲得すると {t.name} がプロテクト外の選手を1人、人的補償として獲得します
+              </div>
+            ) : null;
+          })()}
       </div>
 
       <div className="card">

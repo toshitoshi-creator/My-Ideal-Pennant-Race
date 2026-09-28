@@ -8061,3 +8061,36 @@ h3.sec {
   color: #ffcf3f;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---- 自由契約・引退／プロテクト／人的補償／未所属選手へのオファー ---- */
+.release-panel { border-color: oklch(62% 0.12 25 / 0.55); }
+.release-choices { display: flex; gap: 8px; margin-top: 10px; }
+.release-choice { flex: 1; padding: 11px 8px; font-weight: 800; }
+.release-choice.release.on { background: var(--accent); color: #241a00; }
+.release-choice.retire.on { background: var(--bad); color: #fff; }
+.release-confirm { margin-top: 10px; display: grid; gap: 8px; animation: pop-in 0.2s ease both; }
+.release-roster-head { width: 100%; background: none; border: 0; color: inherit; text-align: left; padding: 0; gap: 8px; }
+.release-row { margin-top: 8px; }
+.protect-count { font-size: 20px; color: var(--accent); white-space: nowrap; }
+.protect-card .btn { margin-top: 10px; }
+.protect-list { display: grid; gap: 6px; margin-bottom: 76px; }
+.protect-row { transition: background 0.15s, border-color 0.15s, opacity 0.15s; }
+.protect-row.on { border-color: var(--accent); background: oklch(80% 0.12 85 / 0.12); }
+.protect-row:disabled { opacity: 0.45; }
+.protect-check { width: 22px; text-align: center; font-size: 16px; }
+.protect-save { position: sticky; bottom: 8px; width: 100%; box-shadow: 0 8px 24px rgb(0 0 0 / 0.45); }
+.comp-tag {
+  display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; background: oklch(62% 0.14 25 / 0.2); color: oklch(85% 0.1 25);
+}
+.comp-tag.mine { background: oklch(70% 0.12 245 / 0.2); color: oklch(88% 0.08 245); }
+.comp-entry { padding: 8px 0; border-bottom: 1px solid var(--line); display: grid; gap: 4px; }
+.comp-entry:last-child { border-bottom: 0; }
+.comp-status { font-weight: 800; font-size: 13px; }
+.comp-status.taken { color: var(--good); }
+.comp-status.waived { color: var(--muted, #8a97a8); }
+.comp-status.pending { color: var(--accent); }
+.comp-options { display: grid; gap: 6px; margin-top: 6px; }
+.comp-pick, .fa-free-offer { padding: 8px 12px; font-weight: 800; background: var(--accent); color: #241a00; }
+.fa-free-offer:disabled { opacity: 0.4; background: #2b3646; color: inherit; }
+.fa-free-list { display: grid; gap: 6px; }

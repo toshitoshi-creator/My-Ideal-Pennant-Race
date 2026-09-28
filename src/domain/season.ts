@@ -27,6 +27,7 @@ import { rankOf } from './rank';
 import { createDraft, finishDraft, autoPick, currentPick, beginDraftPicks } from './draft';
 import { autoFinishFirstRound } from './draftLottery';
 import { applyRetirementFans, applySeasonFans } from './fans';
+import { autoChooseCompensations } from './compensation';
 import { resetScoutingForDraft, runCpuScouting } from './scouting';
 import {
   applySeasonFinance,
@@ -530,6 +531,8 @@ export function resolveFAPhase(state: GameState): void {
 }
 
 export function completeOffseason(state: GameState): Player[] {
+  // 人的補償を選ばないまま進んだときは、候補のうち総合力のいちばん高い選手を受け取る
+  autoChooseCompensations(state);
   const rookies = state.contractPhase || state.fa ? [] : startContractPhase(state);
   const rookieCount =
     state.contractPhase || state.fa

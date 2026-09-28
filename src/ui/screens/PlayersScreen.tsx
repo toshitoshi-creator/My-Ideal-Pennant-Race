@@ -5,6 +5,7 @@ import type { Player } from '../../domain/types';
 import { PlayerCard } from '../components/PlayerCard';
 import { PlayerDetail } from '../components/PlayerDetail';
 import { PlayerLink } from '../components/PlayerLink';
+import { FreeAgentTable } from '../components/FreeAgentOffer';
 import { Tabs } from '../components/common';
 import { overallRating } from '../../domain/rating';
 import { average, formatAverage, formatEra, formatInnings } from '../../domain/stats';
@@ -177,44 +178,6 @@ function ContractTable({ onSelect }: { onSelect: (player: Player) => void }) {
 }
 
 /** 未所属（FA）の選手。所属していないのでロスターには出てこない */
-function FreeAgentTable() {
-  const { state } = useGame();
-  const pool = [...state.freeAgents].sort((a, b) => overallRating(b) - overallRating(a));
-  if (pool.length === 0) return null;
-  return (
-    <div className="card">
-      <Sec en="FREE AGENTS" ja="FA（未所属）の選手" size="sub" />
-      <div className="muted" style={{ marginBottom: 8, fontSize: 12 }}>
-        どの球団にも所属していない選手です（{pool.length}人）。オフシーズンのFA市場で獲得できます。
-      </div>
-      <div className="scroll-x">
-        <table className="data">
-          <thead>
-            <tr>
-              <th className="l">選手</th>
-              <th>年齢</th>
-              <th>総合</th>
-              <th>状態</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pool.slice(0, 40).map((player) => (
-              <tr key={player.id}>
-                <td className="l">
-                  <PlayerLink playerId={player.id}>{player.name}</PlayerLink>
-                </td>
-                <td>{player.age}</td>
-                <td>{overallRating(player)}</td>
-                <td style={{ color: 'var(--accent)' }}>FA</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 function StatsTables() {
   const { state } = useGame();
   const roster = state.players.filter((p) => p.teamId === state.playerTeamId);
