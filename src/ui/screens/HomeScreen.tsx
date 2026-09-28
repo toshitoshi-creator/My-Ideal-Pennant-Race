@@ -8,6 +8,10 @@ import { teamPower } from '../../domain/rating';
 import { rankOfTeam, formatWinPct, winPct } from '../../domain/standings';
 import { RankBadge } from '../components/common';
 import { GrowthReportSheet } from '../components/GrowthReport';
+import { RankUpShow } from '../components/RankUpShow';
+
+/** 総合評価アップの演出を見た年（このセッションの間だけ覚える） */
+const rankUpSeen = new Set<number>();
 import { FinanceRows } from './ContractScreen';
 import { formatSalary, isExpiring, teamPayroll } from '../../domain/contract';
 import { championshipCount } from '../../domain/history';
@@ -59,6 +63,8 @@ export function HomeScreen() {
     useGame();
   const [showReport, setShowReport] = useState(false);
   const reportOpen = showReport || pendingReport;
+  // 総合評価アップの演出を見たかどうか（同じ年の演出は1回だけ）
+  const [, setRankUpTick] = useState(0);
   const byId = usePlayerMap();
   const team = state.teams.find((t) => t.id === state.playerTeamId)!;
   const league = state.leagues.find((l) => l.id === team.leagueId)!;
@@ -393,6 +399,20 @@ export function HomeScreen() {
         </button>
       )}
 
+      {/* 総合評価が B 以上に上がった選手がいれば、成長レポートの前にカードの演出を見せる */}
+      {reportOpen &&
+        state.lastGrowthReport &&
+        (state.lastGrowthReport.rankUps?.length ?? 0) > 0 &&
+        !rankUpSeen.has(state.lastGrowthReport.year) && (
+          <RankUpShow
+            state={state}
+            entries={state.lastGrowthReport.rankUps!}
+            onDone={() => {
+              rankUpSeen.add(state.lastGrowthReport!.year);
+              setRankUpTick((n) => n + 1);
+            }}
+          />
+        )}
       {reportOpen && state.lastGrowthReport && (
         <GrowthReportSheet
           report={state.lastGrowthReport}

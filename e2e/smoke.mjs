@@ -1545,6 +1545,23 @@ await shot('20-fa-result');
 
 await page.getByRole('button', { name: '新シーズンへ' }).click();
 await page.locator('.sheet').waitFor();
+// 総合評価が B 以上に上がった選手がいれば、成長レポートの前に RANK UP の演出が出る
+{
+  const ups = (await readState()).lastGrowthReport?.rankUps ?? [];
+  if (ups.length > 0) {
+    await page.locator('.rankup').waitFor({ timeout: 3000 });
+    ok(`総合評価アップの演出が出た（${ups.length}人）`);
+    for (let i = 0; i < ups.length + 1 && (await page.locator('.rankup').count()); i++) {
+      await page.locator('.rankup').click(); // 回転を飛ばす
+      await page.locator('.rankup .rankup-next').click();
+      await page.waitForTimeout(200);
+    }
+    if (await page.locator('.rankup').count()) fail('RANK UP の演出を閉じられない');
+  } else {
+    if (await page.locator('.rankup').count()) fail('総合評価が上がっていないのに RANK UP の演出が出た');
+    else ok('総合評価が B 以上に上がった選手はいない（演出なし）');
+  }
+}
 const reportText = await page.locator('.sheet').innerText();
 if (!/→/.test(reportText)) fail('成長レポートに能力の変化が出ていない');
 else ok('シーズン終了時の成長結果が表示された');

@@ -33,6 +33,9 @@ import { CanvasPortrait } from '../character/CanvasPortrait';
 import { PlayerPortrait, PlayerPortraitById } from './PlayerPortrait';
 import { PlayerPortraitFallback } from './PlayerPortraitFallback';
 import type { PortraitSize } from '../portrait';
+import { useOptionalGameState } from '../store';
+import { overallRating } from '../../domain/rating';
+import { rankOf } from '../../domain/rank';
 
 /** 表示サイズ。SVG 側と同じ呼び名にそろえる */
 export type VisualSize = PortraitSize;
@@ -128,6 +131,18 @@ export const PlayerVisual = memo(function PlayerVisual({
     () => characterProfileAtAge(player.id, player.age, partCounts()),
     [player.id, player.age],
   );
+  /*
+   * 肖像の枠：総合評価のランクの色。タイトル・表彰を取ったことのある選手は金色。
+   * 所属の無い候補（ドラフト・発掘・最初の契約）は、能力の手がかりを出さないよう枠を付けない。
+   */
+  const state = useOptionalGameState();
+  const honored = !!state?.history?.players?.[player.id]?.awards?.length;
+  const frame = player.teamId
+    ? honored
+      ? 'pf pf-gold'
+      : `pf pf-${rankOf(overallRating(player))}`
+    : '';
+  className = [className, frame].filter(Boolean).join(' ') || undefined;
 
   return (
     <VisualLayers

@@ -11,6 +11,7 @@ import type {
   FAState,
   GameState,
   GrowthReport,
+  RankUpEntry,
   GrowthReportEntry,
   Player,
   RetiredPlayerRecord,
@@ -22,6 +23,7 @@ import { emptySeasonStats } from './stats';
 import { defaultExtensions } from './playerGen';
 import { playingTimeOf, rollRetirement } from './retirement';
 import { overallRating } from './rating';
+import { rankOf } from './rank';
 import { createDraft, finishDraft, autoPick, currentPick, beginDraftPicks } from './draft';
 import { autoFinishFirstRound } from './draftLottery';
 import { applyRetirementFans, applySeasonFans } from './fans';
@@ -114,6 +116,27 @@ function toReportEntry(result: PlayerGrowthResult): GrowthReportEntry {
   };
 }
 
+/**
+ * 総合評価が B 以上に上がった自球団の選手（成長の演出に使う）。
+ * 引退した選手は含めない。上がり幅の大きい順。
+ */
+function collectRankUps(state: GameState, before: Map<string, number>): RankUpEntry[] {
+  const order = ['G', 'F', 'E', 'D', 'C', 'B', 'A'];
+  const ups: RankUpEntry[] = [];
+  for (const player of state.players) {
+    if (player.teamId !== state.playerTeamId) continue;
+    const prev = before.get(player.id);
+    if (prev === undefined) continue;
+    const now = overallRating(player);
+    const rankBefore = rankOf(prev);
+    const rankAfter = rankOf(now);
+    if (order.indexOf(rankAfter) <= order.indexOf(rankBefore)) continue;
+    if (order.indexOf(rankAfter) < order.indexOf('B')) continue;
+    ups.push({ playerId: player.id, name: player.name, overallBefore: prev, overallAfter: now, rankBefore, rankAfter });
+  }
+  return ups.sort((a, b) => b.overallAfter - a.overallAfter);
+}
+
 export interface SeasonRolloverResult {
   report: GrowthReport;
   /** 全選手分の成長結果（バランス確認・テスト用） */
@@ -160,6 +183,12 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
   // ---- PHASE 3.6: 各球団の戦力を分析し、今季の経営プランを決める ----
   // （成長・引退の前の戦力で判断する。契約更改・ドラフト・FA・トレードで共有する）
   refreshTeamPlans(state);
+
+  // 総合評価の上がった自球団の選手を拾うため、成長の前の総合力を控えておく
+  const overallBefore = new Map<string, number>();
+  for (const player of state.players) {
+    if (player.teamId === state.playerTeamId) overallBefore.set(player.id, overallRating(player));
+  }
 
   for (const player of state.players) {
     const { first, second, performance } = experienceOf(state, player);
@@ -328,6 +357,7 @@ export function startOffseason(state: GameState): SeasonRolloverResult {
       .sort((a, b) => b.total - a.total)
       .map(toReportEntry),
     retirements: retirements.filter((r) => r.teamId === state.playerTeamId),
+    rankUps: collectRankUps(state, overallBefore),
   };
   state.lastGrowthReport = report;
 

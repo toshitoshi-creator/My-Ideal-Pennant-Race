@@ -8,6 +8,7 @@ import { Sec } from './Sec';
 import { PlayerHistoryView } from './PlayerHistoryView';
 import { POSITION_LABELS, aptitudeLabel, FIELD_POSITIONS } from '../../domain/positions';
 import { overallRating } from '../../domain/rating';
+import { AWARD_LABELS } from '../../domain/history';
 import { velocityToScale } from '../../domain/rank';
 import {
   applyRosterChange,
@@ -140,6 +141,18 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
                 </span>
               )}
             </div>
+            {/* タイトル・表彰を取った選手の称号（肖像の金の枠と対になる） */}
+            {history && history.awards.length > 0 && (
+              <div className="profile-honor">
+                <span className="profile-honor-tag">称号</span>
+                {history.awards
+                  .slice(-3)
+                  .reverse()
+                  .map((a) => `${a.year} ${AWARD_LABELS[a.kind]}`)
+                  .join('・')}
+                {history.awards.length > 3 && ` ほか${history.awards.length - 3}`}
+              </div>
+            )}
           </div>
           <div className="profile-rank">
             <span className="label">総合</span>
