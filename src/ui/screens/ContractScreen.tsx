@@ -22,6 +22,7 @@ import { PlayerVisual, PlayerVisualSmall } from '../components/PlayerVisual';
 import { PictureButton } from '../components/PictureButton';
 import toFaArt from '../../assets/ui/contract-to-fa.webp';
 import signArt from '../../assets/ui/contract-sign.webp';
+import { ReleaseRetirePanel } from '../components/ReleaseRetire';
 
 /**
  * 契約更改（PHASE 3.3）。
@@ -33,6 +34,8 @@ export function ContractScreen() {
   const team = state.teams.find((t) => t.id === state.playerTeamId)!;
   const finance = state.finances[state.playerTeamId];
   const [negotiating, setNegotiating] = useState<string | null>(null);
+  const [cleanupOpen, setCleanupOpen] = useState(false);
+  const [cleaning, setCleaning] = useState<string | null>(null);
 
   const pending = useMemo(
     () =>
@@ -46,6 +49,15 @@ export function ContractScreen() {
   const payroll = teamPayroll(state, state.playerTeamId);
   const remaining = remainingBudget(state, state.playerTeamId);
   const target = negotiating ? state.players.find((p) => p.id === negotiating) : null;
+  const cleanupTarget = cleaning ? state.players.find((p) => p.id === cleaning) : null;
+  // 契約中の選手（年齢の高い順）。自由契約・引退を選べる
+  const underContract = useMemo(
+    () =>
+      state.players
+        .filter((p) => p.teamId === state.playerTeamId && !phase.pending.includes(p.id))
+        .sort((a, b) => b.age - a.age || overallRating(a) - overallRating(b)),
+    [state.players, state.playerTeamId, phase.pending],
+  );
 
   return (
     <div className="app" style={{ paddingBottom: 20 }}>
@@ -118,6 +130,46 @@ export function ContractScreen() {
           </button>
         )}
 
+        <div className="card release-roster" style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            className="spread release-roster-head"
+            aria-expanded={cleanupOpen}
+            onClick={() => setCleanupOpen((v) => !v)}
+          >
+            <span>
+              <strong>選手の整理（自由契約・引退）</strong>
+              <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                契約が残っている選手も、自由契約にしたり引退させたりできます
+              </span>
+            </span>
+            <span className="muted">{cleanupOpen ? '▲' : `${underContract.length}人 ▼`}</span>
+          </button>
+          {cleanupOpen &&
+            underContract.map((player) => (
+              <button
+                key={player.id}
+                type="button"
+                className="player-card release-row"
+                onClick={() => setCleaning(player.id)}
+              >
+                <PositionBadge player={player} />
+                <PlayerVisualSmall player={player} className="portrait-row" />
+                <span className="grow">
+                  <span className="row" style={{ gap: 6 }}>
+                    <span className="name">{player.name}</span>
+                    <span className="meta">{player.age}歳</span>
+                  </span>
+                  <span className="meta">
+                    {formatSalary(player.ext.contract?.salary ?? 0)} / 残り
+                    {player.ext.contract?.yearsRemaining ?? 0}年
+                  </span>
+                </span>
+                <RankBadge value={overallRating(player)} />
+              </button>
+            ))}
+        </div>
+
         {phase.resolved.length > 0 && (
           <div className="card" style={{ marginTop: 12 }}>
             <h2>交渉結果</h2>
@@ -132,7 +184,9 @@ export function ContractScreen() {
                 >
                   {entry.accepted
                     ? `${formatSalary(entry.salary)} / ${entry.years}年`
-                    : '交渉決裂'}
+                    : /（(自由契約|引退)）$/.test(entry.name)
+                      ? '契約せず'
+                      : '交渉決裂'}
                 </span>
               </div>
             ))}
@@ -141,6 +195,26 @@ export function ContractScreen() {
       </div>
 
       {target && <NegotiationSheet player={target} onClose={() => setNegotiating(null)} />}
+      {cleanupTarget && (
+        <Sheet title={`${cleanupTarget.name} の去就`} onClose={() => setCleaning(null)}>
+          <div className="card">
+            <div className="row" style={{ gap: 10 }}>
+              <PlayerVisual player={cleanupTarget} size="medium" expression="focused" />
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 800 }}>{cleanupTarget.name}</div>
+                <div className="muted">
+                  {cleanupTarget.age}歳 / {positionText(cleanupTarget)}
+                </div>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  年俸 {formatSalary(cleanupTarget.ext.contract?.salary ?? 0)} / 残り
+                  {cleanupTarget.ext.contract?.yearsRemaining ?? 0}年
+                </div>
+              </div>
+            </div>
+          </div>
+          <ReleaseRetirePanel player={cleanupTarget} onDone={() => setCleaning(null)} />
+        </Sheet>
+      )}
     </div>
   );
 }
@@ -328,6 +402,7 @@ function NegotiationSheet({ player, onClose }: { player: Player; onClose: () => 
           onClose();
         }}
       />
+      <ReleaseRetirePanel player={player} onDone={onClose} />
     </Sheet>
   );
 }

@@ -14,6 +14,7 @@
  *  - 乱数はすべてゲーム内シードから作る（Math.random は使わない）。
  */
 import type {
+  FACompensation,
   FAMarketPlayer,
   TeamAiPlan,
   FAOffer,
@@ -45,6 +46,7 @@ import {
   refreshPayrolls,
 } from './contract';
 import { generateFaNews } from './news';
+import { registerCompensation } from './compensation';
 
 /** ユーザーが同時に出せるオファーの上限 */
 export const MAX_USER_OFFERS = 8;
@@ -76,6 +78,16 @@ function clamp01(value: number): number {
 /* ---------------- 市場に出るときの条件 ---------------- */
 
 /** 何年続けて契約先が決まっていないか */
+/**
+ * 人的補償を求められる元の球団。今オフに契約更改で残らず市場に出た選手だけが対象
+ * （球団が自由契約にした選手・前年からの売れ残りは対象外）
+ */
+export function compensationFormerTeam(state: GameState, player: Player): string | null {
+  if (unsignedYears(player) !== 0) return null;
+  if (player.ext.releasedYear === state.year) return null;
+  return player.ext.careerTeams?.[player.ext.careerTeams.length - 1]?.teamId ?? null;
+}
+
 export function unsignedYears(player: Player): number {
   const value = player.ext.hiddenAttributes?.faUnsignedYears;
   return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0;
@@ -140,7 +152,7 @@ export function askingSalaryFor(
   return { marketValue: value, askingSalary: asking, minimumSalary: minimum };
 }
 
-function buildListing(state: GameState, player: Player): FAMarketPlayer {
+export function buildListing(state: GameState, player: Player): FAMarketPlayer {
   const rng = faRng(state, 'list', player.id);
   const stats = state.stats[player.id];
   const { marketValue: value, askingSalary, minimumSalary } = askingSalaryFor(
@@ -753,6 +765,9 @@ export function resolveFreeAgency(state: GameState): FAResolution {
   if (fa.phase === 'resolved') return { signings: fa.results, unsigned: fa.unsigned };
 
   const signings: FASignRecord[] = [];
+  // 人的補償（自球団が関わる移籍だけ）
+  const compensations: FACompensation[] = [];
+  const signedThisMarket = new Set<string>();
 
   // まず最低人数を割っている球団を埋める。
   // 競争が終わってからでは市場が空になっている場合があるため、先に確保する。
@@ -810,7 +825,22 @@ export function resolveFreeAgency(state: GameState): FAResolution {
 
     if (!winner) continue;
 
+    // 人的補償のため、移籍前の球団を控えておく（今オフに市場に出た選手だけが対象）
+    const formerTeamId = compensationFormerTeam(state, player);
     joinTeam(state, player, winner.offer.teamId, winner.offer.salary, winner.offer.years);
+    signedThisMarket.add(player.id);
+    registerCompensation(
+      state,
+      compensations,
+      {
+        faPlayerId: player.id,
+        faName: player.name,
+        signingTeamId: winner.offer.teamId,
+        formerTeamId,
+        grade: marketGrade(listing.marketValue),
+      },
+      signedThisMarket,
+    );
     spent.set(winner.offer.teamId, (spent.get(winner.offer.teamId) ?? 0) + winner.offer.salary);
     listing.status = 'SIGNED';
     signings.push({
@@ -834,6 +864,7 @@ export function resolveFreeAgency(state: GameState): FAResolution {
   for (const player of state.freeAgents) setUnsignedYears(player, unsignedYears(player) + 1);
 
   fa.results = signings;
+  fa.compensations = compensations;
   fa.unsigned = state.freeAgents.length;
   fa.phase = 'resolved';
   fa.completed = true;

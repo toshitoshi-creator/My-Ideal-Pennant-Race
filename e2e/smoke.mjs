@@ -1395,6 +1395,35 @@ if (!restoredContract.contractPhase || restoredContract.contractPhase.pending.le
 if (restoredContract.finances['phoenix'].cash !== midContract.finances['phoenix'].cash) fail('再起動で球団資金が変わった');
 else ok('再起動後も球団資金が保持されている');
 
+// 選手の整理：契約中の選手を自由契約／引退にできる（取り消せないので確定ボタンを挟む）
+{
+  await page.getByRole('button', { name: /選手の整理（自由契約・引退）/ }).click();
+  const rows = page.locator('button.release-row');
+  const before = await readState();
+  const names = [];
+  for (const mode of ['自由契約にする', '引退させる']) {
+    const row = rows.last();
+    const name = (await row.locator('.name').innerText()).trim();
+    names.push(name);
+    await row.click();
+    await page.locator('.sheet').waitFor();
+    await page.locator('.sheet').getByRole('button', { name: mode, exact: true }).click();
+    await page.locator('.sheet').getByRole('button', { name: `${mode}（確定）` }).click();
+    await page.locator('.sheet').waitFor({ state: 'detached' });
+  }
+  const after = await readState();
+  const released = after.freeAgents.find((p) => p.name === names[0]);
+  const retired = after.retiredPlayers.find((r) => r.name === names[1] && r.retiredAt === after.year);
+  if (!released || released.teamId !== '') fail('自由契約にした選手が未所属になっていない');
+  else ok(`${names[0]}を自由契約にした（未所属の選手へ）`);
+  if (!retired) fail('引退させた選手が引退記録にない');
+  else ok(`${names[1]}を引退させた（引退記録に残る）`);
+  if (after.players.filter((p) => p.teamId === 'phoenix').length !== before.players.filter((p) => p.teamId === 'phoenix').length - 2) {
+    fail('整理した選手が自球団に残っている');
+  }
+  await page.getByRole('button', { name: /選手の整理（自由契約・引退）/ }).click();
+}
+
 // 残りはおまかせで交渉
 const autoButton = page.getByRole('button', { name: /おまかせで交渉する/ });
 if ((await autoButton.count()) > 0) {
@@ -1452,6 +1481,18 @@ for (const label of ['残りオファー枠', '球団資金', 'FA市場']) {
   if (!faText.includes(label)) fail(`FA画面に「${label}」がない`);
 }
 ok('FA画面に残りオファー枠と球団の資金が表示されている');
+
+// プロテクト（人的補償で渡さない選手）を決める
+await page.getByRole('button', { name: /プロテクトを設定する/ }).click();
+await page.locator('.sheet').waitFor();
+await page.locator('.sheet').getByRole('button', { name: /総合力の上位28人/ }).click();
+await page.locator('.sheet').getByRole('button', { name: /人をプロテクトする/ }).click();
+await page.locator('.sheet').waitFor({ state: 'detached' });
+{
+  const st = await readState();
+  if (!Array.isArray(st.protectList) || st.protectList.length !== 28) fail(`プロテクトが28人にならない（${st.protectList?.length}）`);
+  else ok('プロテクトを28人に設定できた');
+}
 
 // 絞り込み
 await page.locator('.tabs button', { hasText: '野手' }).click();
@@ -1593,6 +1634,35 @@ const rosterSizes = nextSeason.teams.map(
 ok(`各球団のロスター ${Math.min(...rosterSizes)}〜${Math.max(...rosterSizes)}人（前年 ${playersBefore}人 → ${nextSeason.players.length}人）`);
 if (nextSeason.year !== finished.year + 1) fail('年度が進んでいない');
 else ok(`翌シーズンが開幕（${finished.year}年 → ${nextSeason.year}年）`);
+
+// 未所属（自由契約）の選手に、シーズン中でも直接オファーできる
+{
+  await page.locator('.nav').getByText('選手').click();
+  await page.locator('.tabs button', { hasText: '契約' }).click();
+  const offer = page.locator('button.fa-free-offer:not([disabled])');
+  if ((await offer.count()) === 0) {
+    fail('未所属の選手にオファーするボタンがない');
+  } else {
+    const row = page.locator('.fa-free-row').filter({ has: offer }).first();
+    const name = (await row.locator('a, button').first().innerText()).trim();
+    await row.locator('button.fa-free-offer').click();
+    await page.locator('.sheet').waitFor();
+    const sheetText = await page.locator('.sheet').innerText();
+    if (!sheetText.includes('希望年俸')) fail('オファー画面に希望年俸がない');
+    await page.locator('.sheet').getByRole('button', { name: 'この条件でオファーする' }).click();
+    await page.waitForTimeout(300);
+    const st = await readState();
+    const joined = st.players.find((p) => p.name === name && p.teamId === 'phoenix');
+    if ((await page.locator('.sheet').count()) === 0) {
+      if (!joined) fail('オファーが成立したのに選手が加入していない');
+      else ok(`未所属の${name}と直接契約できた（2軍から合流）`);
+    } else {
+      ok(`未所属の${name}へのオファーは条件が合わず見送り（${(await page.locator('.toast').innerText().catch(() => '')).trim()}）`);
+      await page.locator('.sheet').getByRole('button', { name: '閉じる' }).click();
+    }
+  }
+  await page.locator('.nav').getByText('ホーム').click();
+}
 const agedCorrectly = nextSeason.players
   .filter((p) => agesBefore.has(p.id))
   .every((p) => p.age === agesBefore.get(p.id) + 1);

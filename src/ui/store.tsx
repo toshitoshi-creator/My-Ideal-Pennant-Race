@@ -34,6 +34,8 @@ import {
   respondToOffer,
 } from '../domain/trade';
 import { playNextPostseasonGame } from '../domain/postseason';
+import { releasePlayer, retirePlayer, signFreeAgentDirect } from '../domain/rosterMoves';
+import { chooseCompensation, setProtectList } from '../domain/compensation';
 import { makePick, recordPlayerPick, runCpuPicks, currentPick } from '../domain/draft';
 import {
   autoSignExpansion,
@@ -109,6 +111,15 @@ interface StoreValue {
   draftPick(prospectId: string): void;
   /** 1巡目の抽選で、くじの紙を1枚選ぶ */
   drawLottery(paper: number): void;
+  /** 自球団の選手を自由契約にする／引退させる */
+  releasePlayer(playerId: string): void;
+  retirePlayer(playerId: string): void;
+  /** 未所属（自由契約）の選手と直接契約する */
+  signFreeAgent(playerId: string, salary: number, years: number): boolean;
+  /** プロテクト（人的補償で渡さない選手）を決める */
+  setProtectList(ids: string[]): void;
+  /** 人的補償の選手を選ぶ（null なら受け取らない） */
+  chooseCompensation(compensationId: string, playerId: string | null): void;
   /** ドラフトを終えて契約更改に進む */
   startContracts(): void;
   /** 契約満了選手に条件を提示する */
@@ -413,6 +424,77 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setScreen('home');
     showToast('シーズン開幕！');
   }, [commit, showToast]);
+
+  /** 選手の整理・自由契約の選手との契約・プロテクト・人的補償 */
+  const releasePlayerAction = useCallback(
+    (playerId: string) => {
+      const current = stateRef.current;
+      if (!current) return;
+      const next = cloneState(current);
+      const name = next.players.find((p) => p.id === playerId)?.name ?? '';
+      const result = releasePlayer(next, playerId);
+      if (!result.ok) return showToast(result.reason ?? '自由契約にできません');
+      commit(next);
+      showToast(`${name}を自由契約にしました`);
+    },
+    [commit, showToast],
+  );
+
+  const retirePlayerAction = useCallback(
+    (playerId: string) => {
+      const current = stateRef.current;
+      if (!current) return;
+      const next = cloneState(current);
+      const name = next.players.find((p) => p.id === playerId)?.name ?? '';
+      const result = retirePlayer(next, playerId);
+      if (!result.ok) return showToast(result.reason ?? '引退させられません');
+      commit(next);
+      showToast(`${name}が現役を引退しました`);
+    },
+    [commit, showToast],
+  );
+
+  const signFreeAgent = useCallback(
+    (playerId: string, salary: number, years: number): boolean => {
+      const current = stateRef.current;
+      if (!current) return false;
+      const next = cloneState(current);
+      const name = next.freeAgents.find((p) => p.id === playerId)?.name ?? '';
+      const result = signFreeAgentDirect(next, playerId, salary, years);
+      if (!result.ok) {
+        showToast(result.reason ?? '契約できません');
+        return false;
+      }
+      commit(next);
+      showToast(`${name}と契約しました（2軍から）`);
+      return true;
+    },
+    [commit, showToast],
+  );
+
+  const setProtectListAction = useCallback(
+    (ids: string[]) => {
+      const current = stateRef.current;
+      if (!current) return;
+      const next = cloneState(current);
+      setProtectList(next, ids);
+      commit(next);
+      showToast(`プロテクトを${next.protectList?.length ?? 0}人に決めました`);
+    },
+    [commit, showToast],
+  );
+
+  const chooseCompensationAction = useCallback(
+    (compensationId: string, playerId: string | null) => {
+      const current = stateRef.current;
+      if (!current) return;
+      const next = cloneState(current);
+      if (!chooseCompensation(next, compensationId, playerId)) return showToast('その選手は選べません');
+      commit(next);
+      showToast(playerId ? '人的補償の選手を獲得しました' : '人的補償を受け取りませんでした');
+    },
+    [commit, showToast],
+  );
 
   /** 1巡目の抽選で、プレイヤー球団がくじの紙を1枚選ぶ */
   const drawLottery = useCallback(
@@ -744,6 +826,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       startDraftPicks,
       draftPick,
       drawLottery,
+      releasePlayer: releasePlayerAction,
+      retirePlayer: retirePlayerAction,
+      signFreeAgent,
+      setProtectList: setProtectListAction,
+      chooseCompensation: chooseCompensationAction,
       expansionSign,
       expansionRelease,
       expansionAuto,
@@ -794,6 +881,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       startDraftPicks,
       draftPick,
       drawLottery,
+      releasePlayerAction,
+      retirePlayerAction,
+      signFreeAgent,
+      setProtectListAction,
+      chooseCompensationAction,
       expansionSign,
       expansionRelease,
       expansionAuto,

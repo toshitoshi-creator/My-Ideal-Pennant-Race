@@ -133,6 +133,8 @@ export interface PlayerExtensions {
    * 入団・トレード・FA移籍のたびに1件追加する。
    */
   careerTeams: Array<{ year: number; teamId: string }>;
+  /** 球団が自由契約にした年（FA宣言ではないので人的補償の対象にならない） */
+  releasedYear?: number;
 }
 
 export interface Player {
@@ -415,6 +417,11 @@ export interface GameState {
    * 無い・null なら通常のゲーム。
    */
   expansion?: ExpansionState | null;
+  /**
+   * 自球団のプロテクト（人的補償で相手に渡さない選手）。最大28人。
+   * 無ければ総合力の高い順に28人を守る。
+   */
+  protectList?: string[];
   /**
    * オフシーズン（成長・加齢・引退・ドラフト準備）を始めた年。
    * 同じ年に二度走らせると、加齢と引退判定が重なって選手が一気に引退してしまうので、これで止める。
@@ -775,6 +782,34 @@ export interface FAState {
   /** 今オフ、契約先が決まらなかった選手数 */
   unsigned: number;
   completed: boolean;
+  /** FA移籍の人的補償（自球団が関わるものだけ。古いセーブには無い） */
+  compensations?: FACompensation[];
+}
+
+/**
+ * FA移籍の人的補償（NPB にならう）。
+ * 市場評価 S・A・B の選手が他球団へ移ったとき、元の球団は移籍先の
+ * プロテクト外の選手から1人を獲得できる。
+ */
+export interface FACompensation {
+  id: string;
+  /** 移籍したFA選手 */
+  faPlayerId: string;
+  faName: string;
+  /** FA選手を獲得した球団（補償を出す側） */
+  signingTeamId: string;
+  /** FA選手の元の球団（補償を受け取る側） */
+  formerTeamId: string;
+  grade: 'S' | 'A' | 'B';
+  /** pending: 自球団が選ぶのを待っている / taken: 補償選手が移った / waived: 補償なし */
+  status: 'pending' | 'taken' | 'waived';
+  /** 補償として移った選手 */
+  playerId?: string;
+  playerName?: string;
+  /** 自球団が選ぶときの候補（移籍先のプロテクト外の選手） */
+  options?: string[];
+  /** 補償なしになった理由 */
+  note?: string;
 }
 
 /** スカウトの調査項目（PHASE 3.2） */
