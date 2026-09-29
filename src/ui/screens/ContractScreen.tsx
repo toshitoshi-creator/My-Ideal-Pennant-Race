@@ -23,6 +23,7 @@ import { PictureButton } from '../components/PictureButton';
 import toFaArt from '../../assets/ui/contract-to-fa.webp';
 import signArt from '../../assets/ui/contract-sign.webp';
 import { ReleaseRetirePanel } from '../components/ReleaseRetire';
+import { PlayerDetail } from '../components/PlayerDetail';
 
 /**
  * 契約更改（PHASE 3.3）。
@@ -196,24 +197,11 @@ export function ContractScreen() {
 
       {target && <NegotiationSheet player={target} onClose={() => setNegotiating(null)} />}
       {cleanupTarget && (
-        <Sheet title={`${cleanupTarget.name} の去就`} onClose={() => setCleaning(null)}>
-          <div className="card">
-            <div className="row" style={{ gap: 10 }}>
-              <PlayerVisual player={cleanupTarget} size="medium" expression="focused" />
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 800 }}>{cleanupTarget.name}</div>
-                <div className="muted">
-                  {cleanupTarget.age}歳 / {positionText(cleanupTarget)}
-                </div>
-                <div className="muted" style={{ fontSize: 12 }}>
-                  年俸 {formatSalary(cleanupTarget.ext.contract?.salary ?? 0)} / 残り
-                  {cleanupTarget.ext.contract?.yearsRemaining ?? 0}年
-                </div>
-              </div>
-            </div>
-          </div>
-          <ReleaseRetirePanel player={cleanupTarget} onDone={() => setCleaning(null)} />
-        </Sheet>
+        <PlayerDetail
+          player={cleanupTarget}
+          onClose={() => setCleaning(null)}
+          footer={<ReleaseRetirePanel player={cleanupTarget} onDone={() => setCleaning(null)} />}
+        />
       )}
     </div>
   );

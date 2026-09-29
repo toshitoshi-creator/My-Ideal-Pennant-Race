@@ -1407,6 +1407,14 @@ else ok('再起動後も球団資金が保持されている');
     names.push(name);
     await row.click();
     await page.locator('.sheet').waitFor();
+    // 整理する選手も、能力・成績の詳細を見ながら決められる
+    const detailText = await page.locator('.sheet').innerText();
+    if (!detailText.includes('PLAYER REPORT') || !detailText.includes('契約しない場合')) {
+      fail('選手の整理で能力の詳細が出ていない');
+    } else if (mode === '自由契約にする') {
+      ok('選手の整理でも能力・成績の詳細が見られる');
+      await shot('16e-release-detail');
+    }
     await page.locator('.sheet').getByRole('button', { name: mode, exact: true }).click();
     await page.locator('.sheet').getByRole('button', { name: `${mode}（確定）` }).click();
     await page.locator('.sheet').waitFor({ state: 'detached' });

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { RoleAptitudePanel, positionText } from './PitcherRole';
 import type { Player } from '../../domain/types';
 import { useGame } from '../store';
@@ -53,7 +54,16 @@ import demoteArt from '../../assets/ui/player-demote.webp';
 
 type DetailTab = 'info' | 'analysis';
 
-export function PlayerDetail({ player, onClose }: { player: Player; onClose: () => void }) {
+export function PlayerDetail({
+  player,
+  onClose,
+  footer,
+}: {
+  player: Player;
+  onClose: () => void;
+  /** 下部に出す操作（指定したときは1軍/2軍の切り替えの代わりに出す） */
+  footer?: ReactNode;
+}) {
   const { state, mutate, showToast } = useGame();
   // PHASE 4.1: 情報量が増えたので「情報」と「分析」に分ける
   const [tab, setTab] = useState<DetailTab>('info');
@@ -323,7 +333,9 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
       </>
       )}
 
-      {isPlayerTeam && check.allowed && (
+      {footer}
+
+      {!footer && isPlayerTeam && check.allowed && (
         <PictureButton
           src={target === 'first' ? promoteArt : demoteArt}
           alt={target === 'first' ? '1軍に登録する' : '2軍に降格する'}
@@ -331,7 +343,7 @@ export function PlayerDetail({ player, onClose }: { player: Player; onClose: () 
           onClick={changeRoster}
         />
       )}
-      {isPlayerTeam && !check.allowed && (
+      {!footer && isPlayerTeam && !check.allowed && (
         <button
           className={`btn ${swappable ? 'primary' : ''}`}
           disabled={!swappable}
