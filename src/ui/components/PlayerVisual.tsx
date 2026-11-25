@@ -137,14 +137,11 @@ export const PlayerVisual = memo(function PlayerVisual({
    */
   const state = useOptionalGameState();
   const honored = !!state?.history?.players?.[player.id]?.awards?.length;
-  const frame = player.teamId
-    ? honored
-      ? 'pf pf-gold'
-      : `pf pf-${rankOf(overallRating(player))}`
-    : '';
+  const rank = player.teamId ? rankOf(overallRating(player)) : null;
+  const frame = rank ? (honored ? 'pf pf-gold' : `pf pf-${rank}`) : '';
   className = [className, frame].filter(Boolean).join(' ') || undefined;
 
-  return (
+  const visual = (
     <VisualLayers
       playerId={player.id}
       numberText={player.uniformNumber}
@@ -169,6 +166,20 @@ export const PlayerVisual = memo(function PlayerVisual({
         />
       )}
     />
+  );
+  if (!rank) return visual;
+  /*
+   * 枠の色だけでは見分けにくいので、肖像の右下にランクの文字（A〜G）を重ねる。
+   * 肖像は canvas / svg / img のどれかで描かれ、そのものには文字を重ねられないため、
+   * 外側を包んでその中に札を置く。
+   */
+  return (
+    <span className={`pf-wrap pf-wrap-${size}`}>
+      {visual}
+      <span className={`pf-rank pf-rank-${rank}`} aria-label={`総合ランク${rank}`}>
+        {rank}
+      </span>
+    </span>
   );
 });
 

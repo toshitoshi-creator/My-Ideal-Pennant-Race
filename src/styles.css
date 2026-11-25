@@ -7564,43 +7564,92 @@ h3.sec {
  * ===================================================================== */
 .portrait.pf {
   border-radius: 4px;
+  /* 太めの枠（ランクの色）＋外側に紙色の縁で、背景から浮かせる */
   box-shadow:
-    0 0 0 2px var(--pf-color),
-    0 0 0 3px var(--paper);
+    0 0 0 3.5px var(--pf-color),
+    0 0 0 5px var(--paper);
 }
 
 .portrait.pf-A {
   --pf-color: oklch(55% 0.2 26);
   box-shadow:
-    0 0 0 2.5px var(--pf-color),
-    0 0 8px oklch(60% 0.2 26 / 0.55);
+    0 0 0 3.5px var(--pf-color),
+    0 0 0 5px var(--paper),
+    0 0 10px 2px oklch(60% 0.2 26 / 0.6);
 }
 .portrait.pf-B {
   --pf-color: oklch(66% 0.16 52);
 }
 .portrait.pf-C {
-  --pf-color: oklch(62% 0.12 110);
+  --pf-color: oklch(70% 0.14 95);
 }
 .portrait.pf-D {
-  --pf-color: oklch(56% 0.1 150);
+  --pf-color: oklch(58% 0.12 150);
 }
 .portrait.pf-E {
-  --pf-color: oklch(58% 0.08 240);
+  --pf-color: oklch(58% 0.1 240);
 }
 .portrait.pf-F {
-  --pf-color: oklch(70% 0.02 265);
+  --pf-color: oklch(66% 0.03 265);
 }
 .portrait.pf-G {
-  --pf-color: oklch(82% 0.008 265);
+  --pf-color: oklch(78% 0.01 265);
 }
+
+/* 肖像を包む入れ物（ランク文字の札を重ねるため）。太い枠のぶん少し余白をとる */
+.pf-wrap {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  line-height: 0;
+  margin: 4px;
+  vertical-align: middle;
+}
+
+/* ランクの札：肖像の右下に重ねる */
+.pf-rank {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 3px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+  border: 1.5px solid var(--paper);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+  pointer-events: none;
+  z-index: 1;
+}
+.pf-wrap-large .pf-rank,
+.pf-wrap-hero .pf-rank {
+  min-width: 26px;
+  height: 26px;
+  font-size: 17px;
+  right: -9px;
+  bottom: -9px;
+}
+.pf-rank-A { background: oklch(50% 0.2 26); }
+.pf-rank-B { background: oklch(58% 0.16 52); }
+.pf-rank-C { background: oklch(60% 0.13 90); }
+.pf-rank-D { background: oklch(50% 0.12 150); }
+.pf-rank-E { background: oklch(52% 0.1 240); }
+.pf-rank-F { background: oklch(56% 0.03 265); }
+.pf-rank-G { background: oklch(66% 0.01 265); }
 
 /* 金の枠：タイトル・表彰を取った選手だけ。ゆっくり光る */
 .portrait.pf-gold {
   --pf-color: #e8b923;
   box-shadow:
     0 0 0 2px #fff4c2,
-    0 0 0 4px #d4a017,
-    0 0 10px 1px rgba(232, 185, 35, 0.75);
+    0 0 0 5px #d4a017,
+    0 0 12px 2px rgba(232, 185, 35, 0.75);
   animation: pf-gold-glow 2.6s ease-in-out infinite;
 }
 
@@ -7608,7 +7657,7 @@ h3.sec {
   50% {
     box-shadow:
       0 0 0 2px #fffbe0,
-      0 0 0 4px #f0c233,
+      0 0 0 5px #f0c233,
       0 0 16px 3px rgba(255, 207, 63, 0.9);
   }
 }
