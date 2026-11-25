@@ -8094,3 +8094,160 @@ h3.sec {
 .comp-pick, .fa-free-offer { padding: 8px 12px; font-weight: 800; background: var(--accent); color: #241a00; }
 .fa-free-offer:disabled { opacity: 0.4; background: #2b3646; color: inherit; }
 .fa-free-list { display: grid; gap: 6px; }
+
+/* =====================================================================
+ * ポジション別の人数表・ポジション名の札（最初の選手契約・ドラフト）
+ * 投手は 先発=赤／中継ぎ=ピンク／抑え=紫、野手は 捕手=青／内野=黄／外野=緑
+ * ===================================================================== */
+.pos-tag {
+  flex: 0 0 auto;
+  min-width: 40px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: var(--radius);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #1a1a1a;
+  font-weight: 900;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+
+.pos-counts {
+  margin-top: 12px;
+}
+
+.pos-counts-caption {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-bottom: 6px;
+}
+
+.pos-counts-row {
+  display: grid;
+  grid-template-columns: 30px repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  align-items: stretch;
+  margin-bottom: 4px;
+}
+
+.pos-counts-row.fielders {
+  grid-template-columns: 30px repeat(8, minmax(0, 1fr));
+}
+
+.pos-counts-group {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+}
+
+.pc-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 0 4px;
+  border-radius: var(--radius);
+  border: 1px solid var(--rule-2);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  min-width: 0;
+}
+
+button.pc-cell {
+  cursor: pointer;
+}
+
+.pc-cell.on {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+}
+
+.pc-swatch {
+  width: calc(100% - 6px);
+  border-radius: 3px;
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 900;
+  color: #1a1a1a;
+  line-height: 1.6;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.pc-num {
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.pc-num.zero {
+  color: var(--bad, #d33);
+}
+
+.pc-plus {
+  position: absolute;
+  top: -6px;
+  right: -3px;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 0 3px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.pos-filter-chip {
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.draft-confirm-pos {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+.draft-confirm-pos b {
+  font-size: 16px;
+  margin: 0 2px;
+}
+
+/* ドラフト：自球団の指名一覧（巡目・ポジション・顔・名前を1行に） */
+.my-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.my-pick-row .portrait-row {
+  flex: 0 0 auto;
+}
+
+.my-pick-round {
+  color: var(--accent);
+  flex: 0 0 auto;
+  min-width: 3.4em;
+}
+
+.my-pick-name {
+  font-weight: 700;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.my-pick-meta {
+  flex: 0 0 auto;
+  font-size: 12px;
+}

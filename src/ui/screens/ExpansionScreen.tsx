@@ -9,7 +9,14 @@ import { positionText } from '../components/PitcherRole';
 import type { ExpansionCandidate } from '../../domain/types';
 import { useGame } from '../store';
 import { Sec } from '../components/Sec';
-import { PositionBadge } from '../components/common';
+import {
+  PositionCounts,
+  PositionTag,
+  countBySlot,
+  positionSlotOf,
+  slotLabel,
+  type PositionSlot,
+} from '../components/PositionCounts';
 import { AbilitySummary } from '../components/PlayerCard';
 import { PlayerVisualSmall } from '../components/PlayerVisual';
 import { CountUp } from '../components/Reveal';
@@ -34,6 +41,8 @@ export function ExpansionScreen() {
   const cash = state.finances[state.playerTeamId].cash;
   const [tab, setTab] = useState<Tab>('fielder');
   const [sort, setSort] = useState<Sort>('price');
+  // ポジションで絞り込み（人数表のマスを押す）
+  const [slot, setSlot] = useState<PositionSlot | null>(null);
   const counts = signedCounts(state);
   const ready = canFinishExpansion(state);
   const signedSet = new Set(exp.signed);
@@ -45,13 +54,19 @@ export function ExpansionScreen() {
       tab === 'signed'
         ? exp.pool.filter((c) => signedSet.has(c.id))
         : exp.pool.filter((c) => c.player.isPitcher === (tab === 'pitcher'));
-    const sorted = [...base];
+    const sorted = slot ? base.filter((c) => positionSlotOf(c.player) === slot) : [...base];
     if (sort === 'price') sorted.sort((a, b) => a.bonus - b.bonus);
     else if (sort === 'ability') sorted.sort((a, b) => overallRating(b.player) - overallRating(a.player));
     else sorted.sort((a, b) => a.player.age - b.player.age);
     return sorted;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exp.pool, exp.signed, tab, sort]);
+  }, [exp.pool, exp.signed, tab, sort, slot]);
+  const signedBySlot = countBySlot(exp.pool.filter((c) => signedSet.has(c.id)).map((c) => c.player));
+  const selectSlot = (next: PositionSlot | null) => {
+    setSlot(next);
+    // 契約済みタブ以外では、選んだポジションに合わせて投手／野手のタブを切り替える
+    if (next && tab !== 'signed') setTab(['starter', 'relief', 'closer'].includes(next) ? 'pitcher' : 'fielder');
+  };
 
   return (
     <div className="app expansion-app">
@@ -82,6 +97,12 @@ export function ExpansionScreen() {
             <Meter label="野手" have={counts.fielders} target={TARGET_FIELDERS} min={9} />
             <Meter label="投手" have={counts.pitchers} target={TARGET_PITCHERS} min={5} />
           </div>
+          <PositionCounts
+            caption="契約済みのポジション別人数（押すとそのポジションの候補だけ表示）"
+            counts={signedBySlot}
+            selected={slot}
+            onSelect={selectSlot}
+          />
         </div>
 
         <div className="tabs exp-tabs">
@@ -92,14 +113,29 @@ export function ExpansionScreen() {
               { id: 'signed', label: `契約済み ${exp.signed.length}` },
             ] as Array<{ id: Tab; label: string }>
           ).map((t) => (
-            <button key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>
+            <button
+              key={t.id}
+              className={tab === t.id ? 'on' : ''}
+              onClick={() => {
+                setTab(t.id);
+                // 投手タブで野手のポジションが選ばれたまま…にならないよう外す
+                if (t.id !== 'signed') setSlot(null);
+              }}
+            >
               {t.label}
             </button>
           ))}
         </div>
 
         <div className="list-toolbar" style={{ marginTop: 8 }}>
-          <span className="muted">{list.length}人</span>
+          <span className="muted">
+            {slot ? (
+              <button type="button" className="chip pos-filter-chip" onClick={() => setSlot(null)}>
+                {slotLabel(slot)}のみ ✕
+              </button>
+            ) : null}{' '}
+            {list.length}人
+          </span>
           <div className="seg" role="group" aria-label="並べ替え">
             {(
               [
@@ -190,7 +226,7 @@ function CandidateRow({
   return (
     <div className={`player-card exp-row${signed ? ' signed' : ''}`}>
       <PlayerVisualSmall player={p} className="portrait-row" />
-      <PositionBadge player={p} />
+      <PositionTag player={p} />
       <div className="exp-row-main">
         <div className="exp-row-name">
           <strong>{p.name}</strong>

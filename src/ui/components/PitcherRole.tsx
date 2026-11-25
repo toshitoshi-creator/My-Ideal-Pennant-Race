@@ -27,10 +27,14 @@ export function positionShort(player: Pick<Player, 'isPitcher' | 'pitching' | 'm
   return apt ? ROLE_BADGE[apt.best] : POSITION_SHORT[player.mainPosition];
 }
 
+/**
+ * 役割の色。野手の守備区分の色（捕手=青・内野=黄・外野=緑）と重ならないように、
+ * 投手は赤系でまとめる：先発=赤、中継ぎ=ピンク、抑え=紫。
+ */
 export const ROLE_COLOR: Record<PitcherRoleKey, string> = {
-  starter: 'oklch(84% 0.08 245)',
-  relief: 'oklch(86% 0.08 150)',
-  closer: 'oklch(82% 0.1 25)',
+  starter: '#f06565',
+  relief: '#f59cc9',
+  closer: '#b892f2',
 };
 
 /** 「先◎ 中○ 抑△」。いちばん向いている役割に色を付ける */

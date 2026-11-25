@@ -16,7 +16,15 @@ import {
   scoutAbilitySummary,
   SCOUT_ABILITY_LABELS,
 } from '../../domain/scouting';
-import { Sheet, PositionBadge } from '../components/common';
+import { Sheet } from '../components/common';
+import {
+  PositionCounts,
+  PositionTag,
+  countBySlot,
+  positionSlotOf,
+  slotLabel,
+  type PositionSlot,
+} from '../components/PositionCounts';
 import { PictureButton } from '../components/PictureButton';
 import draftStartArt from '../../assets/ui/draft-start.webp';
 import draftToContractArt from '../../assets/ui/draft-to-contract.webp';
@@ -39,6 +47,8 @@ export function DraftScreen() {
   const [filter, setFilter] = useState<Filter>('all');
   const [detail, setDetail] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<DraftProspect | null>(null);
+  // ポジションで絞り込み（人数表のマスを押す）
+  const [posSlot, setPosSlot] = useState<PositionSlot | null>(null);
 
   const scoutingPhase = draft.phase === 'scouting';
   const firstRound = !scoutingPhase && inFirstRound(draft);
@@ -75,6 +85,18 @@ export function DraftScreen() {
     ? (draft.prospects.find((p) => p.id === latestPick.prospectId) ?? null)
     : null;
 
+  // いまのチームのポジション別人数と、今年の指名で増える人数
+  const teamCounts = useMemo(
+    () => countBySlot(state.players.filter((p) => p.teamId === state.playerTeamId)),
+    [state.players, state.playerTeamId],
+  );
+  const pickedCounts = countBySlot(
+    myPicks
+      .map((pick) => draft.prospects.find((p) => p.id === pick.prospectId)?.player)
+      .filter((p): p is NonNullable<typeof p> => !!p),
+  );
+  const slotTotal = (s: PositionSlot) => teamCounts[s] + pickedCounts[s];
+
   // 表示用の調査結果（未調査でも初期状態のレポートを作る）
   const reports = useMemo(() => {
     const map = new Map<string, ScoutReport>();
@@ -94,8 +116,9 @@ export function DraftScreen() {
           : filter === 'scouted'
             ? list.filter((p) => overallProgress(reports.get(p.id)!) > 5)
             : list;
-    return filtered.sort((a, b) => a.draftRank - b.draftRank).slice(0, 60);
-  }, [draft, filter, reports]);
+    const bySlot = posSlot ? filtered.filter((p) => positionSlotOf(p.player) === posSlot) : filtered;
+    return bySlot.sort((a, b) => a.draftRank - b.draftRank).slice(0, 60);
+  }, [draft, filter, reports, posSlot]);
 
   const draftLog = state.notices.filter((n) => n.kind === 'draft').slice(-8).reverse();
   const detailProspect = detail ? draft.prospects.find((p) => p.id === detail) : null;
@@ -224,20 +247,17 @@ export function DraftScreen() {
               const prospect = draft.prospects.find((p) => p.id === pick.prospectId);
               if (!prospect) return null;
               return (
-                <div key={`${pick.round}-${pick.pick}`} className="spread" style={{ padding: '6px 0' }}>
-                  <span>
-                    <strong style={{ color: 'var(--accent)' }}>{pick.round}巡目</strong>{' '}
-                    <PlayerVisual
-                      player={prospect.player}
-                      size="small"
-                      expression="focused"
-                      className="portrait-row"
-                    />
-                    {prospect.player.name}
-                  </span>
-                  <span className="muted">
-                    {positionText(prospect.player)} / {prospect.player.age}歳
-                  </span>
+                <div key={`${pick.round}-${pick.pick}`} className="my-pick-row">
+                  <strong className="my-pick-round">{pick.round}巡目</strong>
+                  <PositionTag player={prospect.player} />
+                  <PlayerVisual
+                    player={prospect.player}
+                    size="small"
+                    expression="focused"
+                    className="portrait-row"
+                  />
+                  <span className="my-pick-name">{prospect.player.name}</span>
+                  <span className="muted my-pick-meta">{prospect.player.age}歳</span>
                 </div>
               );
             })}
@@ -257,6 +277,23 @@ export function DraftScreen() {
 
         {(scoutingPhase || slot || firstRound) && (
           <>
+            <div className="card">
+              <Sec en="POSITIONS" ja="チームのポジション別人数" size="sub" />
+              <PositionCounts
+                caption={
+                  myPicks.length > 0
+                    ? '1軍・2軍の合計。「+」は今年の指名で加わる人数。押すとそのポジションの候補だけ表示'
+                    : '1軍・2軍の合計。押すとそのポジションの候補だけ表示'
+                }
+                counts={teamCounts}
+                added={pickedCounts}
+                selected={posSlot}
+                onSelect={(next) => {
+                  setPosSlot(next);
+                  if (next) setFilter(['starter', 'relief', 'closer'].includes(next) ? 'pitcher' : 'fielder');
+                }}
+              />
+            </div>
             <div className="tabs" style={{ padding: '0 0 10px' }}>
               {(
                 [
@@ -269,13 +306,23 @@ export function DraftScreen() {
                 <button
                   key={tab.id}
                   className={filter === tab.id ? 'on' : ''}
-                  onClick={() => setFilter(tab.id)}
+                  onClick={() => {
+                    setFilter(tab.id);
+                    setPosSlot(null);
+                  }}
                 >
                   {tab.label}
                 </button>
               ))}
             </div>
 
+            {posSlot && (
+              <div style={{ marginBottom: 8 }}>
+                <button type="button" className="chip pos-filter-chip" onClick={() => setPosSlot(null)}>
+                  {slotLabel(posSlot)}のみ表示中 ✕
+                </button>
+              </div>
+            )}
             {prospects.length === 0 && (
               <div className="muted">該当する候補がいません。</div>
             )}
@@ -346,6 +393,16 @@ export function DraftScreen() {
                 animate
               />
               <div style={{ fontSize: 17, fontWeight: 800 }}>{confirming.player.name}</div>
+            </div>
+            <div className="draft-confirm-pos">
+              <PositionTag player={confirming.player} />
+              <span>
+                {slotLabel(positionSlotOf(confirming.player))}はいま
+                <b>{slotTotal(positionSlotOf(confirming.player))}人</b>
+                {pickedCounts[positionSlotOf(confirming.player)] > 0
+                  ? `（うち今年の指名 ${pickedCounts[positionSlotOf(confirming.player)]}人）`
+                  : ''}
+              </span>
             </div>
             <div className="muted">
               {positionText(confirming.player)} / {confirming.player.age}歳 /{' '}
@@ -421,7 +478,7 @@ function ProspectCard({
         style={{ textAlign: 'left', width: '100%', gap: 10 }}
         onClick={onOpen}
       >
-        <PositionBadge player={player} />
+        <PositionTag player={player} />
         <span className="grow">
           <span className="row" style={{ gap: 6 }}>
             <span className="name">{player.name}</span>
