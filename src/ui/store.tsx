@@ -33,7 +33,14 @@ import {
   rejectTradeOffer,
   respondToOffer,
 } from '../domain/trade';
-import { playNextPostseasonGame } from '../domain/postseason';
+import { nextPostseasonGameIsMine, playNextPostseasonGame } from '../domain/postseason';
+import {
+  consumeManualCharge,
+  dismissAutoReport as dismissAutoReportInState,
+  ensureRealtime,
+  purchaseCharges,
+  syncRealtime,
+} from '../domain/realtime';
 import { releasePlayer, retirePlayer, signFreeAgentDirect } from '../domain/rosterMoves';
 import { chooseCompensation, setProtectList } from '../domain/compensation';
 import { makePick, recordPlayerPick, runCpuPicks, currentPick } from '../domain/draft';
@@ -175,6 +182,16 @@ interface StoreValue {
   pendingReport: boolean;
   dismissReport(): void;
   clearLastResult(): void;
+  /** 手動試合の回数が無いときなどに開く、回復の購入画面 */
+  chargeShopOpen: boolean;
+  openChargeShop(): void;
+  closeChargeShop(): void;
+  /** 回復を購入する（試作：実際の請求はしない） */
+  buyCharges(packId: string): void;
+  /** 自動試合のまとめを見終わった */
+  dismissAutoReport(): void;
+  /** 画面の残り時間表示を動かすための現在時刻（1分ごとに更新） */
+  now: number;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -196,6 +213,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setScreen('discovery');
   }, []);
   const clearDiscoveryTab = useCallback(() => setDiscoveryTab(null), []);
+  const [chargeShopOpen, setChargeShopOpen] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const toastTimer = useRef<number | null>(null);
   const stateRef = useRef<GameState | null>(null);
   stateRef.current = state;
@@ -223,6 +242,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       const errors = validateState(next);
       if (errors.length > 0) console.error('データ整合性エラー', errors);
+      ensureRealtime(next, Date.now());
       persist(next);
       setScreen('home');
       setLastResult(null);
@@ -237,8 +257,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setSaveExists(false);
       return false;
     }
-    stateRef.current = loaded;
-    setState(loaded);
+    // 閉じていたあいだの自動試合を消化し、手動試合の回数を回復する（まとめは開いた画面で見せる）
+    const synced = syncRealtime(loaded, Date.now()).state;
+    saveGame(synced);
+    stateRef.current = synced;
+    setState(synced);
     setScreen('home');
     setLastResult(null);
     setViewingPlayerId(null);
@@ -271,22 +294,56 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (saveGame(draft)) setSaveExists(true);
   }, []);
 
+  /**
+   * 手動試合を1回使った state を返す。残りが無ければ購入画面を開いて null。
+   * 先に時間ぶんの自動試合を済ませてから使う（自動と手動が同じ試合を取り合わないように）。
+   */
+  const takeManualCharge = useCallback(
+    (base: GameState): GameState | null => {
+      const t = Date.now();
+      const next = syncRealtime(base, t).state;
+      if (!consumeManualCharge(next, t)) {
+        // 購入画面そのものが「回数が無い」ことを伝えるので、トーストは出さない
+        setChargeShopOpen(true);
+        return null;
+      }
+      return next;
+    },
+    [],
+  );
+
   const playNextGame = useCallback((): GameResult | null => {
     if (!state) return null;
     if (state.seasonFinished) {
       showToast('シーズンは終了しました');
       return null;
     }
-    const step = advanceToNextPlayerGame(state);
+    const charged = takeManualCharge(state);
+    if (!charged) return null;
+    if (charged.seasonFinished) {
+      // 自動試合でシーズンが終わった
+      persist(charged);
+      showToast('自動試合でシーズンが終了しました');
+      return null;
+    }
+    const step = advanceToNextPlayerGame(charged);
     persist(step.state);
     setLastResult(step.playerResult);
     return step.playerResult;
-  }, [state, persist, showToast]);
+  }, [state, persist, showToast, takeManualCharge]);
 
   const playPostseasonGame = useCallback((): GameResult | null => {
     const current = stateRef.current;
     if (!current?.postseason) return null;
-    const next = cloneState(current);
+    // 自球団の試合だけ手動の回数を使う（他球団どうしのシリーズは回数を使わない）
+    let next: GameState;
+    if (nextPostseasonGameIsMine(current)) {
+      const charged = takeManualCharge(current);
+      if (!charged) return null;
+      next = charged;
+    } else {
+      next = cloneState(current);
+    }
     const before = next.postseason?.playerResults?.length ?? 0;
     playNextPostseasonGame(next);
     persist(next);
@@ -299,7 +356,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return result;
     }
     return null;
-  }, [persist]);
+  }, [persist, takeManualCharge]);
 
   const skipOneDay = useCallback(() => {
     if (!state) return;
@@ -308,7 +365,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       showToast('シーズンは終了しました。オフシーズンへ進んでください');
       return;
     }
-    const step = advanceDay(state);
+    // 今日が自球団の試合の日なら、手動試合の回数を使う
+    const hasMyGame = state.schedule.some(
+      (g) =>
+        g.date === state.date &&
+        !g.played &&
+        (g.homeTeamId === state.playerTeamId || g.awayTeamId === state.playerTeamId),
+    );
+    let base = state;
+    if (hasMyGame) {
+      const charged = takeManualCharge(state);
+      if (!charged) return;
+      base = charged;
+    }
+    const step = advanceDay(base);
     persist(step.state);
     if (step.playerResult) {
       const r = step.playerResult;
@@ -321,7 +391,67 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } else {
       showToast('1日進めました');
     }
-  }, [state, persist, showToast]);
+  }, [state, persist, showToast, takeManualCharge]);
+
+  const buyCharges = useCallback(
+    (packId: string) => {
+      const current = stateRef.current;
+      if (!current) return;
+      const next = cloneState(current);
+      if (!purchaseCharges(next, packId, Date.now())) return;
+      persist(next);
+      setChargeShopOpen(false);
+      showToast(`手動試合の回数が ${next.realtime!.manualCharges}回 になりました`);
+    },
+    [persist, showToast],
+  );
+
+  const dismissAutoReport = useCallback(() => {
+    const current = stateRef.current;
+    if (!current?.realtime?.pendingReport) return;
+    const next = cloneState(current);
+    dismissAutoReportInState(next);
+    persist(next);
+  }, [persist]);
+
+  /*
+   * 開いているあいだも1分ごとに時間を確かめ、1時間たっていれば自動試合を1つ進める。
+   * 何も変わらなければ保存しない（毎分セーブを書き直さないように）。
+   */
+  useEffect(() => {
+    const tick = () => {
+      const t = Date.now();
+      setNow(t);
+      const current = stateRef.current;
+      if (!current) return;
+      const result = syncRealtime(current, t);
+      const before = current.realtime;
+      const after = result.state.realtime!;
+      if (
+        result.played.length > 0 ||
+        !before ||
+        before.manualCharges !== after.manualCharges
+      ) {
+        persist(result.state);
+        if (result.played.length > 0) {
+          const last = result.played[result.played.length - 1];
+          showToast(
+            `自動試合 ${last.outcome === 'W' ? '勝ち' : last.outcome === 'L' ? '負け' : '引き分け'} ${last.runsFor}-${last.runsAgainst}`,
+          );
+        }
+      }
+    };
+    const id = window.setInterval(tick, 60 * 1000);
+    // タブに戻ってきたときもすぐ確かめる
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [persist, showToast]);
 
   const commit = useCallback((next: GameState) => {
     stateRef.current = next;
@@ -854,6 +984,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       pendingReport,
       dismissReport: () => setPendingReport(false),
       clearLastResult: () => setLastResult(null),
+      chargeShopOpen,
+      openChargeShop: () => setChargeShopOpen(true),
+      closeChargeShop: () => setChargeShopOpen(false),
+      buyCharges,
+      dismissAutoReport,
+      now,
       viewingPlayerId,
       openPlayer,
       closePlayer,
@@ -907,6 +1043,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       declineTradeOffer,
       withdrawTradeOffer,
       pendingReport,
+      chargeShopOpen,
+      buyCharges,
+      dismissAutoReport,
+      now,
       viewingPlayerId,
       openPlayer,
       closePlayer,

@@ -435,6 +435,64 @@ export interface GameState {
   fanLog?: FanLogEntry[];
   /** 直近の決算（自球団） */
   lastSettlement?: SettlementReport | null;
+  /**
+   * 現実の時間で進む仕組み（1時間に1試合の自動試合・手動試合の回数）。
+   * 無いセーブは、開いた時点から数え始める。
+   */
+  realtime?: RealtimeState;
+}
+
+/** 現実の時間で進む仕組みの状態（時刻はすべて Date.now() のミリ秒） */
+export interface RealtimeState {
+  /** 自動試合をここまで消化した時刻。ここから1時間たつごとに1試合進む */
+  autoAt: number;
+  /** 手動で進められる試合の残り回数 */
+  manualCharges: number;
+  /** 手動試合の回数をここまで回復済みの時刻 */
+  chargeAt: number;
+  /** 回復を購入した回数（試作。実際の請求はしていない） */
+  purchases: number;
+  /** まだ見ていない自動試合の結果（開いたときに見せる） */
+  pendingReport: AutoReport | null;
+}
+
+/** 自動で進んだあいだのまとめ */
+export interface AutoReport {
+  /** 現実の時間で何時間ぶんか */
+  hours: number;
+  fromDate: string;
+  toDate: string;
+  games: AutoGameLine[];
+  recordBefore: { wins: number; losses: number; draws: number };
+  recordAfter: { wins: number; losses: number; draws: number };
+  rankBefore: number | null;
+  rankAfter: number | null;
+  /** 調子込みの実力が変わった自球団の選手 */
+  playerChanges: AutoPlayerChange[];
+  /** 選手の状態の記録（まとめを重ねるときの「前」の基準） */
+  baseline: Record<string, { multiplier: number; condition: string; injured: boolean }>;
+}
+
+export interface AutoGameLine {
+  date: string;
+  opponentId: string;
+  home: boolean;
+  runsFor: number;
+  runsAgainst: number;
+  /** W=勝ち L=負け D=引き分け */
+  outcome: 'W' | 'L' | 'D';
+  postseason: boolean;
+}
+
+export interface AutoPlayerChange {
+  playerId: string;
+  name: string;
+  /** 調子込みの実力の倍率の変化（％ポイント。+3 なら 3% 上がった） */
+  deltaPct: number;
+  conditionBefore: string;
+  conditionAfter: string;
+  injuredBefore: boolean;
+  injuredAfter: boolean;
 }
 
 /* ---------------- ゼロからの球団づくり・ファン・決算 ---------------- */

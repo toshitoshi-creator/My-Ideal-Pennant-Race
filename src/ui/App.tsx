@@ -19,6 +19,7 @@ import { DiscoveryScreen } from './screens/DiscoveryScreen';
 import { ExpansionScreen } from './screens/ExpansionScreen';
 import { PlayerCheckScreen } from './screens/PlayerCheckScreen';
 import { PlayerDetailHost } from './components/PlayerDetailHost';
+import { AutoReportSheet, ChargeShopSheet } from './components/Realtime';
 import { formatDateJa } from '../domain/dates';
 import { nextGameForTeam } from '../domain/schedule';
 import { nextPostseasonGameIsMine } from '../domain/postseason';
@@ -241,6 +242,9 @@ function Root() {
           }
         />
       )}
+      {/* 留守のあいだの自動試合のまとめ（中継を見ているあいだは出さない） */}
+      {!liveResult && <AutoReportSheet />}
+      <ChargeShopSheet />
       {/* PHASE 4.9-A: どの画面からでも選手名をタップしたら、ここが選手詳細を出す */}
       <PlayerDetailHost />
     </div>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { RealtimePanel } from '../components/Realtime';
 import { Sec } from '../components/Sec';
 import { useGame, usePlayerMap } from '../store';
 import { formatDateFull, formatDateJa } from '../../domain/dates';
@@ -173,6 +174,7 @@ export function HomeScreen() {
         次の試合と1日進めるは横1列、残りは2列のグリッドにして、
         どちらも画面の横幅に収まる大きさにする（横スクロールはさせない）。
       */}
+      <RealtimePanel />
       <section className="home-actions">
         <div className="home-actions-row">
           {/*
